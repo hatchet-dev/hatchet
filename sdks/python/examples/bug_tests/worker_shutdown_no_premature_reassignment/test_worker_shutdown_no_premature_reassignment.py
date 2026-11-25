@@ -1,4 +1,3 @@
-import asyncio
 import os
 import signal
 from pathlib import Path
@@ -10,8 +9,13 @@ from examples.bug_tests.worker_shutdown_no_premature_reassignment.worker import 
     SLEEP_SECONDS,
     drain_task,
 )
-from examples.test_utils import wait_for_running_status
-from hatchet_sdk import Hatchet, RunStatus
+from examples.test_utils import (
+    wait_for_run_status,
+    wait_for_running_status,
+    wait_for_worker_status,
+)
+from hatchet_sdk import Hatchet
+from hatchet_sdk.clients.rest.models.worker_status import WorkerStatus
 from tests.worker_fixture import get_free_port, hatchet_worker
 
 WORKER_A_NAME = "shutdown-drain-worker-a"
@@ -44,8 +48,6 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
 
     with hatchet_worker(COMMAND, get_free_port()) as worker_a_proc:
         ref = await drain_task.aio_run(wait_for_result=False)
-        run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-
         await wait_for_running_status(hatchet, ref.workflow_run_id, timeout=30.0)
 
         # Worker B stays idle for the rest of the test, available to (wrongly)
@@ -55,27 +57,11 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
         with hatchet_worker(COMMAND, get_free_port()):
             psutil.Process(worker_a_proc.pid).send_signal(signal.SIGTERM)
 
-            for _ in range(30):
-                worker_list = await hatchet.workers.aio_list()
-                paused = [
-                    w
-                    for w in (worker_list or [])
-                    if w.name == hatchet.config.apply_namespace(WORKER_A_NAME)
-                    and w.status == "PAUSED"
-                ]
-                if paused:
-                    break
-                await asyncio.sleep(1)
-            else:
-                assert False, f"Worker {WORKER_A_NAME} never reported PAUSED"
+            await wait_for_worker_status(hatchet, WORKER_A_NAME, WorkerStatus.PAUSED)
 
-            for _ in range(SLEEP_SECONDS + 60):
-                run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-                if run.status == "COMPLETED":
-                    break
-                await asyncio.sleep(1)
-            else:
-                assert False, f"Task never completed, status was {run.status}"
+            await wait_for_run_status(
+                hatchet, ref.workflow_run_id, "COMPLETED", timeout=SLEEP_SECONDS + 60
+            )
 
     lines = log_path.read_text().splitlines()
     assert lines == [f"{WORKER_A_NAME} START", f"{WORKER_A_NAME} FINISH"], (

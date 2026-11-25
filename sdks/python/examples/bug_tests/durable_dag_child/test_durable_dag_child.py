@@ -1,6 +1,3 @@
-import asyncio
-import time
-
 import pytest
 
 from examples.bug_tests.durable_dag_child.worker import (
@@ -11,7 +8,8 @@ from examples.bug_tests.durable_dag_child.worker import (
     multi_spawner_dag,
     parent_dag,
 )
-from hatchet_sdk import Hatchet, RunStatus
+from examples.test_utils import wait_for_run_done
+from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.admin import WorkflowRunDetail
 from hatchet_sdk.runnables.workflow import Workflow
 
@@ -26,33 +24,13 @@ def spawned_run_ids(details: WorkflowRunDetail) -> set[str]:
     }
 
 
-async def wait_for_run(
-    hatchet: Hatchet, run_id: str, timeout: float = 30.0
-) -> WorkflowRunDetail:
-    """Spawned children are fire-and-forget, so they outlive the run that spawned them."""
-    deadline = time.monotonic() + timeout
-
-    while True:
-        details = await hatchet.runs.aio_get_details(run_id)
-
-        if details.done:
-            return details
-
-        if time.monotonic() >= deadline:
-            raise TimeoutError(
-                f"run {run_id} was still {details.status} after {timeout}s"
-            )
-
-        await asyncio.sleep(0.5)
-
-
 async def run_dag_to_completion(
     hatchet: Hatchet, workflow: Workflow[None], expected_steps: set[str]
 ) -> WorkflowRunDetail:
     ref = await workflow.aio_run(wait_for_result=False)
     await ref.aio_result()
 
-    details = await wait_for_run(hatchet, ref.workflow_run_id)
+    details = await wait_for_run_done(hatchet, ref.workflow_run_id)
 
     assert details.status == "COMPLETED"
     assert set(details.task_runs.keys()) == expected_steps
@@ -82,7 +60,7 @@ async def test_step_spawning_a_dag(hatchet: Hatchet) -> None:
 
     assert len(child_run_ids) == 1
 
-    child = await wait_for_run(hatchet, child_run_ids.pop())
+    child = await wait_for_run_done(hatchet, child_run_ids.pop())
 
     assert child.status == "COMPLETED"
     assert set(child.task_runs.keys()) == {"child_dag_step_a", "child_dag_step_b"}
@@ -91,7 +69,7 @@ async def test_step_spawning_a_dag(hatchet: Hatchet) -> None:
 
     assert len(grandchild_run_ids) == 1
 
-    grandchild = await wait_for_run(hatchet, grandchild_run_ids.pop())
+    grandchild = await wait_for_run_done(hatchet, grandchild_run_ids.pop())
 
     assert grandchild.status == "COMPLETED"
 
@@ -120,7 +98,7 @@ async def test_durable_step_spawning_a_dag(hatchet: Hatchet) -> None:
 
     assert len(child_run_ids) == 1
 
-    child = await wait_for_run(hatchet, child_run_ids.pop())
+    child = await wait_for_run_done(hatchet, child_run_ids.pop())
 
     assert child.status == "COMPLETED"
     assert set(child.task_runs.keys()) == {"child_dag_step_a", "child_dag_step_b"}

@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from datetime import timedelta
 from uuid import uuid4
 
@@ -8,14 +9,14 @@ from examples.concurrency_cancel_queued_except_newest.worker import (
     WorkflowInput,
     concurrency_cancel_queued_except_newest_workflow,
 )
-from hatchet_sdk import Hatchet, RunStatus, WorkflowRunRef
+from hatchet_sdk import Hatchet, WorkflowRunRef
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_cancel_queued_except_newest_keeps_only_the_newest_queued_run(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
-    test_run_id = str(uuid4())
     group = str(uuid4())
 
     ## occupies the concurrency slot for the group while the rest of the runs pile up in the queue
@@ -35,16 +36,12 @@ async def test_cancel_queued_except_newest_keeps_only_the_newest_queued_run(
         )
         queued_refs.append(ref)
         await asyncio.sleep(0.2)
-    try:
+    with contextlib.suppress(Exception):
         await occupying_run.aio_result()
-    except Exception:
-        pass
 
     for ref in queued_refs:
-        try:
+        with contextlib.suppress(Exception):
             await ref.aio_result()
-        except Exception:
-            pass
 
     ## wait for the olap repo to catch up
     await asyncio.sleep(5)

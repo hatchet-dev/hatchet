@@ -1,4 +1,5 @@
 import asyncio
+import builtins
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -32,9 +33,9 @@ class FiltersClient(BaseRestClient):
         *,
         limit: int | None = None,
         offset: int | None = None,
-        workflow_ids: list[str] | None = None,
-        scopes: list[str] | None = None,
-    ) -> list[V1Filter]:
+        workflow_ids: builtins.list[str] | None = None,
+        scopes: builtins.list[str] | None = None,
+    ) -> builtins.list[V1Filter]:
         """
         List filters for a given tenant.
 
@@ -58,9 +59,9 @@ class FiltersClient(BaseRestClient):
         *,
         limit: int | None = None,
         offset: int | None = None,
-        workflow_ids: list[str] | None = None,
-        scopes: list[str] | None = None,
-    ) -> list[V1Filter]:
+        workflow_ids: builtins.list[str] | None = None,
+        scopes: builtins.list[str] | None = None,
+    ) -> builtins.list[V1Filter]:
         """
         List filters for a given tenant.
 

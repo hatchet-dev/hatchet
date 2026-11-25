@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -50,7 +51,7 @@ func (s *V1StreamsService) V1StreamPayloadUpload(ctx echo.Context, request gen.V
 		return gen.V1StreamPayloadUpload400JSONResponse(apierrors.NewAPIErrors("payload is required")), nil
 	}
 
-	pre, post := s.config.V1.TenantLimit().Meter(reqCtx, nil, sqlcv1.LimitResourceSTREAMMESSAGE, tenant.ID, repository.StreamPayloadMessageUnits(len(payload)))
+	pre, post := s.config.V1.TenantLimit().Meter(reqCtx, nil, enums.LimitResourceSTREAMMESSAGE, tenant.ID, repository.StreamPayloadMessageUnits(len(payload)))
 
 	if err := pre(); errors.Is(err, repository.ErrResourceExhausted) {
 		return gen.V1StreamPayloadUpload429JSONResponse(apierrors.NewAPIErrors("resource exhausted: stream message limit exceeded for tenant")), nil

@@ -18,6 +18,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -640,21 +641,14 @@ func hashActions(actions []string) []byte {
 // workerSDKFromContract maps the SDK reported by a worker at registration to the "Worker"."language"
 // column value.
 func workerSDKFromContract(sdk contracts.SDKS) (sqlcv1.NullWorkerSDKS, error) {
-	var language sqlcv1.WorkerSDKS
+	// UNKNOWN is a valid column value but not something a worker may register as
+	if sdk == contracts.SDKS_UNKNOWN {
+		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %s", sdk)
+	}
 
-	switch sdk {
-	case contracts.SDKS_GO:
-		language = sqlcv1.WorkerSDKSGO
-	case contracts.SDKS_PYTHON:
-		language = sqlcv1.WorkerSDKSPYTHON
-	case contracts.SDKS_TYPESCRIPT:
-		language = sqlcv1.WorkerSDKSTYPESCRIPT
-	case contracts.SDKS_RUBY:
-		language = sqlcv1.WorkerSDKSRUBY
-	case contracts.SDKS_UNKNOWN:
-		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %s", sdk)
-	default:
-		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %s", sdk)
+	language, err := enums.FromProto[sqlcv1.WorkerSDKS](sdk)
+	if err != nil {
+		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %w", err)
 	}
 
 	return sqlcv1.NullWorkerSDKS{
@@ -690,13 +684,13 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	if !opts.IsExemptFromLimits {
 		var preWorker, preWorkerSlot func() error
 
-		preWorker, postWorker = w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
+		preWorker, postWorker = w.m.Meter(ctx, nil, enums.LimitResourceWORKER, tenantId, 1)
 
 		if err := preWorker(); err != nil {
 			return nil, err
 		}
 
-		preWorkerSlot, postWorkerSlot = w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
+		preWorkerSlot, postWorkerSlot = w.m.Meter(ctx, nil, enums.LimitResourceWORKERSLOT, tenantId, slots)
 
 		if err := preWorkerSlot(); err != nil {
 			return nil, err
@@ -726,10 +720,8 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	}
 
 	// Default to self hosted
-	createParams.Type = sqlcv1.NullWorkerType{
-		WorkerType: sqlcv1.WorkerTypeSELFHOSTED,
-		Valid:      true,
-	}
+	selfHosted := enums.WorkerTypeSELFHOSTED
+	createParams.Type = &selfHosted
 
 	if opts.RuntimeInfo != nil {
 		if opts.RuntimeInfo.SdkVersion != nil {

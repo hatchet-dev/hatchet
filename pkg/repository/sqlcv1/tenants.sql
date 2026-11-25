@@ -5,7 +5,7 @@ WITH active_controller_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 )
 INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version", "onboardingData", "environment")
 VALUES (
@@ -234,6 +234,11 @@ LEFT JOIN
 GROUP BY
     runs."workflowId";
 
+-- name: LockPartitionRebalance :exec
+-- Serializes the rebalance statements of one partition kind for the rest of the transaction, so two
+-- instances rebalancing at once do not move the same tenant twice.
+SELECT pg_advisory_xact_lock(hashtext(@partitionKind::text)::bigint);
+
 -- name: CreateControllerPartition :one
 INSERT INTO "ControllerPartition" ("id", "createdAt", "lastHeartbeat", "name")
 VALUES (gen_random_uuid()::text, NOW(), NOW(), sqlc.narg('name')::text)
@@ -253,7 +258,7 @@ WITH active_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ),
 tenants_to_update AS (
     SELECT
@@ -272,7 +277,7 @@ FROM
     active_partitions AS partitions
 WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1;
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1;
 
 -- name: RebalanceInactiveControllerPartitions :exec
 WITH active_partitions AS (
@@ -282,14 +287,14 @@ WITH active_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() - INTERVAL '20 seconds'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -307,7 +312,7 @@ WITH active_partitions AS (
         active_partitions AS partitions
     WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 )
 DELETE FROM "ControllerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions);
@@ -331,7 +336,7 @@ WITH active_partitions AS (
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ),
 tenants_to_update AS (
     SELECT
@@ -351,7 +356,7 @@ FROM
     active_partitions AS partitions
 WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1;
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1;
 
 -- name: RebalanceInactiveTenantWorkerPartitions :exec
 WITH active_partitions AS (
@@ -361,14 +366,14 @@ WITH active_partitions AS (
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() - INTERVAL '20 seconds'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -389,19 +394,20 @@ WITH active_partitions AS (
         active_partitions AS partitions
     WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 )
 DELETE FROM "TenantWorkerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions);
 
--- name: SchedulerPartitionHeartbeat :one
-UPDATE
-    "SchedulerPartition" p
-SET
-    "lastHeartbeat" = NOW()
-WHERE
-    p."id" = sqlc.arg('schedulerPartitionId')::text
-RETURNING *;
+-- name: SchedulerPartitionHeartbeat :exec
+-- A scheduler subscribes to its partition topic once, by partition id, so the id must stay the same
+-- for the life of the process. If a rebalance deleted the partition as inactive (for example after
+-- the database was unreachable for longer than the staleness threshold), the heartbeat recreates it
+-- under the same id, and the next rebalance hands tenants back to the topic the scheduler listens on.
+INSERT INTO "SchedulerPartition" ("id", "createdAt", "lastHeartbeat", "name")
+VALUES (sqlc.arg('schedulerPartitionId')::text, NOW(), NOW(), sqlc.narg('name')::text)
+ON CONFLICT ("id") DO UPDATE
+SET "lastHeartbeat" = NOW();
 
 -- name: CreateSchedulerPartition :one
 INSERT INTO "SchedulerPartition" ("id", "createdAt", "lastHeartbeat", "name")
@@ -422,7 +428,7 @@ WITH active_partitions AS (
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ),
 tenants_to_update AS (
     SELECT
@@ -442,7 +448,7 @@ FROM
     active_partitions AS partitions
 WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1;
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1;
 
 -- name: RebalanceInactiveSchedulerPartitions :exec
 WITH active_partitions AS (
@@ -452,14 +458,14 @@ WITH active_partitions AS (
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() - INTERVAL '20 seconds'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -480,7 +486,7 @@ WITH active_partitions AS (
         active_partitions AS partitions
     WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 )
 DELETE FROM "SchedulerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions);

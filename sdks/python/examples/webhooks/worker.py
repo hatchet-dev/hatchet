@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
@@ -11,7 +13,7 @@ class WebhookInput(BaseModel):
 
 
 @hatchet.task(input_validator=WebhookInput, on_events=["webhook:test"])
-def webhook(input: WebhookInput, ctx: Context) -> dict[str, str]:
+def webhook(input: WebhookInput, ctx: Context) -> dict[str, Any]:
     return input.model_dump()
 
 

@@ -545,22 +545,23 @@ Options for `Client.NewWorkflow` (and standalone task constructors):
 
 Options for `Workflow.NewTask` and the other task constructors:
 
-| Name                   | Signature                                                 | Description                                                                |
-| ---------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `WithConcurrency`      | `WithConcurrency(concurrency ...*Concurrency)`            | WithConcurrency sets concurrency limits for task execution.                |
-| `WithCron`             | `WithCron(cronExpressions ...string)`                     | WithCron configures standalone tasks to run on a cron schedule.            |
-| `WithDescription`      | `WithDescription(description string)`                     | WithDescription sets a human-readable description for the task.            |
-| `WithEvents`           | `WithEvents(events ...string)`                            | WithEvents configures standalone tasks to trigger on specific events.      |
-| `WithEvictionPolicy`   | `WithEvictionPolicy(policy *EvictionPolicy)`              | WithEvictionPolicy sets the eviction policy for a durable task.            |
-| `WithExecutionTimeout` | `WithExecutionTimeout(timeout time.Duration)`             | WithExecutionTimeout sets the maximum execution duration for a task.       |
-| `WithParents`          | `WithParents(parents ...*Task)`                           | WithParents sets parent task dependencies.                                 |
-| `WithRateLimits`       | `WithRateLimits(rateLimits ...*RateLimit)`                | WithRateLimits sets rate limiting for task execution.                      |
-| `WithRetries`          | `WithRetries(retries int)`                                | WithRetries sets the number of retry attempts for failed tasks.            |
-| `WithRetryBackoff`     | `WithRetryBackoff(factor float32, maxBackoffSeconds int)` | WithRetryBackoff configures exponential backoff for task retries.          |
-| `WithScheduleTimeout`  | `WithScheduleTimeout(timeout time.Duration)`              | WithScheduleTimeout sets the maximum time a task can wait to be scheduled. |
-| `WithSkipIf`           | `WithSkipIf(condition Condition)`                         | WithSkipIf sets a condition that will skip the task if met.                |
-| `WithSlotCost`         | `WithSlotCost(cost int)`                                  | WithSlotCost sets the number of default worker slots this task consumes.   |
-| `WithWaitFor`          | `WithWaitFor(condition Condition)`                        | WithWaitFor sets a condition that must be met before the task executes.    |
+| Name                          | Signature                                                 | Description                                                                                                                                                             |
+| ----------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WithConcurrency`             | `WithConcurrency(concurrency ...*Concurrency)`            | WithConcurrency sets concurrency limits for task execution.                                                                                                             |
+| `WithCron`                    | `WithCron(cronExpressions ...string)`                     | WithCron configures standalone tasks to run on a cron schedule.                                                                                                         |
+| `WithDescription`             | `WithDescription(description string)`                     | WithDescription sets a human-readable description for the task.                                                                                                         |
+| `WithEvents`                  | `WithEvents(events ...string)`                            | WithEvents configures standalone tasks to trigger on specific events.                                                                                                   |
+| `WithEvictionPolicy`          | `WithEvictionPolicy(policy *EvictionPolicy)`              | WithEvictionPolicy sets the eviction policy for a durable task.                                                                                                         |
+| `WithExecutionTimeout`        | `WithExecutionTimeout(timeout time.Duration)`             | WithExecutionTimeout sets the maximum execution duration for a task.                                                                                                    |
+| `WithMaxReassignmentsAllowed` | `WithMaxReassignmentsAllowed(count int)`                  | WithMaxReassignmentsAllowed sets how many times Hatchet may reassign this task to a new worker when its worker stops heartbeating or never acknowledges the assignment. |
+| `WithParents`                 | `WithParents(parents ...*Task)`                           | WithParents sets parent task dependencies.                                                                                                                              |
+| `WithRateLimits`              | `WithRateLimits(rateLimits ...*RateLimit)`                | WithRateLimits sets rate limiting for task execution.                                                                                                                   |
+| `WithRetries`                 | `WithRetries(retries int)`                                | WithRetries sets the number of retry attempts for failed tasks.                                                                                                         |
+| `WithRetryBackoff`            | `WithRetryBackoff(factor float32, maxBackoffSeconds int)` | WithRetryBackoff configures exponential backoff for task retries.                                                                                                       |
+| `WithScheduleTimeout`         | `WithScheduleTimeout(timeout time.Duration)`              | WithScheduleTimeout sets the maximum time a task can wait to be scheduled.                                                                                              |
+| `WithSkipIf`                  | `WithSkipIf(condition Condition)`                         | WithSkipIf sets a condition that will skip the task if met.                                                                                                             |
+| `WithSlotCost`                | `WithSlotCost(cost int)`                                  | WithSlotCost sets the number of default worker slots this task consumes.                                                                                                |
+| `WithWaitFor`                 | `WithWaitFor(condition Condition)`                        | WithWaitFor sets a condition that must be met before the task executes.                                                                                                 |
 
 ## Run options
 

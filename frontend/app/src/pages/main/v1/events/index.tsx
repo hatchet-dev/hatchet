@@ -29,7 +29,7 @@ import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1Event, V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
-import { formatRetentionPeriod } from '@/lib/utils/retention';
+import { timeWindowLabel } from '@/lib/utils/retention';
 import { VisibilityState } from '@tanstack/react-table';
 import { CheckIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -77,6 +77,7 @@ function EventsTable() {
     isPlaceholderData,
     resetFilters,
     timeRangeConfig,
+    timeWindow,
     hasActiveFilters,
     isDefaultOneDayWindow,
     searchAllRetainedHistory,
@@ -85,9 +86,7 @@ function EventsTable() {
   } = useEvents({
     key: 'table',
   });
-  const retainedLabel = retentionPeriod
-    ? formatRetentionPeriod(retentionPeriod)
-    : '1 day';
+  const windowLabel = timeWindowLabel(timeWindow);
 
   const [columnVisibility, setColumnVisibility] =
     useLocalStorageState<VisibilityState>('hatchet:columns:events', {
@@ -194,7 +193,7 @@ function EventsTable() {
           ) : (
             <EmptyState
               title="No events found"
-              description={`No events in the last ${retainedLabel}.`}
+              description={`No events in the last ${windowLabel}.`}
               docPage={docsPages.v1.events}
               docLabel="Learn about events"
               buttons={

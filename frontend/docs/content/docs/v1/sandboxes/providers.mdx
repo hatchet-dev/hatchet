@@ -1,6 +1,6 @@
 ---
 title: "Providers"
-description: What a template means for each sandbox provider, and the keys each one accepts in Provider config.
+description: What a template means for each sandbox provider, and the settings each one has.
 ---
 
 import { Callout } from "@/components/nextra-compat";
@@ -28,105 +28,50 @@ What differs is what sits underneath.
 - [Modal](#modal) starts them from any registry image and saves the filesystem as a Modal image when it takes a snapshot.
 - [Vercel](#vercel) starts them from a Vercel image or snapshot and keeps the sandbox across sessions.
 
-## Templates and config
+## Templates and settings
 
-Each provider has its own meaning of a template which corresponds its own keys in the **Provider config** section.
+Each provider has its own meaning of a template and its own settings in the dashboard form.
 
-Every provider also accepts `snapshotEveryTurn`, described under [Snapshots](/v1/sandboxes/setup#snapshots). Any other key that a provider does not list below is rejected when you save it.
+Every provider has a **Working directory**, where commands run and file paths resolve, and a **Snapshot every turn** switch, described under [Snapshots](/v1/sandboxes/setup#snapshots).
 
-A template is chosen in the following order. The `template` passed to `create` wins, then the provider's **Default template** field, then the `template` key in the stored config, and lastly the provider's own default.
+**Metadata** on a provider is the default metadata of every sandbox it creates. The `metadata` passed to `create` overrides it key by key. The result is stored on the sandbox, sent to the vendor as labels or metadata where the vendor supports it, and attached to every task run of the sandbox, so runs can be filtered by it. The API field is still named `labels`.
+
+A template is chosen in the following order. The `template` passed to `create` wins, then the provider's **Default template** field, and lastly the provider's own default.
 
 ## Daytona
 
 A template is a [Daytona snapshot](https://www.daytona.io/docs/snapshots) name. Snapshots Hatchet takes are Daytona snapshots, so they show up in the Daytona dashboard.
 
-The default **Provider config** is
-
-```json
-{
-  "workdir": "/home/daytona"
-}
-```
-
-Set `template` to the snapshot new sandboxes should start from. Without it, Daytona's default snapshot is used.
+The working directory defaults to `/home/daytona`. Set **Default template** to the snapshot new sandboxes should start from. Without it, Daytona's default snapshot is used.
 
 ## E2B
 
 A template is an [E2B template](https://e2b.dev/docs/sandbox-template) name or a snapshot ID. Snapshots Hatchet takes are filesystem-only templates.
 
-The default **Provider config** is
+The working directory defaults to `/home/user`. **API URL** is only for self hosted E2B and defaults to `https://api.e2b.app`.
 
-```json
-{
-  "apiUrl": "https://api.e2b.app",
-  "template": "base",
-  "workdir": "/home/user",
-  "maxTimeoutSeconds": 3600
-}
-```
+E2B pauses a sandbox after the idle time the SDK asks for. The Hobby plan allows at most one hour, so keep **Max idle time** at or below 3600 seconds there.
 
 ## Archil
 
 A template is an OCI image, for example `node:24-bookworm`. A snapshot is a stopped fork of the machine, so forks start fast, and a sandbox's snapshots keep that stopped machine at Archil until you delete them.
 
-The default **Provider config** is
-
-```json
-{
-  "region": "aws-us-east-1",
-  "workdir": "/workspace"
-}
-```
-
-`region` is one of `aws-us-east-1`, `aws-us-west-2`, `aws-eu-west-1` or `gcp-us-central1`, and must match the region the API key was created in. Set `template` to the image new sandboxes should start from. Without it, Archil's default image is used.
+**Region** is one of `aws-us-east-1`, `aws-us-west-2`, `aws-eu-west-1` or `gcp-us-central1`, and must match the region the API key was created in. The working directory defaults to `/workspace`. Set **Default template** to the image new sandboxes should start from. Without it, Archil's default image is used.
 
 ## Freestyle
 
 A template is a [Freestyle snapshot](https://docs.freestyle.sh) ID or slug. Snapshots include memory, so a sandbox resumed from one continues where it stopped.
 
-The default **Provider config** is
-
-```json
-{
-  "workdir": "/workspace"
-}
-```
-
-Set `template` to the snapshot new sandboxes should start from. Without it, Freestyle's default image is used.
+The working directory defaults to `/workspace`. Set **Default template** to the snapshot new sandboxes should start from. Without it, Freestyle's default image is used.
 
 ## Modal
 
 A template is a registry image such as `debian:bookworm-slim`, or a snapshot image ID starting with `im-`. Snapshots Hatchet takes are [Modal filesystem snapshots](https://modal.com/docs/guide/sandbox-snapshots) and never expire until you delete them. A sandbox that Modal stops for idling cannot be started again, so connect to it before its idle TTL runs out or start a new one from a snapshot.
 
-Modal API tokens have two parts. The API key field takes the token secret, which starts with `as-`. The token id, which starts with `ak-`, goes in the config as `tokenId`.
-
-The default **Provider config** is
-
-```json
-{
-  "tokenId": "ak-…",
-  "app": "hatchet-sandboxes",
-  "template": "debian:bookworm-slim",
-  "workdir": "/workspace"
-}
-```
-
-`tokenId` is required. `app` is the Modal app the sandboxes run under and is created if missing. Set `environment` to pick a Modal environment other than the token's default. Disk size cannot be set on Modal, so a `diskMib` resource request is rejected.
+Modal API tokens have two parts. The API key field takes the token secret, which starts with `as-`. **Token ID**, which starts with `ak-`, is required. **App** is the Modal app the sandboxes run under, defaults to `hatchet-sandboxes` and is created if missing. **Environment** picks a Modal environment other than the token's default. The working directory defaults to `/workspace`. Set **Default template** to the image new sandboxes should start from. Without it, `debian:bookworm-slim` is used. Disk size cannot be set on Modal, so a `diskMib` resource request is rejected.
 
 ## Vercel
 
 A template is a [Vercel Sandbox image](https://vercel.com/docs/sandbox/concepts/images), for example `vercel/sandbox/universal`. Snapshots Hatchet takes are [Vercel snapshots](https://vercel.com/docs/sandbox/concepts/snapshots) that never expire until you delete them. Taking one stops the running session, and the next command resumes the sandbox from it.
 
-A Vercel access token only works together with a team and a project, so both are required in the config.
-
-The default **Provider config** is
-
-```json
-{
-  "teamId": "team_…",
-  "projectId": "prj_…",
-  "workdir": "/vercel/sandbox"
-}
-```
-
-Set `template` to the image new sandboxes should start from. Without it, Vercel's universal image is used. Vercel sizes sandboxes by vCPU only and gives each vCPU 2048 MB of memory, so a resource request may set `vcpu` but not `memoryMib` or `diskMib`. The idle TTL becomes the session timeout, which your Vercel plan caps at 45 minutes on Hobby and 24 hours on Pro and Enterprise. Vercel allows at most 5 tags per sandbox, so sandbox metadata is limited to 5 keys.
+A Vercel access token only works together with a team and a project, so **Team ID** and **Project ID** are required. The working directory defaults to `/vercel/sandbox`. Set **Default template** to the image new sandboxes should start from. Without it, Vercel's universal image is used. Vercel sizes sandboxes by vCPU only and gives each vCPU 2048 MB of memory, so a resource request may set `vcpu` but not `memoryMib` or `diskMib`. The idle TTL becomes the session timeout, which your Vercel plan caps at 45 minutes on Hobby and 24 hours on Pro and Enterprise. Vercel allows at most 5 tags per sandbox, so sandbox metadata is limited to 5 keys.

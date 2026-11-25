@@ -9,7 +9,7 @@ async def test_execution_timeout() -> None:
 
     with pytest.raises(
         Exception,
-        match="(Task exceeded timeout|TIMED_OUT|Workflow run .* failed with multiple errors)",
+        match=r"(Task exceeded timeout|TIMED_OUT|Workflow run .* failed with multiple errors)",
     ):
         await run.aio_result()
 

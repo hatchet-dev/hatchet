@@ -25,6 +25,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -1121,7 +1122,7 @@ func (d *DispatcherServiceImpl) sendStaleInvocationEviction(invocation *durableT
 // fails to deliver is delivered again when the worker reports it as waiting.
 func (d *DispatcherServiceImpl) deliverSatisfiedEntries(invocation *durableTaskInvocation, taskExternalId string, result *v1.IngestDurableTaskEventResult) {
 	switch result.Kind {
-	case sqlcv1.V1DurableEventLogKindRUN:
+	case enums.V1DurableEventLogKindRUN:
 		for _, entry := range result.TriggerRunsResult.Entries {
 			if entry.IsSatisfied {
 				taskExtId, _ := uuid.Parse(taskExternalId)
@@ -1141,7 +1142,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(invocation *durableTaskI
 				}
 			}
 		}
-	case sqlcv1.V1DurableEventLogKindMEMO:
+	case enums.V1DurableEventLogKindMEMO:
 		if result.MemoResult.IsSatisfied {
 			taskExtId, _ := uuid.Parse(taskExternalId)
 			if err := deliverDurableEventLogEntryCompletionToSession(
@@ -1158,7 +1159,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(invocation *durableTaskI
 				d.logDurableTaskRequestError(fmt.Errorf("failed to deliver callback completion for node %d: %w", result.MemoResult.NodeId, err))
 			}
 		}
-	case sqlcv1.V1DurableEventLogKindWAITFOR:
+	case enums.V1DurableEventLogKindWAITFOR:
 		if result.WaitForResult.IsSatisfied {
 			taskExtId, _ := uuid.Parse(taskExternalId)
 			if err := deliverDurableEventLogEntryCompletionToSession(
@@ -1210,7 +1211,7 @@ func (d *DispatcherServiceImpl) handleMemo(
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        invocation.tenantId,
 			Task:            task,
-			Kind:            sqlcv1.V1DurableEventLogKindMEMO,
+			Kind:            enums.V1DurableEventLogKindMEMO,
 			InvocationCount: req.InvocationCount,
 		},
 		Memo: &v1.IngestMemoOpts{
@@ -1303,7 +1304,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        invocation.tenantId,
 			Task:            task,
-			Kind:            sqlcv1.V1DurableEventLogKindRUN,
+			Kind:            enums.V1DurableEventLogKindRUN,
 			InvocationCount: req.InvocationCount,
 		},
 		TriggerRuns: &v1.IngestTriggerRunsOpts{
@@ -1462,7 +1463,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        invocation.tenantId,
 			Task:            task,
-			Kind:            sqlcv1.V1DurableEventLogKindWAITFOR,
+			Kind:            enums.V1DurableEventLogKindWAITFOR,
 			InvocationCount: req.InvocationCount,
 		},
 		WaitFor: &v1.IngestWaitForOpts{
@@ -1662,7 +1663,7 @@ func (d *DispatcherServiceImpl) evictDurableTask(
 				RetryCount:             task.RetryCount,
 				DurableInvocationCount: invocationCount,
 				EventTimestamp:         time.Now(),
-				EventType:              sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+				EventType:              enums.V1EventTypeOlapDURABLEEVICTED,
 				EventMessage:           reason,
 			},
 		)
@@ -2035,6 +2036,16 @@ func (d *DispatcherServiceImpl) TriggerDAGSteps(ctx context.Context, tenantId uu
 	orchestratorWorkflowRunId := task.ExternalID
 	triggerOpts := make([]*v1.WorkflowNameTriggerOpts, len(reqs))
 
+	var orchestratorPriority *int32
+	if task.Priority.Valid {
+		orchestratorPriority = &task.Priority.Int32
+	}
+
+	var orchestratorTriggeringEventKey *string
+	if task.TriggeringEventKey.Valid {
+		orchestratorTriggeringEventKey = &task.TriggeringEventKey.String
+	}
+
 	for i, req := range reqs {
 		childIndex := int64(req.ChildIndex)
 		stepLabel := req.ActionId
@@ -2052,22 +2063,26 @@ func (d *DispatcherServiceImpl) TriggerDAGSteps(ctx context.Context, tenantId uu
 			TriggerTaskData: &v1.TriggerTaskData{
 				WorkflowName: req.WorkflowName,
 				// Pin to the DAG's original version so a mid-run deploy can't retarget the step.
-				WorkflowVersionId:    &workflowVersionId,
-				TargetActionId:       &actionId,
-				UserMessage:          &stepLabel,
-				Data:                 []byte(req.Input),
-				AdditionalMetadata:   req.AdditionalMetadata,
-				ParentExternalId:     &task.ExternalID,
-				ParentTaskId:         &task.ID,
-				ParentTaskInsertedAt: &task.InsertedAt.Time,
-				ChildIndex:           &childIndex,
-				DagParentTaskRunIds:  req.DagParentTaskRunIds,
-				IsSkipped:            req.IsSkipped,
-				IsCancelled:          req.IsCancelled,
-				DesiredWorkerLabels:  req.DesiredWorkerLabels,
-				WorkflowRunId:        &orchestratorWorkflowRunId,
-				OlapDagId:            &task.ID,
-				OlapDagInsertedAt:    &task.InsertedAt.Time,
+				WorkflowVersionId:         &workflowVersionId,
+				TargetActionId:            &actionId,
+				UserMessage:               &stepLabel,
+				Data:                      []byte(req.Input),
+				AdditionalMetadata:        req.AdditionalMetadata,
+				ParentExternalId:          &task.ExternalID,
+				ParentTaskId:              &task.ID,
+				ParentTaskInsertedAt:      &task.InsertedAt.Time,
+				ChildIndex:                &childIndex,
+				DagParentTaskRunIds:       req.DagParentTaskRunIds,
+				IsSkipped:                 req.IsSkipped,
+				IsCancelled:               req.IsCancelled,
+				DesiredWorkerLabels:       req.DesiredWorkerLabels,
+				Priority:                  orchestratorPriority,
+				DesiredWorkerId:           task.DesiredWorkerID,
+				TriggeringEventExternalId: task.TriggeringEventExternalID,
+				TriggeringEventKey:        orchestratorTriggeringEventKey,
+				WorkflowRunId:             &orchestratorWorkflowRunId,
+				OlapDagId:                 &task.ID,
+				OlapDagInsertedAt:         &task.InsertedAt.Time,
 
 				OrchestratorPayloadReferenceId: task.PayloadReferenceID,
 			},
@@ -2078,7 +2093,7 @@ func (d *DispatcherServiceImpl) TriggerDAGSteps(ctx context.Context, tenantId uu
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        tenantId,
 			Task:            task,
-			Kind:            sqlcv1.V1DurableEventLogKindRUN,
+			Kind:            enums.V1DurableEventLogKindRUN,
 			InvocationCount: first.InvocationCount,
 		},
 		TriggerRuns: &v1.IngestTriggerRunsOpts{

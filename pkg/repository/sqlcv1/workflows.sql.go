@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -169,7 +170,8 @@ INSERT INTO "Step" (
     "retryBackoffFactor",
     "retryMaxBackoff",
     "isDurable",
-    "isDagOrchestrator"
+    "isDagOrchestrator",
+    "maxReassignmentsAllowed"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -186,27 +188,29 @@ INSERT INTO "Step" (
     $13,
     $14,
     coalesce($15::boolean, false),
-    coalesce($16::boolean, false)
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout", "isDurable", "isDagOrchestrator"
+    coalesce($16::boolean, false),
+    $17::integer
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout", "isDurable", "isDagOrchestrator", "maxReassignmentsAllowed"
 `
 
 type CreateStepParams struct {
-	ID                 uuid.UUID        `json:"id"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	Deletedat          pgtype.Timestamp `json:"deletedat"`
-	Readableid         string           `json:"readableid"`
-	Tenantid           uuid.UUID        `json:"tenantid"`
-	Jobid              uuid.UUID        `json:"jobid"`
-	Actionid           string           `json:"actionid"`
-	Timeout            pgtype.Text      `json:"timeout"`
-	CustomUserData     []byte           `json:"customUserData"`
-	Retries            pgtype.Int4      `json:"retries"`
-	ScheduleTimeout    pgtype.Text      `json:"scheduleTimeout"`
-	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
-	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
-	IsDurable          pgtype.Bool      `json:"isDurable"`
-	IsDagOrchestrator  pgtype.Bool      `json:"isDagOrchestrator"`
+	ID                      uuid.UUID        `json:"id"`
+	CreatedAt               pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt               pgtype.Timestamp `json:"updatedAt"`
+	Deletedat               pgtype.Timestamp `json:"deletedat"`
+	Readableid              string           `json:"readableid"`
+	Tenantid                uuid.UUID        `json:"tenantid"`
+	Jobid                   uuid.UUID        `json:"jobid"`
+	Actionid                string           `json:"actionid"`
+	Timeout                 pgtype.Text      `json:"timeout"`
+	CustomUserData          []byte           `json:"customUserData"`
+	Retries                 pgtype.Int4      `json:"retries"`
+	ScheduleTimeout         pgtype.Text      `json:"scheduleTimeout"`
+	RetryBackoffFactor      pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff         pgtype.Int4      `json:"retryMaxBackoff"`
+	IsDurable               pgtype.Bool      `json:"isDurable"`
+	IsDagOrchestrator       pgtype.Bool      `json:"isDagOrchestrator"`
+	MaxReassignmentsAllowed pgtype.Int4      `json:"maxReassignmentsAllowed"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -227,6 +231,7 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.RetryMaxBackoff,
 		arg.IsDurable,
 		arg.IsDagOrchestrator,
+		arg.MaxReassignmentsAllowed,
 	)
 	var i Step
 	err := row.Scan(
@@ -246,6 +251,7 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.ScheduleTimeout,
 		&i.IsDurable,
 		&i.IsDagOrchestrator,
+		&i.MaxReassignmentsAllowed,
 	)
 	return &i, err
 }
@@ -320,15 +326,15 @@ VALUES (
 `
 
 type CreateStepConcurrencyParams struct {
-	Workflowid        uuid.UUID             `json:"workflowid"`
-	Workflowversionid uuid.UUID             `json:"workflowversionid"`
-	Stepid            uuid.UUID             `json:"stepid"`
-	Strategy          V1ConcurrencyStrategy `json:"strategy"`
-	Expression        string                `json:"expression"`
-	Tenantid          uuid.UUID             `json:"tenantid"`
-	Maxconcurrency    int32                 `json:"maxconcurrency"`
-	TenantStrategyId  pgtype.Int8           `json:"tenantStrategyId"`
-	MaxRunsExpression pgtype.Text           `json:"maxRunsExpression"`
+	Workflowid        uuid.UUID                   `json:"workflowid"`
+	Workflowversionid uuid.UUID                   `json:"workflowversionid"`
+	Stepid            uuid.UUID                   `json:"stepid"`
+	Strategy          enums.V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                      `json:"expression"`
+	Tenantid          uuid.UUID                   `json:"tenantid"`
+	Maxconcurrency    int32                       `json:"maxconcurrency"`
+	TenantStrategyId  pgtype.Int8                 `json:"tenantStrategyId"`
+	MaxRunsExpression pgtype.Text                 `json:"maxRunsExpression"`
 }
 
 // When tenant_strategy_id is set, the definition columns are copies of the referenced
@@ -748,12 +754,12 @@ GROUP BY
 `
 
 type CreateWorkflowConcurrencyV1Params struct {
-	Workflowid        uuid.UUID             `json:"workflowid"`
-	Workflowversionid uuid.UUID             `json:"workflowversionid"`
-	Limitstrategy     V1ConcurrencyStrategy `json:"limitstrategy"`
-	Expression        string                `json:"expression"`
-	Tenantid          uuid.UUID             `json:"tenantid"`
-	MaxRuns           pgtype.Int4           `json:"maxRuns"`
+	Workflowid        uuid.UUID                   `json:"workflowid"`
+	Workflowversionid uuid.UUID                   `json:"workflowversionid"`
+	Limitstrategy     enums.V1ConcurrencyStrategy `json:"limitstrategy"`
+	Expression        string                      `json:"expression"`
+	Tenantid          uuid.UUID                   `json:"tenantid"`
+	MaxRuns           pgtype.Int4                 `json:"maxRuns"`
 }
 
 type CreateWorkflowConcurrencyV1Row struct {
@@ -812,14 +818,14 @@ RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "c
 `
 
 type CreateWorkflowTriggerCronRefParams struct {
-	Workflowtriggersid   uuid.UUID                         `json:"workflowtriggersid"`
-	Crontrigger          string                            `json:"crontrigger"`
-	Name                 pgtype.Text                       `json:"name"`
-	Input                []byte                            `json:"input"`
-	AdditionalMetadata   []byte                            `json:"additionalMetadata"`
-	Method               NullWorkflowTriggerCronRefMethods `json:"method"`
-	Priority             pgtype.Int4                       `json:"priority"`
-	OldWorkflowVersionId *uuid.UUID                        `json:"oldWorkflowVersionId"`
+	Workflowtriggersid   uuid.UUID                            `json:"workflowtriggersid"`
+	Crontrigger          string                               `json:"crontrigger"`
+	Name                 pgtype.Text                          `json:"name"`
+	Input                []byte                               `json:"input"`
+	AdditionalMetadata   []byte                               `json:"additionalMetadata"`
+	Method               *enums.WorkflowTriggerCronRefMethods `json:"method"`
+	Priority             pgtype.Int4                          `json:"priority"`
+	OldWorkflowVersionId *uuid.UUID                           `json:"oldWorkflowVersionId"`
 }
 
 func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefParams) (*WorkflowTriggerCronRef, error) {
@@ -888,13 +894,13 @@ INSERT INTO "WorkflowTriggerCronRef" (
 `
 
 type CreateWorkflowTriggerCronRefForWorkflowParams struct {
-	Crontrigger        string                            `json:"crontrigger"`
-	Name               pgtype.Text                       `json:"name"`
-	Input              []byte                            `json:"input"`
-	AdditionalMetadata []byte                            `json:"additionalMetadata"`
-	Method             NullWorkflowTriggerCronRefMethods `json:"method"`
-	Priority           pgtype.Int4                       `json:"priority"`
-	Workflowid         uuid.UUID                         `json:"workflowid"`
+	Crontrigger        string                               `json:"crontrigger"`
+	Name               pgtype.Text                          `json:"name"`
+	Input              []byte                               `json:"input"`
+	AdditionalMetadata []byte                               `json:"additionalMetadata"`
+	Method             *enums.WorkflowTriggerCronRefMethods `json:"method"`
+	Priority           pgtype.Int4                          `json:"priority"`
+	Workflowid         uuid.UUID                            `json:"workflowid"`
 }
 
 func (q *Queries) CreateWorkflowTriggerCronRefForWorkflow(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefForWorkflowParams) (*WorkflowTriggerCronRef, error) {
@@ -1151,7 +1157,7 @@ func (q *Queries) GetLatestWorkflowVersionForWorkflows(ctx context.Context, db D
 const getStepsForJobs = `-- name: GetStepsForJobs :many
 SELECT
 	j."id" as "jobId",
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."isDagOrchestrator",
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."isDagOrchestrator", s."maxReassignmentsAllowed",
     (
         SELECT array_agg(so."A")::uuid[]  -- Casting the array_agg result to uuid[]
         FROM "_StepOrder" so
@@ -1203,6 +1209,7 @@ func (q *Queries) GetStepsForJobs(ctx context.Context, db DBTX, arg GetStepsForJ
 			&i.Step.ScheduleTimeout,
 			&i.Step.IsDurable,
 			&i.Step.IsDagOrchestrator,
+			&i.Step.MaxReassignmentsAllowed,
 			&i.Parents,
 		); err != nil {
 			return nil, err
@@ -1738,7 +1745,7 @@ func (q *Queries) ListStepMatchConditions(ctx context.Context, db DBTX, arg List
 
 const listStepsByIds = `-- name: ListStepsByIds :many
 SELECT
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."isDagOrchestrator",
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."isDagOrchestrator", s."maxReassignmentsAllowed",
     wv."id" as "workflowVersionId",
     wv."sticky" as "workflowVersionSticky",
     w."name" as "workflowName",
@@ -1776,30 +1783,31 @@ type ListStepsByIdsParams struct {
 }
 
 type ListStepsByIdsRow struct {
-	ID                    uuid.UUID          `json:"id"`
-	CreatedAt             pgtype.Timestamp   `json:"createdAt"`
-	UpdatedAt             pgtype.Timestamp   `json:"updatedAt"`
-	DeletedAt             pgtype.Timestamp   `json:"deletedAt"`
-	ReadableId            pgtype.Text        `json:"readableId"`
-	TenantId              uuid.UUID          `json:"tenantId"`
-	JobId                 uuid.UUID          `json:"jobId"`
-	ActionId              string             `json:"actionId"`
-	Timeout               pgtype.Text        `json:"timeout"`
-	CustomUserData        []byte             `json:"customUserData"`
-	Retries               int32              `json:"retries"`
-	RetryBackoffFactor    pgtype.Float8      `json:"retryBackoffFactor"`
-	RetryMaxBackoff       pgtype.Int4        `json:"retryMaxBackoff"`
-	ScheduleTimeout       string             `json:"scheduleTimeout"`
-	IsDurable             bool               `json:"isDurable"`
-	IsDagOrchestrator     bool               `json:"isDagOrchestrator"`
-	WorkflowVersionId     uuid.UUID          `json:"workflowVersionId"`
-	WorkflowVersionSticky NullStickyStrategy `json:"workflowVersionSticky"`
-	WorkflowName          string             `json:"workflowName"`
-	WorkflowId            uuid.UUID          `json:"workflowId"`
-	DefaultPriority       int32              `json:"defaultPriority"`
-	ExprCount             int64              `json:"exprCount"`
-	ConcurrencyCount      int64              `json:"concurrencyCount"`
-	BatchGroupKey         pgtype.Text        `json:"batchGroupKey"`
+	ID                      uuid.UUID          `json:"id"`
+	CreatedAt               pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt               pgtype.Timestamp   `json:"updatedAt"`
+	DeletedAt               pgtype.Timestamp   `json:"deletedAt"`
+	ReadableId              pgtype.Text        `json:"readableId"`
+	TenantId                uuid.UUID          `json:"tenantId"`
+	JobId                   uuid.UUID          `json:"jobId"`
+	ActionId                string             `json:"actionId"`
+	Timeout                 pgtype.Text        `json:"timeout"`
+	CustomUserData          []byte             `json:"customUserData"`
+	Retries                 int32              `json:"retries"`
+	RetryBackoffFactor      pgtype.Float8      `json:"retryBackoffFactor"`
+	RetryMaxBackoff         pgtype.Int4        `json:"retryMaxBackoff"`
+	ScheduleTimeout         string             `json:"scheduleTimeout"`
+	IsDurable               bool               `json:"isDurable"`
+	IsDagOrchestrator       bool               `json:"isDagOrchestrator"`
+	MaxReassignmentsAllowed pgtype.Int4        `json:"maxReassignmentsAllowed"`
+	WorkflowVersionId       uuid.UUID          `json:"workflowVersionId"`
+	WorkflowVersionSticky   NullStickyStrategy `json:"workflowVersionSticky"`
+	WorkflowName            string             `json:"workflowName"`
+	WorkflowId              uuid.UUID          `json:"workflowId"`
+	DefaultPriority         int32              `json:"defaultPriority"`
+	ExprCount               int64              `json:"exprCount"`
+	ConcurrencyCount        int64              `json:"concurrencyCount"`
+	BatchGroupKey           pgtype.Text        `json:"batchGroupKey"`
 }
 
 func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsByIdsParams) ([]*ListStepsByIdsRow, error) {
@@ -1828,6 +1836,7 @@ func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsById
 			&i.ScheduleTimeout,
 			&i.IsDurable,
 			&i.IsDagOrchestrator,
+			&i.MaxReassignmentsAllowed,
 			&i.WorkflowVersionId,
 			&i.WorkflowVersionSticky,
 			&i.WorkflowName,
@@ -1850,7 +1859,7 @@ func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsById
 const listStepsByWorkflowVersionIds = `-- name: ListStepsByWorkflowVersionIds :many
 WITH steps AS (
     SELECT
-        s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."isDagOrchestrator",
+        s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."isDagOrchestrator", s."maxReassignmentsAllowed",
         wv."id" as "workflowVersionId",
         w."name" as "workflowName",
         w."id" as "workflowId",
@@ -1885,7 +1894,7 @@ WITH steps AS (
         so."B"
 )
 SELECT
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."isDagOrchestrator", s."workflowVersionId", s."workflowName", s."workflowId", s."jobKind", s."matchConditionCount",
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."isDagOrchestrator", s."maxReassignmentsAllowed", s."workflowVersionId", s."workflowName", s."workflowId", s."jobKind", s."matchConditionCount",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
     steps s
@@ -1900,28 +1909,29 @@ type ListStepsByWorkflowVersionIdsParams struct {
 }
 
 type ListStepsByWorkflowVersionIdsRow struct {
-	ID                  uuid.UUID        `json:"id"`
-	CreatedAt           pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt           pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt           pgtype.Timestamp `json:"deletedAt"`
-	ReadableId          pgtype.Text      `json:"readableId"`
-	TenantId            uuid.UUID        `json:"tenantId"`
-	JobId               uuid.UUID        `json:"jobId"`
-	ActionId            string           `json:"actionId"`
-	Timeout             pgtype.Text      `json:"timeout"`
-	CustomUserData      []byte           `json:"customUserData"`
-	Retries             int32            `json:"retries"`
-	RetryBackoffFactor  pgtype.Float8    `json:"retryBackoffFactor"`
-	RetryMaxBackoff     pgtype.Int4      `json:"retryMaxBackoff"`
-	ScheduleTimeout     string           `json:"scheduleTimeout"`
-	IsDurable           bool             `json:"isDurable"`
-	IsDagOrchestrator   bool             `json:"isDagOrchestrator"`
-	WorkflowVersionId   uuid.UUID        `json:"workflowVersionId"`
-	WorkflowName        string           `json:"workflowName"`
-	WorkflowId          uuid.UUID        `json:"workflowId"`
-	JobKind             JobKind          `json:"jobKind"`
-	MatchConditionCount int64            `json:"matchConditionCount"`
-	Parents             []uuid.UUID      `json:"parents"`
+	ID                      uuid.UUID        `json:"id"`
+	CreatedAt               pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt               pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt               pgtype.Timestamp `json:"deletedAt"`
+	ReadableId              pgtype.Text      `json:"readableId"`
+	TenantId                uuid.UUID        `json:"tenantId"`
+	JobId                   uuid.UUID        `json:"jobId"`
+	ActionId                string           `json:"actionId"`
+	Timeout                 pgtype.Text      `json:"timeout"`
+	CustomUserData          []byte           `json:"customUserData"`
+	Retries                 int32            `json:"retries"`
+	RetryBackoffFactor      pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff         pgtype.Int4      `json:"retryMaxBackoff"`
+	ScheduleTimeout         string           `json:"scheduleTimeout"`
+	IsDurable               bool             `json:"isDurable"`
+	IsDagOrchestrator       bool             `json:"isDagOrchestrator"`
+	MaxReassignmentsAllowed pgtype.Int4      `json:"maxReassignmentsAllowed"`
+	WorkflowVersionId       uuid.UUID        `json:"workflowVersionId"`
+	WorkflowName            string           `json:"workflowName"`
+	WorkflowId              uuid.UUID        `json:"workflowId"`
+	JobKind                 JobKind          `json:"jobKind"`
+	MatchConditionCount     int64            `json:"matchConditionCount"`
+	Parents                 []uuid.UUID      `json:"parents"`
 }
 
 func (q *Queries) ListStepsByWorkflowVersionIds(ctx context.Context, db DBTX, arg ListStepsByWorkflowVersionIdsParams) ([]*ListStepsByWorkflowVersionIdsRow, error) {
@@ -1950,6 +1960,7 @@ func (q *Queries) ListStepsByWorkflowVersionIds(ctx context.Context, db DBTX, ar
 			&i.ScheduleTimeout,
 			&i.IsDurable,
 			&i.IsDagOrchestrator,
+			&i.MaxReassignmentsAllowed,
 			&i.WorkflowVersionId,
 			&i.WorkflowName,
 			&i.WorkflowId,
@@ -1987,10 +1998,10 @@ type ListWorkflowConcurrencyByVersionIdParams struct {
 }
 
 type ListWorkflowConcurrencyByVersionIdRow struct {
-	ID            int64                 `json:"id"`
-	MaxRuns       int32                 `json:"maxRuns"`
-	LimitStrategy V1ConcurrencyStrategy `json:"limitStrategy"`
-	Expression    string                `json:"expression"`
+	ID            int64                       `json:"id"`
+	MaxRuns       int32                       `json:"maxRuns"`
+	LimitStrategy enums.V1ConcurrencyStrategy `json:"limitStrategy"`
+	Expression    string                      `json:"expression"`
 }
 
 func (q *Queries) ListWorkflowConcurrencyByVersionId(ctx context.Context, db DBTX, arg ListWorkflowConcurrencyByVersionIdParams) ([]*ListWorkflowConcurrencyByVersionIdRow, error) {
@@ -2318,10 +2329,10 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, descripti
 `
 
 type PauseWorkflowParams struct {
-	Cronrunqueuebehavior      WorkflowPauseQueueBehavior `json:"cronrunqueuebehavior"`
-	Scheduledrunqueuebehavior WorkflowPauseQueueBehavior `json:"scheduledrunqueuebehavior"`
-	Queuettl                  string                     `json:"queuettl"`
-	ID                        uuid.UUID                  `json:"id"`
+	Cronrunqueuebehavior      enums.WorkflowPauseQueueBehavior `json:"cronrunqueuebehavior"`
+	Scheduledrunqueuebehavior enums.WorkflowPauseQueueBehavior `json:"scheduledrunqueuebehavior"`
+	Queuettl                  string                           `json:"queuettl"`
+	ID                        uuid.UUID                        `json:"id"`
 }
 
 func (q *Queries) PauseWorkflow(ctx context.Context, db DBTX, arg PauseWorkflowParams) (*Workflow, error) {

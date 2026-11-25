@@ -377,7 +377,7 @@ export class Api<
       xResources: ["tenant", "sandbox-provider"],
     }), { resources: new Set<string>(["tenant", "sandbox-provider"]) });
   /**
-   * @description Delete a sandbox provider. Its sandboxes can no longer be reached.
+   * @description Delete a sandbox provider and every sandbox and snapshot on it. Machines at the vendor are not touched.
    *
    * @tags Sandbox Provider
    * @name SandboxProviderDelete

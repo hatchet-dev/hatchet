@@ -9,6 +9,7 @@ from typing import (
     Generic,
     Literal,
     ParamSpec,
+    TypeGuard,
     TypeVar,
     assert_never,
     cast,
@@ -71,7 +72,11 @@ from hatchet_sdk.types.trigger import (
 )
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
-from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
+from hatchet_sdk.utils.typing import (
+    CoroutineLike,
+    JSONSerializableMapping,
+    get_function_name,
+)
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
@@ -359,7 +364,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     def create_bulk_run_item(
         self,
-        input: TWorkflowInput = cast("TWorkflowInput", None),
+        input: TWorkflowInput | None = None,
         *,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -417,14 +422,14 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         if target == "bytes":
             return self._config.input_validator.dump_json(
-                input,  # type: ignore[arg-type]
+                input,
                 context=HATCHET_PYDANTIC_SENTINEL,
             ).decode("utf-8")
 
         return cast(
             "JSONSerializableMapping",
             self._config.input_validator.dump_python(
-                input,  # type: ignore[arg-type]
+                input,
                 mode="json",
                 context=HATCHET_PYDANTIC_SENTINEL,
             ),
@@ -601,7 +606,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def schedule(
         self,
         trigger_at: datetime,
-        input: TWorkflowInput = cast("TWorkflowInput", None),
+        input: TWorkflowInput | None = None,
         *,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -636,7 +641,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     async def aio_schedule(
         self,
         trigger_at: datetime,
-        input: TWorkflowInput = cast("TWorkflowInput", None),
+        input: TWorkflowInput | None = None,
         *,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -666,7 +671,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput = cast("TWorkflowInput", None),
+        input: TWorkflowInput | None = None,
         *,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
@@ -695,7 +700,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput = cast("TWorkflowInput", None),
+        input: TWorkflowInput | None = None,
         *,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
@@ -829,11 +834,17 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :param **kwargs: Additional arguments that will be passed to the underlying MCP Tool object constructor.
 
 
-        :raises ValueError: if runnable does not have a description.
-        :raises NotImplementedError: If provider does not exist.
+        :raises ValueError: if `provider` is not `"CLAUDE"` or `"OPENAI"`, or the runnable has no description or input validator.
+        :raises NotImplementedError: If the runnable is neither a workflow nor a standalone task.
 
         :returns: The MCP tool configuration object.
         """
+        accepted_providers = get_args(MCPProvider)
+        if provider not in accepted_providers:
+            raise ValueError(
+                f"`provider` must be one of {list(accepted_providers)}. Got: {provider!r}"
+            )
+
         if not self._config.description:
             raise ValueError(
                 f"Runnable '{self._config.name}' has no description. "
@@ -862,7 +873,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                     )
                 case _ as unreachable:
                     assert_never(unreachable)
-        elif isinstance(self, Standalone):
+        elif is_standalone(self):
             match provider:
                 case "CLAUDE":
                     from hatchet_sdk.runnables.mcp.claude import task_to_claude_mcp
@@ -1244,7 +1255,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         name: str | None,
         func: Callable[..., Any],
     ) -> str:
-        non_null_name = name or func.__name__
+        non_null_name = name or get_function_name(func)
         return non_null_name.lower()
 
     def task(
@@ -1266,6 +1277,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
         slot_cost: int | None = None,
+        max_reassignments_allowed: int | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1301,9 +1313,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param slot_cost: The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it.
 
+        :param max_reassignments_allowed: The maximum number of times Hatchet will reassign the task to a new worker when the worker running it stops heartbeating or never acknowledges it. Once reached, the task fails instead of being reassigned. Set to `0` to never reassign the task, e.g. if re-running it would be unsafe. If not set, the server's default limit applies. The server's limit also caps this value.
+
         :returns: A decorator which creates a `Task` object.
 
-        :raises ValueError: If `slot_cost` is not positive.
+        :raises ValueError: If `slot_cost` is not positive or `max_reassignments_allowed` is negative.
         """
         if slot_cost is not None and slot_cost <= 0:
             raise ValueError("slot_cost must be a positive integer")
@@ -1326,7 +1340,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) -> Task[TWorkflowInput, R]:
             labels = desired_worker_labels or []
 
-            task = Task(
+            task = Task[TWorkflowInput, R](
                 _fn=func,
                 is_durable=False,
                 workflow=self,
@@ -1345,6 +1359,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 skip_if=skip_if,
                 cancel_if=cancel_if,
                 slot_requests=slot_requests,
+                max_reassignments_allowed=max_reassignments_allowed,
             )
 
             self._default_tasks.append(task)
@@ -1423,18 +1438,26 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max: timedelta | None = None,
-    ) -> Callable[
-        [
-            Callable[
-                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
-                dict[BatchMemberId, R]
-                | R
-                | CoroutineLike[dict[BatchMemberId, R]]
-                | CoroutineLike[R],
-            ]
-        ],
-        Task[TWorkflowInput, R],
-    ]:
+    ) -> (
+        Callable[
+            [
+                Callable[
+                    Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                    R | CoroutineLike[R],
+                ]
+            ],
+            Task[TWorkflowInput, R],
+        ]
+        | Callable[
+            [
+                Callable[
+                    Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                    dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
+                ]
+            ],
+            Task[TWorkflowInput, R],
+        ]
+    ):
         """
         .. note::
         **Preview:** This function is in beta and may change in future releases.
@@ -1468,16 +1491,19 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         )
 
         def inner(
-            func: Callable[
-                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
-                dict[BatchMemberId, R]
-                | R
-                | CoroutineLike[dict[BatchMemberId, R]]
-                | CoroutineLike[R],
-            ],
+            func: (
+                Callable[
+                    Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                    R | CoroutineLike[R],
+                ]
+                | Callable[
+                    Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                    dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
+                ]
+            ),
         ) -> Task[TWorkflowInput, R]:
             labels = desired_worker_labels or []
-            task = Task(
+            task = Task[TWorkflowInput, R](
                 _fn=cast(
                     "Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]", func
                 ),
@@ -1531,6 +1557,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+        max_reassignments_allowed: int | None = None,
         slot_cost: int | None = None,
     ) -> Callable[
         [
@@ -1575,6 +1602,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param eviction_policy: An optional eviction policy controlling when this durable task can be evicted from a worker slot while waiting.
 
+        :param max_reassignments_allowed: The maximum number of times Hatchet will reassign the task to a new worker when the worker running it stops heartbeating or never acknowledges it. Once reached, the task fails instead of being reassigned. Set to `0` to never reassign the task, e.g. if re-running it would be unsafe. If not set, the server's default limit applies. The server's limit also caps this value.
+
         :param slot_cost: The number of durable worker slots this task consumes. A normal durable task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free durable slots to run it.
 
         :returns: A decorator which creates a `Task` object.
@@ -1602,7 +1631,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) -> Task[TWorkflowInput, R]:
             labels = desired_worker_labels or []
 
-            task = Task(
+            task = Task[TWorkflowInput, R](
                 _fn=func,
                 is_durable=True,
                 workflow=self,
@@ -1621,6 +1650,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 skip_if=skip_if,
                 cancel_if=cancel_if,
                 eviction_policy=eviction_policy,
+                max_reassignments_allowed=max_reassignments_allowed,
                 slot_requests=slot_requests,
             )
 
@@ -1683,7 +1713,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
-            task = Task(
+            task = Task[TWorkflowInput, R](
                 is_durable=False,
                 _fn=func,
                 workflow=self,
@@ -1765,7 +1795,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
-            task = Task(
+            task = Task[TWorkflowInput, R](
                 is_durable=False,
                 _fn=func,
                 workflow=self,
@@ -2337,3 +2367,9 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     @property
     def output_validator_type(self) -> type[R]:
         return cast("type[R]", self._output_validator._type)
+
+
+def is_standalone(
+    workflow: BaseWorkflow[TWorkflowInput],
+) -> TypeGuard[Standalone[TWorkflowInput, Any]]:
+    return isinstance(workflow, Standalone)

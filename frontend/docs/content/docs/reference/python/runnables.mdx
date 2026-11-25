@@ -88,22 +88,23 @@ A decorator to transform a function into a Hatchet task that runs as part of a w
 
 Parameters:
 
-| Name                    | Type                                                                  | Description                                                                                                                                                                                                                                  | Default |
-| ----------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `name`                  | `str \| None`                                                         | The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.                                                                                                                          | `None`  |
-| `schedule_timeout`      | `timedelta \| None`                                                   | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                                                                                 | `None`  |
-| `execution_timeout`     | `timedelta \| None`                                                   | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                                                                                  | `None`  |
-| `parents`               | `list[Task[TWorkflowInput, Any]] \| None`                             | A list of tasks that are parents of the task. Note: Parents must be defined before their children.                                                                                                                                           | `None`  |
-| `retries`               | `int \| None`                                                         | The number of times to retry the task before failing.                                                                                                                                                                                        | `None`  |
-| `rate_limits`           | `list[RateLimit] \| None`                                             | A list of rate limit configurations for the task.                                                                                                                                                                                            | `None`  |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`                                    | A list of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.                                                                   | `None`  |
-| `backoff_factor`        | `float \| None`                                                       | The backoff factor for controlling exponential backoff in retries.                                                                                                                                                                           | `None`  |
-| `backoff_max`           | `timedelta \| None`                                                   | The maximum delay between retries when using exponential backoff.                                                                                                                                                                            | `None`  |
-| `concurrency`           | `int \| ConcurrencyStrategy \| Sequence[ConcurrencyStrategy] \| None` | A list of concurrency expressions for the task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.      | `None`  |
-| `wait_for`              | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that must be met before the task can run.                                                                                                                                                                               | `None`  |
-| `skip_if`               | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that, if met, will cause the task to be skipped.                                                                                                                                                                        | `None`  |
-| `cancel_if`             | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that, if met, will cause the task to be canceled.                                                                                                                                                                       | `None`  |
-| `slot_cost`             | `int \| None`                                                         | The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it. | `None`  |
+| Name                        | Type                                                                  | Description                                                                                                                                                                                                                                                                                                                                                                         | Default |
+| --------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `name`                      | `str \| None`                                                         | The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.                                                                                                                                                                                                                                                                 | `None`  |
+| `schedule_timeout`          | `timedelta \| None`                                                   | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                                                                                                                                                                                                                        | `None`  |
+| `execution_timeout`         | `timedelta \| None`                                                   | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                                                                                                                                                                                                                         | `None`  |
+| `parents`                   | `list[Task[TWorkflowInput, Any]] \| None`                             | A list of tasks that are parents of the task. Note: Parents must be defined before their children.                                                                                                                                                                                                                                                                                  | `None`  |
+| `retries`                   | `int \| None`                                                         | The number of times to retry the task before failing.                                                                                                                                                                                                                                                                                                                               | `None`  |
+| `rate_limits`               | `list[RateLimit] \| None`                                             | A list of rate limit configurations for the task.                                                                                                                                                                                                                                                                                                                                   | `None`  |
+| `desired_worker_labels`     | `list[DesiredWorkerLabel] \| None`                                    | A list of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.                                                                                                                                                                                                          | `None`  |
+| `backoff_factor`            | `float \| None`                                                       | The backoff factor for controlling exponential backoff in retries.                                                                                                                                                                                                                                                                                                                  | `None`  |
+| `backoff_max`               | `timedelta \| None`                                                   | The maximum delay between retries when using exponential backoff.                                                                                                                                                                                                                                                                                                                   | `None`  |
+| `concurrency`               | `int \| ConcurrencyStrategy \| Sequence[ConcurrencyStrategy] \| None` | A list of concurrency expressions for the task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.                                                                                                                                             | `None`  |
+| `wait_for`                  | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that must be met before the task can run.                                                                                                                                                                                                                                                                                                                      | `None`  |
+| `skip_if`                   | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that, if met, will cause the task to be skipped.                                                                                                                                                                                                                                                                                                               | `None`  |
+| `cancel_if`                 | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that, if met, will cause the task to be canceled.                                                                                                                                                                                                                                                                                                              | `None`  |
+| `slot_cost`                 | `int \| None`                                                         | The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it.                                                                                                                                        | `None`  |
+| `max_reassignments_allowed` | `int \| None`                                                         | The maximum number of times Hatchet will reassign the task to a new worker when the worker running it stops heartbeating or never acknowledges it. Once reached, the task fails instead of being reassigned. Set to `0` to never reassign the task, e.g. if re-running it would be unsafe. If not set, the server's default limit applies. The server's limit also caps this value. | `None`  |
 
 Returns:
 
@@ -113,9 +114,9 @@ Returns:
 
 Raises:
 
-| Type         | Description                     |
-| ------------ | ------------------------------- |
-| `ValueError` | If `slot_cost` is not positive. |
+| Type         | Description                                                                |
+| ------------ | -------------------------------------------------------------------------- |
+| `ValueError` | If `slot_cost` is not positive or `max_reassignments_allowed` is negative. |
 
 #### `batch_task`
 
@@ -139,23 +140,24 @@ See the Hatchet docs for more information on durable execution to decide if this
 
 Parameters:
 
-| Name                    | Type                                                                  | Description                                                                                                                                                                                                                                                  | Default                                |
-| ----------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| `name`                  | `str \| None`                                                         | The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.                                                                                                                                          | `None`                                 |
-| `schedule_timeout`      | `timedelta \| None`                                                   | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                                                                                                 | `None`                                 |
-| `execution_timeout`     | `timedelta \| None`                                                   | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                                                                                                  | `None`                                 |
-| `parents`               | `list[Task[TWorkflowInput, Any]] \| None`                             | A list of tasks that are parents of the task. Note: Parents must be defined before their children.                                                                                                                                                           | `None`                                 |
-| `retries`               | `int \| None`                                                         | The number of times to retry the task before failing.                                                                                                                                                                                                        | `None`                                 |
-| `rate_limits`           | `list[RateLimit] \| None`                                             | A list of rate limit configurations for the task.                                                                                                                                                                                                            | `None`                                 |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`                                    | A list of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.                                                                                   | `None`                                 |
-| `backoff_factor`        | `float \| None`                                                       | The backoff factor for controlling exponential backoff in retries.                                                                                                                                                                                           | `None`                                 |
-| `backoff_max`           | `timedelta \| None`                                                   | The maximum delay between retries when using exponential backoff.                                                                                                                                                                                            | `None`                                 |
-| `concurrency`           | `int \| ConcurrencyStrategy \| Sequence[ConcurrencyStrategy] \| None` | A list of concurrency expressions for the task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.                      | `None`                                 |
-| `wait_for`              | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that must be met before the task can run.                                                                                                                                                                                               | `None`                                 |
-| `skip_if`               | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that, if met, will cause the task to be skipped.                                                                                                                                                                                        | `None`                                 |
-| `cancel_if`             | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that, if met, will cause the task to be canceled.                                                                                                                                                                                       | `None`                                 |
-| `eviction_policy`       | `EvictionPolicy \| None`                                              | An optional eviction policy controlling when this durable task can be evicted from a worker slot while waiting.                                                                                                                                              | `DEFAULT_DURABLE_TASK_EVICTION_POLICY` |
-| `slot_cost`             | `int \| None`                                                         | The number of durable worker slots this task consumes. A normal durable task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free durable slots to run it. | `None`                                 |
+| Name                        | Type                                                                  | Description                                                                                                                                                                                                                                                                                                                                                                         | Default                                |
+| --------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `name`                      | `str \| None`                                                         | The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.                                                                                                                                                                                                                                                                 | `None`                                 |
+| `schedule_timeout`          | `timedelta \| None`                                                   | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                                                                                                                                                                                                                        | `None`                                 |
+| `execution_timeout`         | `timedelta \| None`                                                   | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                                                                                                                                                                                                                         | `None`                                 |
+| `parents`                   | `list[Task[TWorkflowInput, Any]] \| None`                             | A list of tasks that are parents of the task. Note: Parents must be defined before their children.                                                                                                                                                                                                                                                                                  | `None`                                 |
+| `retries`                   | `int \| None`                                                         | The number of times to retry the task before failing.                                                                                                                                                                                                                                                                                                                               | `None`                                 |
+| `rate_limits`               | `list[RateLimit] \| None`                                             | A list of rate limit configurations for the task.                                                                                                                                                                                                                                                                                                                                   | `None`                                 |
+| `desired_worker_labels`     | `list[DesiredWorkerLabel] \| None`                                    | A list of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.                                                                                                                                                                                                          | `None`                                 |
+| `backoff_factor`            | `float \| None`                                                       | The backoff factor for controlling exponential backoff in retries.                                                                                                                                                                                                                                                                                                                  | `None`                                 |
+| `backoff_max`               | `timedelta \| None`                                                   | The maximum delay between retries when using exponential backoff.                                                                                                                                                                                                                                                                                                                   | `None`                                 |
+| `concurrency`               | `int \| ConcurrencyStrategy \| Sequence[ConcurrencyStrategy] \| None` | A list of concurrency expressions for the task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.                                                                                                                                             | `None`                                 |
+| `wait_for`                  | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that must be met before the task can run.                                                                                                                                                                                                                                                                                                                      | `None`                                 |
+| `skip_if`                   | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that, if met, will cause the task to be skipped.                                                                                                                                                                                                                                                                                                               | `None`                                 |
+| `cancel_if`                 | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that, if met, will cause the task to be canceled.                                                                                                                                                                                                                                                                                                              | `None`                                 |
+| `eviction_policy`           | `EvictionPolicy \| None`                                              | An optional eviction policy controlling when this durable task can be evicted from a worker slot while waiting.                                                                                                                                                                                                                                                                     | `DEFAULT_DURABLE_TASK_EVICTION_POLICY` |
+| `max_reassignments_allowed` | `int \| None`                                                         | The maximum number of times Hatchet will reassign the task to a new worker when the worker running it stops heartbeating or never acknowledges it. Once reached, the task fails instead of being reassigned. Set to `0` to never reassign the task, e.g. if re-running it would be unsafe. If not set, the server's default limit applies. The server's limit also caps this value. | `None`                                 |
+| `slot_cost`                 | `int \| None`                                                         | The number of durable worker slots this task consumes. A normal durable task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free durable slots to run it.                                                                                                                        | `None`                                 |
 
 Returns:
 
@@ -311,13 +313,13 @@ Schedule a workflow to run at a specific time.
 
 Parameters:
 
-| Name                  | Type                                       | Description                                            | Default                        |
-| --------------------- | ------------------------------------------ | ------------------------------------------------------ | ------------------------------ |
-| `trigger_at`          | `datetime`                                 | The time at which to schedule the workflow.            | _required_                     |
-| `input`               | `TWorkflowInput`                           | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
-| `child_key`           | `str \| None`                              | An optional key for deduplicating child workflow runs. | `None`                         |
-| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.     | `None`                         |
-| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the scheduled workflow run.            | `None`                         |
+| Name                  | Type                                       | Description                                            | Default    |
+| --------------------- | ------------------------------------------ | ------------------------------------------------------ | ---------- |
+| `trigger_at`          | `datetime`                                 | The time at which to schedule the workflow.            | _required_ |
+| `input`               | `TWorkflowInput \| None`                   | The input data for the workflow.                       | `None`     |
+| `child_key`           | `str \| None`                              | An optional key for deduplicating child workflow runs. | `None`     |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.     | `None`     |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the scheduled workflow run.            | `None`     |
 
 Returns:
 
@@ -331,13 +333,13 @@ Schedule a workflow to run at a specific time.
 
 Parameters:
 
-| Name                  | Type                                       | Description                                            | Default                        |
-| --------------------- | ------------------------------------------ | ------------------------------------------------------ | ------------------------------ |
-| `trigger_at`          | `datetime`                                 | The time at which to schedule the workflow.            | _required_                     |
-| `input`               | `TWorkflowInput`                           | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
-| `child_key`           | `str \| None`                              | An optional key for deduplicating child workflow runs. | `None`                         |
-| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.     | `None`                         |
-| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the scheduled workflow run.            | `None`                         |
+| Name                  | Type                                       | Description                                            | Default    |
+| --------------------- | ------------------------------------------ | ------------------------------------------------------ | ---------- |
+| `trigger_at`          | `datetime`                                 | The time at which to schedule the workflow.            | _required_ |
+| `input`               | `TWorkflowInput \| None`                   | The input data for the workflow.                       | `None`     |
+| `child_key`           | `str \| None`                              | An optional key for deduplicating child workflow runs. | `None`     |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.     | `None`     |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the scheduled workflow run.            | `None`     |
 
 Returns:
 
@@ -351,13 +353,13 @@ Create a cron job for the workflow.
 
 Parameters:
 
-| Name                  | Type                                       | Description                                                     | Default                        |
-| --------------------- | ------------------------------------------ | --------------------------------------------------------------- | ------------------------------ |
-| `cron_name`           | `str`                                      | The name of the cron job.                                       | _required_                     |
-| `expression`          | `str`                                      | The cron expression that defines the schedule for the cron job. | _required_                     |
-| `input`               | `TWorkflowInput`                           | The input data for the workflow.                                | `cast('TWorkflowInput', None)` |
-| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata for the cron job.                           | `None`                         |
-| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron job.                                   | `None`                         |
+| Name                  | Type                                       | Description                                                     | Default    |
+| --------------------- | ------------------------------------------ | --------------------------------------------------------------- | ---------- |
+| `cron_name`           | `str`                                      | The name of the cron job.                                       | _required_ |
+| `expression`          | `str`                                      | The cron expression that defines the schedule for the cron job. | _required_ |
+| `input`               | `TWorkflowInput \| None`                   | The input data for the workflow.                                | `None`     |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata for the cron job.                           | `None`     |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron job.                                   | `None`     |
 
 Returns:
 
@@ -371,13 +373,13 @@ Create a cron job for the workflow.
 
 Parameters:
 
-| Name                  | Type                                       | Description                                                     | Default                        |
-| --------------------- | ------------------------------------------ | --------------------------------------------------------------- | ------------------------------ |
-| `cron_name`           | `str`                                      | The name of the cron job.                                       | _required_                     |
-| `expression`          | `str`                                      | The cron expression that defines the schedule for the cron job. | _required_                     |
-| `input`               | `TWorkflowInput`                           | The input data for the workflow.                                | `cast('TWorkflowInput', None)` |
-| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata for the cron job.                           | `None`                         |
-| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron job.                                   | `None`                         |
+| Name                  | Type                                       | Description                                                     | Default    |
+| --------------------- | ------------------------------------------ | --------------------------------------------------------------- | ---------- |
+| `cron_name`           | `str`                                      | The name of the cron job.                                       | _required_ |
+| `expression`          | `str`                                      | The cron expression that defines the schedule for the cron job. | _required_ |
+| `input`               | `TWorkflowInput \| None`                   | The input data for the workflow.                                | `None`     |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata for the cron job.                           | `None`     |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron job.                                   | `None`     |
 
 Returns:
 
@@ -391,14 +393,14 @@ Create a bulk run item for the workflow. This is intended to be used in conjunct
 
 Parameters:
 
-| Name                    | Type                                       | Description                                                                  | Default                        |
-| ----------------------- | ------------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------ |
-| `input`                 | `TWorkflowInput`                           | The input data for the workflow.                                             | `cast('TWorkflowInput', None)` |
-| `child_key`             | `str \| None`                              | An optional key for deduplicating child workflow runs.                       | `None`                         |
-| `additional_metadata`   | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.                           | `None`                         |
-| `priority`              | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the workflow run.                                            | `None`                         |
-| `sticky`                | `bool`                                     | Whether to run the workflow on the same worker as the task that triggers it. | `False`                        |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`         | A list of desired worker labels for worker affinity.                         | `None`                         |
+| Name                    | Type                                       | Description                                                                  | Default |
+| ----------------------- | ------------------------------------------ | ---------------------------------------------------------------------------- | ------- |
+| `input`                 | `TWorkflowInput \| None`                   | The input data for the workflow.                                             | `None`  |
+| `child_key`             | `str \| None`                              | An optional key for deduplicating child workflow runs.                       | `None`  |
+| `additional_metadata`   | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.                           | `None`  |
+| `priority`              | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the workflow run.                                            | `None`  |
+| `sticky`                | `bool`                                     | Whether to run the workflow on the same worker as the task that triggers it. | `False` |
+| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`         | A list of desired worker labels for worker affinity.                         | `None`  |
 
 Returns:
 
@@ -692,13 +694,13 @@ Schedule a workflow to run at a specific time.
 
 Parameters:
 
-| Name                  | Type                                       | Description                                            | Default                        |
-| --------------------- | ------------------------------------------ | ------------------------------------------------------ | ------------------------------ |
-| `trigger_at`          | `datetime`                                 | The time at which to schedule the workflow.            | _required_                     |
-| `input`               | `TWorkflowInput`                           | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
-| `child_key`           | `str \| None`                              | An optional key for deduplicating child workflow runs. | `None`                         |
-| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.     | `None`                         |
-| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the scheduled workflow run.            | `None`                         |
+| Name                  | Type                                       | Description                                            | Default    |
+| --------------------- | ------------------------------------------ | ------------------------------------------------------ | ---------- |
+| `trigger_at`          | `datetime`                                 | The time at which to schedule the workflow.            | _required_ |
+| `input`               | `TWorkflowInput \| None`                   | The input data for the workflow.                       | `None`     |
+| `child_key`           | `str \| None`                              | An optional key for deduplicating child workflow runs. | `None`     |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.     | `None`     |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the scheduled workflow run.            | `None`     |
 
 Returns:
 
@@ -712,13 +714,13 @@ Schedule a workflow to run at a specific time.
 
 Parameters:
 
-| Name                  | Type                                       | Description                                            | Default                        |
-| --------------------- | ------------------------------------------ | ------------------------------------------------------ | ------------------------------ |
-| `trigger_at`          | `datetime`                                 | The time at which to schedule the workflow.            | _required_                     |
-| `input`               | `TWorkflowInput`                           | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
-| `child_key`           | `str \| None`                              | An optional key for deduplicating child workflow runs. | `None`                         |
-| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.     | `None`                         |
-| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the scheduled workflow run.            | `None`                         |
+| Name                  | Type                                       | Description                                            | Default    |
+| --------------------- | ------------------------------------------ | ------------------------------------------------------ | ---------- |
+| `trigger_at`          | `datetime`                                 | The time at which to schedule the workflow.            | _required_ |
+| `input`               | `TWorkflowInput \| None`                   | The input data for the workflow.                       | `None`     |
+| `child_key`           | `str \| None`                              | An optional key for deduplicating child workflow runs. | `None`     |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.     | `None`     |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the scheduled workflow run.            | `None`     |
 
 Returns:
 
@@ -732,13 +734,13 @@ Create a cron job for the workflow.
 
 Parameters:
 
-| Name                  | Type                                       | Description                                                     | Default                        |
-| --------------------- | ------------------------------------------ | --------------------------------------------------------------- | ------------------------------ |
-| `cron_name`           | `str`                                      | The name of the cron job.                                       | _required_                     |
-| `expression`          | `str`                                      | The cron expression that defines the schedule for the cron job. | _required_                     |
-| `input`               | `TWorkflowInput`                           | The input data for the workflow.                                | `cast('TWorkflowInput', None)` |
-| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata for the cron job.                           | `None`                         |
-| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron job.                                   | `None`                         |
+| Name                  | Type                                       | Description                                                     | Default    |
+| --------------------- | ------------------------------------------ | --------------------------------------------------------------- | ---------- |
+| `cron_name`           | `str`                                      | The name of the cron job.                                       | _required_ |
+| `expression`          | `str`                                      | The cron expression that defines the schedule for the cron job. | _required_ |
+| `input`               | `TWorkflowInput \| None`                   | The input data for the workflow.                                | `None`     |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata for the cron job.                           | `None`     |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron job.                                   | `None`     |
 
 Returns:
 
@@ -752,13 +754,13 @@ Create a cron job for the workflow.
 
 Parameters:
 
-| Name                  | Type                                       | Description                                                     | Default                        |
-| --------------------- | ------------------------------------------ | --------------------------------------------------------------- | ------------------------------ |
-| `cron_name`           | `str`                                      | The name of the cron job.                                       | _required_                     |
-| `expression`          | `str`                                      | The cron expression that defines the schedule for the cron job. | _required_                     |
-| `input`               | `TWorkflowInput`                           | The input data for the workflow.                                | `cast('TWorkflowInput', None)` |
-| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata for the cron job.                           | `None`                         |
-| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron job.                                   | `None`                         |
+| Name                  | Type                                       | Description                                                     | Default    |
+| --------------------- | ------------------------------------------ | --------------------------------------------------------------- | ---------- |
+| `cron_name`           | `str`                                      | The name of the cron job.                                       | _required_ |
+| `expression`          | `str`                                      | The cron expression that defines the schedule for the cron job. | _required_ |
+| `input`               | `TWorkflowInput \| None`                   | The input data for the workflow.                                | `None`     |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata for the cron job.                           | `None`     |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron job.                                   | `None`     |
 
 Returns:
 
@@ -772,14 +774,14 @@ Create a bulk run item for the workflow. This is intended to be used in conjunct
 
 Parameters:
 
-| Name                    | Type                                       | Description                                                                  | Default                        |
-| ----------------------- | ------------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------ |
-| `input`                 | `TWorkflowInput`                           | The input data for the workflow.                                             | `cast('TWorkflowInput', None)` |
-| `child_key`             | `str \| None`                              | An optional key for deduplicating child workflow runs.                       | `None`                         |
-| `additional_metadata`   | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.                           | `None`                         |
-| `priority`              | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the workflow run.                                            | `None`                         |
-| `sticky`                | `bool`                                     | Whether to run the workflow on the same worker as the task that triggers it. | `False`                        |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`         | A list of desired worker labels for worker affinity.                         | `None`                         |
+| Name                    | Type                                       | Description                                                                  | Default |
+| ----------------------- | ------------------------------------------ | ---------------------------------------------------------------------------- | ------- |
+| `input`                 | `TWorkflowInput \| None`                   | The input data for the workflow.                                             | `None`  |
+| `child_key`             | `str \| None`                              | An optional key for deduplicating child workflow runs.                       | `None`  |
+| `additional_metadata`   | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.                           | `None`  |
+| `priority`              | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the workflow run.                                            | `None`  |
+| `sticky`                | `bool`                                     | Whether to run the workflow on the same worker as the task that triggers it. | `False` |
+| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`         | A list of desired worker labels for worker affinity.                         | `None`  |
 
 Returns:
 

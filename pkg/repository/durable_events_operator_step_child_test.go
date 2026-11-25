@@ -60,7 +60,16 @@ func TestIsOperatorStepChildRequiresTheOrchestratorAsParentAndRun(t *testing.T) 
 	}
 	require.False(t, IsOperatorStepChild(regularChildWorkflow))
 
-	rootTask := &sqlcv1.ReleaseTasksRow{WorkflowRunID: otherExternalId}
+	singleTaskChildRun := &sqlcv1.ReleaseTasksRow{
+		ExternalID:           otherExternalId,
+		WorkflowRunID:        otherExternalId,
+		ParentTaskExternalID: &orchestratorExternalId,
+		ParentTaskID:         pgtype.Int8{Int64: 1, Valid: true},
+		ParentTaskInsertedAt: pgtype.Timestamptz{Valid: true},
+	}
+	require.True(t, IsOperatorStepChild(singleTaskChildRun))
+
+	rootTask := &sqlcv1.ReleaseTasksRow{ExternalID: otherExternalId, WorkflowRunID: otherExternalId}
 	require.False(t, IsOperatorStepChild(rootTask))
 }
 
@@ -106,10 +115,12 @@ func TestOperatorStepChildCompletionSatisfiesItsEntryWithoutAMatch(t *testing.T)
 	require.NotEqual(t, *completed.SatisfiedOrder, *failed.SatisfiedOrder)
 
 	storedEntries, err := repos.shared.queries.BulkGetDurableEventLogEntries(ctx, repos.shared.pool.ForShared(), sqlcv1.BulkGetDurableEventLogEntriesParams{
-		Durabletaskids:         []int64{orchestrator.ID, orchestrator.ID},
-		Durabletaskinsertedats: []pgtype.Timestamptz{orchestrator.InsertedAt, orchestrator.InsertedAt},
-		Branchids:              []int64{stepA.BranchId, stepB.BranchId},
-		Nodeids:                []int64{stepA.NodeId, stepB.NodeId},
+		Durabletaskids:           []int64{orchestrator.ID, orchestrator.ID},
+		Durabletaskinsertedats:   []pgtype.Timestamptz{orchestrator.InsertedAt, orchestrator.InsertedAt},
+		Branchids:                []int64{stepA.BranchId, stepB.BranchId},
+		Nodeids:                  []int64{stepA.NodeId, stepB.NodeId},
+		Mindurabletaskinsertedat: orchestrator.InsertedAt,
+		Maxdurabletaskinsertedat: orchestrator.InsertedAt,
 	})
 	require.NoError(t, err)
 	require.Len(t, storedEntries, 2)

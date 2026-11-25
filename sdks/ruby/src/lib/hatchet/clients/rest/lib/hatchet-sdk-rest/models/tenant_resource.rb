@@ -22,9 +22,12 @@ module HatchetSdkRest
     CRON = "CRON".freeze
     SCHEDULE = "SCHEDULE".freeze
     INCOMING_WEBHOOK = "INCOMING_WEBHOOK".freeze
+    STREAM_TOPIC = "STREAM_TOPIC".freeze
+    STREAM_MESSAGE = "STREAM_MESSAGE".freeze
+    STREAM_RETENTION = "STREAM_RETENTION".freeze
 
     def self.all_vars
-      @all_vars ||= [WORKER, WORKER_SLOT, EVENT, TASK_RUN, CRON, SCHEDULE, INCOMING_WEBHOOK].freeze
+      @all_vars ||= [WORKER, WORKER_SLOT, EVENT, TASK_RUN, CRON, SCHEDULE, INCOMING_WEBHOOK, STREAM_TOPIC, STREAM_MESSAGE, STREAM_RETENTION].freeze
     end
 
     # Builds the enum from string

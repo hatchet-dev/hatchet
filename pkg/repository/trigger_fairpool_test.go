@@ -30,8 +30,9 @@ func TestOwnedTriggerStaysWithinTenantConnectionLimit(t *testing.T) {
 	cfg.MaxConns = 10
 
 	gated, err := fairpool.NewWithConfig(ctx, cfg, fairpool.Options{
-		MaxPercent: 10,
-		MaxWait:    300 * time.Millisecond,
+		MaxPercent:     10,
+		MaxWait:        300 * time.Millisecond,
+		AcquireTimeout: fairpool.DefaultAcquireTimeout,
 	})
 	require.NoError(t, err)
 	defer gated.Close()
@@ -48,6 +49,7 @@ func TestOwnedTriggerStaysWithinTenantConnectionLimit(t *testing.T) {
 		defaultLimitTestConfig(),
 		true,
 		time.Minute,
+		false,
 		false,
 	)
 	defer func() { _ = stop() }()

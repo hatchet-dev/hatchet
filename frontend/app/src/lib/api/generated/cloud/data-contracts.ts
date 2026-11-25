@@ -1126,7 +1126,8 @@ export interface SandboxProvider {
    * @format int32
    */
   maxIdleTtlSeconds: number;
-  labels: Record<string, any>;
+  /** Default metadata for every sandbox this provider creates. The SDK's metadata overrides it key by key. */
+  labels: Record<string, string>;
   /** Whether the operator serves sandboxes on this provider. */
   enabled: boolean;
   /** The health of the provider as last observed by the sandbox operator: whether the vendor accepted the provider's credentials. Written on transitions only. */
@@ -1160,7 +1161,8 @@ export interface CreateSandboxProviderRequest {
    * @format int32
    */
   maxIdleTtlSeconds?: number;
-  labels?: Record<string, any>;
+  /** Default metadata for every sandbox this provider creates. */
+  labels?: Record<string, string>;
   /** Defaults to true. */
   enabled?: boolean;
 }
@@ -1182,8 +1184,8 @@ export interface UpdateSandboxProviderRequest {
   defaultTemplate?: string;
   /** @format int32 */
   maxIdleTtlSeconds?: number;
-  /** Replaces the existing labels. */
-  labels?: Record<string, any>;
+  /** Replaces the default sandbox metadata. */
+  labels?: Record<string, string>;
   enabled?: boolean;
 }
 

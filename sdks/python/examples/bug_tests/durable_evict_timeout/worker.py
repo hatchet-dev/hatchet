@@ -1,5 +1,6 @@
-from hatchet_sdk import Hatchet, DurableContext, EvictionPolicy
 from datetime import timedelta
+
+from hatchet_sdk import DurableContext, EvictionPolicy, Hatchet
 
 hatchet = Hatchet()
 

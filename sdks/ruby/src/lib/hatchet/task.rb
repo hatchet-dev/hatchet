@@ -47,6 +47,9 @@ module Hatchet
     # @return [Float, nil] Backoff factor between retries
     attr_reader :backoff_factor
 
+    # @return [Integer, nil] Maximum number of times the task can be reassigned to a new worker before failing
+    attr_reader :max_reassignments_allowed
+
     # @return [Array<RateLimit>] Rate limits applied to this task
     attr_reader :rate_limits
 
@@ -90,6 +93,7 @@ module Hatchet
     # @param retries [Integer, nil] Max retries
     # @param backoff_max_seconds [Integer, nil] Max backoff seconds
     # @param backoff_factor [Float, nil] Backoff multiplier
+    # @param max_reassignments_allowed [Integer, nil] Max reassignments to a new worker before failing. Must be 0 or more.
     # @param rate_limits [Array<RateLimit>] Rate limits
     # @param concurrency [Array<ConcurrencyExpression>, ConcurrencyExpression, nil]
     # @param desired_worker_labels [Hash, nil]
@@ -108,6 +112,7 @@ module Hatchet
       retries: nil,
       backoff_max_seconds: nil,
       backoff_factor: nil,
+      max_reassignments_allowed: nil,
       rate_limits: [],
       concurrency: nil,
       desired_worker_labels: nil,
@@ -121,6 +126,10 @@ module Hatchet
       deps: nil,
       &block
     )
+      if !max_reassignments_allowed.nil? && max_reassignments_allowed.negative?
+        raise ArgumentError, "max_reassignments_allowed must be 0 or more; got #{max_reassignments_allowed}"
+      end
+
       @name = name.to_sym
       @parents = parents
       @execution_timeout = execution_timeout
@@ -128,6 +137,7 @@ module Hatchet
       @retries = retries
       @backoff_max_seconds = backoff_max_seconds
       @backoff_factor = backoff_factor
+      @max_reassignments_allowed = max_reassignments_allowed
       @rate_limits = rate_limits
       @concurrency = concurrency
       @desired_worker_labels = desired_worker_labels
@@ -183,6 +193,8 @@ module Hatchet
       # Backoff settings
       opts[:backoff_factor] = @backoff_factor if @backoff_factor
       opts[:backoff_max_seconds] = @backoff_max_seconds if @backoff_max_seconds
+
+      opts[:max_reassignments_allowed] = @max_reassignments_allowed unless @max_reassignments_allowed.nil?
 
       # Task-level concurrency
       if @concurrency

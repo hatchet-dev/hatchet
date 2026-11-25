@@ -1,72 +1,51 @@
 import asyncio
 import time
+from random import shuffle
+from typing import Any, cast
+from uuid import uuid4
 
 import pytest
-from uuid import uuid4
-import json
-from typing import Any, cast
-from random import shuffle
-from datetime import datetime, timedelta, timezone
 
 from examples.durable.worker import (
     EVENT_KEY,
-    SLEEP_TIME,
     REPLAY_RESET_SLEEP_TIME,
+    SLEEP_TIME,
+    AwaitedEvent,
+    DurableBulkSpawnInput,
+    ErrorRaisingTaskInput,
+    EventLookbackInput,
+    MemoInput,
+    durable_child_key_dedup_replay,
+    durable_non_determinism,
+    durable_replay_reset,
     durable_sleep_event_spawn,
+    durable_spawn_dag,
+    durable_spawn_many_dags,
+    durable_task,
     durable_with_bulk_spawn,
     durable_with_spawn,
     durable_workflow,
-    durable_task,
-    wait_for_sleep_twice,
-    durable_spawn_dag,
-    durable_non_determinism,
-    durable_replay_reset,
-    durable_child_key_dedup_replay,
-    memo_task,
-    MemoInput,
-    DurableBulkSpawnInput,
-    memo_now_caching,
-    AwaitedEvent,
-    EventLookbackInput,
-    wait_for_event_lookback,
-    wait_for_or_event_lookback,
-    wait_for_two_events_second_pushed_first,
-    wait_for_or_group_1,
-    durable_spawn_many_dags,
     error_raising_durable_parent,
     error_raising_task,
-    ErrorRaisingTaskInput,
+    memo_now_caching,
+    memo_task,
+    wait_for_event_lookback,
+    wait_for_or_event_lookback,
+    wait_for_or_group_1,
+    wait_for_sleep_twice,
+    wait_for_two_events_second_pushed_first,
 )
-from hatchet_sdk import Hatchet, RunStatus
-
-from examples.test_utils import poll_for_runs, wait_for_replay, wait_for_running_status
+from examples.test_utils import (
+    poll_for_runs,
+    wait_for_replay,
+    wait_for_running_status,
+    wait_for_task_completed_in_read_model,
+)
+from hatchet_sdk import CancelledRunError, Hatchet
 
 TIMING_TOLERANCE = 2.0
 
 requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
-
-
-async def _wait_for_task_to_complete(
-    hatchet: Hatchet, workflow_run_id: str, task_name: str, timeout: float = 90.0
-) -> None:
-    interval = 0.5
-    deadline = time.monotonic() + timeout
-
-    while time.monotonic() < deadline:
-        details = await hatchet.runs.aio_get(workflow_run_id)
-
-        # a task's display name is "<step readable id>-<unix timestamp>"
-        if any(
-            t.status == "COMPLETED" and t.display_name.startswith(f"{task_name}-")
-            for t in details.tasks
-        ):
-            return
-
-        await asyncio.sleep(interval)
-
-    raise TimeoutError(
-        f"{task_name} did not complete within {timeout}s for run {workflow_run_id}"
-    )
 
 
 async def _push_event_until_task_completes(
@@ -84,7 +63,7 @@ async def _push_event_until_task_completes(
         await hatchet.events.aio_push(event_key, payload)
 
         try:
-            await _wait_for_task_to_complete(
+            await wait_for_task_completed_in_read_model(
                 hatchet, workflow_run_id, task_name, timeout=interval
             )
             return
@@ -107,8 +86,8 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
     # going RUNNING can land the event before that sleep is even registered.
     # Anchor on the sleep having fired instead: once wait_for_or_group_1 is
     # COMPLETED the event can no longer beat it.
-    await _wait_for_task_to_complete(
-        hatchet, ref.workflow_run_id, wait_for_or_group_1.name
+    await wait_for_task_completed_in_read_model(
+        hatchet, ref.workflow_run_id, wait_for_or_group_1.name, timeout=90
     )
 
     # durable_task registers its event wait only after its own SLEEP_TIME
@@ -161,8 +140,7 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
     await wait_for_running_status(hatchet, first_sleep.workflow_run_id)
     await hatchet.runs.aio_cancel(first_sleep.workflow_run_id)
 
-    with pytest.raises(Exception) as exc_info:
-        assert "HatchetError: task was cancelled" in str(exc_info.value)
+    with pytest.raises(CancelledRunError):
         await first_sleep.aio_result()
 
     replay_start = time.time()
@@ -506,7 +484,7 @@ async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
 
     res = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
 
-    payload = cast(dict[str, str], event.payload)
+    payload = cast("dict[str, str]", event.payload)
 
     assert res.event.order == payload["order"]
 

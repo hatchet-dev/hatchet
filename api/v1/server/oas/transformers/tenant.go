@@ -5,25 +5,20 @@ import (
 	"strings"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func ToTenant(tenant *sqlcv1.Tenant, serverURL string) *gen.Tenant {
-	var environment *gen.TenantEnvironment
-	if tenant.Environment.Valid {
-		env := gen.TenantEnvironment(tenant.Environment.TenantEnvironment)
-		environment = &env
-	}
-
 	return &gen.Tenant{
 		Metadata:            *toAPIMetadata(tenant.ID, tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
 		Name:                tenant.Name,
 		Slug:                tenant.Slug,
 		AnalyticsOptOut:     &tenant.AnalyticsOptOut,
 		AlertMemberEmails:   &tenant.AlertMemberEmails,
-		Version:             gen.TenantVersion(tenant.Version),
-		Environment:         environment,
+		Version:             tenant.Version,
+		Environment:         tenant.Environment,
 		ServerUrl:           &serverURL,
 		DataRetentionPeriod: &tenant.DataRetentionPeriod,
 	}
@@ -64,7 +59,7 @@ func ToTenantResourcePolicy(_limits []*sqlcv1.TenantResourceLimit) *gen.TenantRe
 		}
 
 		// a retention period, not a usage limit
-		if limit.Resource == sqlcv1.LimitResourceSTREAMRETENTION {
+		if limit.Resource == enums.LimitResourceSTREAMRETENTION {
 			continue
 		}
 
@@ -80,7 +75,7 @@ func ToTenantResourcePolicy(_limits []*sqlcv1.TenantResourceLimit) *gen.TenantRe
 
 		limits = append(limits, gen.TenantResourceLimit{
 			Metadata:   *toAPIMetadata(limit.ID, limit.CreatedAt.Time, limit.UpdatedAt.Time),
-			Resource:   gen.TenantResource(limit.Resource),
+			Resource:   limit.Resource,
 			LimitValue: int(limit.LimitValue),
 			AlarmValue: &alarmValue,
 			Value:      int(limit.Value),

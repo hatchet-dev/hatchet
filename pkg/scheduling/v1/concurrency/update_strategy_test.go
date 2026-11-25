@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -35,7 +36,7 @@ func TestUpdateStrategy_RaisesLimitInPlace(t *testing.T) {
 
 	next := &sqlcv1.V1StepConcurrency{
 		MaxConcurrency: 3,
-		Strategy:       sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN,
+		Strategy:       enums.V1ConcurrencyStrategyGROUPROUNDROBIN,
 	}
 	c.UpdateStrategy(next)
 
@@ -83,7 +84,7 @@ func TestUpdateStrategy_LowersLimitInPlace(t *testing.T) {
 
 	c.UpdateStrategy(&sqlcv1.V1StepConcurrency{
 		MaxConcurrency: 1,
-		Strategy:       sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN,
+		Strategy:       enums.V1ConcurrencyStrategyGROUPROUNDROBIN,
 	})
 
 	if _, err := c.processWALMessages(context.Background(), nil, []walMessage{
@@ -126,7 +127,7 @@ func TestUpdateStrategy_RequeuesIdleBacklog(t *testing.T) {
 
 	c.UpdateStrategy(&sqlcv1.V1StepConcurrency{
 		MaxConcurrency: 3,
-		Strategy:       sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN,
+		Strategy:       enums.V1ConcurrencyStrategyGROUPROUNDROBIN,
 	})
 
 	if c.initialQueued {
@@ -148,12 +149,12 @@ func TestUpdateStrategy_RequeuesIdleBacklog(t *testing.T) {
 // sub-queue (which the re-armed pass now does) must be safe for every strategy kind:
 // no panics, and running work is trimmed or grandfathered per the kind's semantics.
 func TestUpdateStrategy_LowerThenRequeueAllKinds(t *testing.T) {
-	kinds := []sqlcv1.V1ConcurrencyStrategy{
-		sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN,
-		sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS,
-		sqlcv1.V1ConcurrencyStrategyCANCELNEWEST,
-		sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST,
-		sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST,
+	kinds := []enums.V1ConcurrencyStrategy{
+		enums.V1ConcurrencyStrategyGROUPROUNDROBIN,
+		enums.V1ConcurrencyStrategyCANCELINPROGRESS,
+		enums.V1ConcurrencyStrategyCANCELNEWEST,
+		enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST,
+		enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST,
 	}
 
 	for _, kind := range kinds {
@@ -186,7 +187,7 @@ func TestUpdateStrategy_LowerThenRequeueAllKinds(t *testing.T) {
 			c.commitScopes()
 
 			switch kind {
-			case sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS:
+			case enums.V1ConcurrencyStrategyCANCELINPROGRESS:
 				if sq.running.len() != 1 {
 					t.Fatalf("running = %d, want trimmed to 1", sq.running.len())
 				}
@@ -225,7 +226,7 @@ func TestUpdateStrategy_SurvivesRollbackOfOpenBatch(t *testing.T) {
 		t.Fatalf("expected the flush to fail")
 	}
 
-	c.UpdateStrategy(&sqlcv1.V1StepConcurrency{MaxConcurrency: 2, Strategy: sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN})
+	c.UpdateStrategy(&sqlcv1.V1StepConcurrency{MaxConcurrency: 2, Strategy: enums.V1ConcurrencyStrategyGROUPROUNDROBIN})
 	c.rollbackScopes()
 
 	if got := c.getOrCreateSubQueue("static").maxRuns; got != 2 {

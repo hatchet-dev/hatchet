@@ -1,11 +1,11 @@
 import pytest
 
 from examples.bug_tests.durable_child_key_duplicate_child.worker import (
-    durable_parent_child_key_bug,
     Input,
+    durable_parent_child_key_bug,
 )
 from examples.test_utils import wait_for_child_runs
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -33,7 +33,7 @@ async def test_durable_child_key_duplicate_bug_second_unique(hatchet: Hatchet) -
 
     await res.aio_result()
 
-    runs = await wait_for_child_runs(hatchet, res.workflow_run_id)
+    runs = await wait_for_child_runs(hatchet, res.workflow_run_id, min_count=2)
 
     assert (
         len(runs) == 2
@@ -57,7 +57,7 @@ async def test_durable_child_key_duplicate_bug_third_unique(hatchet: Hatchet) ->
 
     await res.aio_result()
 
-    runs = await wait_for_child_runs(hatchet, res.workflow_run_id)
+    runs = await wait_for_child_runs(hatchet, res.workflow_run_id, min_count=2)
 
     assert (
         len(runs) == 2

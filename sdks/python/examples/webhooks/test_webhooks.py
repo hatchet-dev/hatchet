@@ -4,7 +4,7 @@ import hmac
 import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -22,7 +22,6 @@ from hatchet_sdk import (
     WebhookHMACEncoding,
     WebhookSourceName,
 )
-from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 
 TEST_BASIC_USERNAME = "test_user"
@@ -48,7 +47,7 @@ def test_run_id() -> str:
 
 @pytest.fixture
 def test_start() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def create_hmac_signature(
@@ -86,10 +85,11 @@ async def send_webhook_request(
     headers: dict[str, str] | None = None,
 ) -> AsyncGenerator[aiohttp.ClientResponse, None]:
     request_headers = headers or {}
-    auth = None
 
     if auth_type == "BASIC" and auth_data:
-        auth = aiohttp.BasicAuth(auth_data["username"], auth_data["password"])
+        request_headers["Authorization"] = aiohttp.encode_basic_auth(
+            auth_data["username"], auth_data["password"]
+        )
     elif auth_type == "API_KEY" and auth_data:
         request_headers[auth_data["header_name"]] = auth_data["api_key"]
     elif auth_type == "HMAC" and auth_data:
@@ -102,11 +102,11 @@ async def send_webhook_request(
         )
         request_headers[auth_data["header_name"]] = signature
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            url, json=body.model_dump(), auth=auth, headers=request_headers
-        ) as response:
-            yield response
+    async with (
+        aiohttp.ClientSession() as session,
+        session.post(url, json=body.model_dump(), headers=request_headers) as response,
+    ):
+        yield response
 
 
 @asynccontextmanager
@@ -218,8 +218,8 @@ async def assert_event_not_created(
     test_start: datetime,
     incoming_webhook: V1Webhook,
 ) -> None:
-    triggered_event = await wait_for_event(hatchet, incoming_webhook.name, test_start)
-    assert triggered_event is None
+    with pytest.raises(TimeoutError):
+        await wait_for_event(hatchet, incoming_webhook.name, test_start)
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -250,7 +250,7 @@ async def test_basic_auth_success(
 
 
 @pytest.mark.parametrize(
-    "username,password",
+    ("username", "password"),
     [
         ("test_user", "incorrect_password"),
         ("incorrect_user", "test_password"),
@@ -416,7 +416,7 @@ async def test_hmac_success(
 
 
 @pytest.mark.parametrize(
-    "algorithm,encoding",
+    ("algorithm", "encoding"),
     [
         ("SHA1", "HEX"),
         ("SHA256", "BASE64"),

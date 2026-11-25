@@ -5,6 +5,35 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.49.0] - 2026-11-23
+
+### Added
+
+- `maxReassignmentsAllowed` on task and durable task options (`hatchet.task`, `hatchet.durableTask`, `workflow.task`, `workflow.durableTask`) sets the maximum number of times Hatchet will reassign the task to a new worker when the worker running it stops heartbeating or never acknowledges it. Once reached, the task fails instead of being reassigned. Set it to `0` to never reassign the task. If not set, the server's default limit applies, and the server's limit also caps this value. A negative or non-integer value throws when the workflow is registered.
+
+### Fixed
+
+- The `BatchTaskConfig` docs no longer say a batch flushes once `groupMaxRuns` is exceeded. While a group has `groupMaxRuns` batches running, its ready batches stay buffered. The docs also give the engine defaults: `maxInterval` is 1s, measured from when a batch's first item is buffered, and `groupMaxRuns` is 100.
+
+## [1.48.0] - 2026-11-21
+
+### Changed
+
+- The worker `/metrics` endpoint now uses `@prometheus-io/client` instead of `prom-client`. If you use worker metrics, replace your `prom-client` dependency with `@prometheus-io/client` when upgrading.
+
+## [1.47.4] - 2026-11-17
+
+### Fixed
+
+- Retried unary gRPC calls that fail with a `google.rpc.RetryInfo` detail, such as `RESOURCE_EXHAUSTED` when the engine throttles a call, now wait the delay the server asks for instead of the SDK's own backoff. If the call keeps being throttled, the wait doubles with each retry, up to 5 seconds, and the call is attempted at most 5 times. Each wait is extended by a random amount of up to 20%, so that clients throttled together do not all retry at the same moment. A call the server asks to wait longer than 5 seconds fails at once with the server's error. This covers the calls the retrier makes over the Connect transport, such as workflow triggers, bulk triggers and event pushes; other errors keep the configured attempt count and backoff. A throttled attempt that is retried is logged at debug level, not as an error.
+- A failed workflow trigger or workflow registration keeps the original error in the `cause` chain of the `HatchetError` it throws, so the gRPC code and error details can be read.
+
+## [1.47.3] - 2026-11-16
+
+### Added
+
+- The REST client types include the `BATCH_BUFFERED` task event type and the `STREAM_TOPIC`, `STREAM_MESSAGE` and `STREAM_RETENTION` tenant resources, which the engine already returns.
+
 ## [1.47.2] - 2026-11-13
 
 ### Fixed

@@ -137,7 +137,7 @@ async def test_new_readers_skip_a_failed_attempt(hatchet: Hatchet) -> None:
 
     await durable_streams_retrying_progress.aio_run(ProgressInput(topic=topic))
 
-    received = []
+    received: list[dict[str, int]] = []
     async for event in hatchet.streams.aio_subscribe(topic):
         message = json.loads(event.payload)
         if message.get("done"):

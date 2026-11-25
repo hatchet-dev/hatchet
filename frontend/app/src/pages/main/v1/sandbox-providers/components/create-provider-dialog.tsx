@@ -115,9 +115,8 @@ export const CreateProviderDialog = ({
         {!kind ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Pick the vendor that runs your sandboxes. Hatchet keeps the
-              snapshot lineage and serves the sandbox SDK; the vendor runs the
-              machines under your own account.
+              Sandboxes run in your own vendor account. Hatchet keeps the
+              snapshots and serves the SDK.
             </p>
             <div className="grid gap-3 md:grid-cols-2">
               {KIND_ORDER.map((k) => (
@@ -146,7 +145,7 @@ export const CreateProviderDialog = ({
               className="flex flex-row items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="size-3" />
-              Choose another vendor
+              Back
             </button>
 
             <div className="space-y-2">
@@ -162,8 +161,7 @@ export const CreateProviderDialog = ({
               />
               <FieldErrorText error={errors.name} />
               <p className="text-xs text-muted-foreground">
-                The SDK picks this provider with metadata.provider when the
-                tenant has more than one.
+                The SDK names this provider with metadata.provider.
               </p>
             </div>
 
@@ -181,6 +179,10 @@ export const CreateProviderDialog = ({
               errors={errors}
               enabled={values.enabled}
               onEnabledChange={(checked) => setValue('enabled', checked)}
+              config={values.config}
+              onConfigChange={(key, value) =>
+                setValue(`config.${key}`, value, { shouldValidate: true })
+              }
               labels={values.labels}
               onLabelsChange={(labels) =>
                 setValue('labels', labels, { shouldValidate: !!errors.labels })

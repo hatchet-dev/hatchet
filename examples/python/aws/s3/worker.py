@@ -1,3 +1,4 @@
+# pyright: basic
 """
 Example: concurrently process S3 data.
 
@@ -13,7 +14,7 @@ import os
 from io import BytesIO
 from typing import Any
 
-import boto3  # type: ignore
+import boto3  # type: ignore[import-untyped]
 from pydantic import BaseModel
 
 from hatchet_sdk import (

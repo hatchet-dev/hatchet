@@ -8,6 +8,7 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/gocronutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -150,8 +151,9 @@ func (mc *MetricsCollectorImpl) Start() (func() error, error) {
 	ctx := context.Background()
 
 	// Collect database health metrics
-	_, err := mc.s.NewJob(
-		gocron.DurationJob(mc.dbHealthInterval),
+	_, err := gocronutils.NewJitteredDurationJob(
+		mc.s,
+		mc.dbHealthInterval,
 		gocron.NewTask(mc.collectDatabaseHealthMetrics(ctx)),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
@@ -161,8 +163,9 @@ func (mc *MetricsCollectorImpl) Start() (func() error, error) {
 	mc.l.Info().Ctx(ctx).Str("interval", mc.dbHealthInterval.String()).Msg("scheduled database health metrics collection")
 
 	// Collect OLAP metrics
-	_, err = mc.s.NewJob(
-		gocron.DurationJob(mc.olapInterval),
+	_, err = gocronutils.NewJitteredDurationJob(
+		mc.s,
+		mc.olapInterval,
 		gocron.NewTask(mc.collectOLAPMetrics(ctx)),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
@@ -172,8 +175,9 @@ func (mc *MetricsCollectorImpl) Start() (func() error, error) {
 	mc.l.Info().Ctx(ctx).Str("interval", mc.olapInterval.String()).Msg("scheduled OLAP metrics collection")
 
 	// Collect worker metrics
-	_, err = mc.s.NewJob(
-		gocron.DurationJob(mc.workerInterval),
+	_, err = gocronutils.NewJitteredDurationJob(
+		mc.s,
+		mc.workerInterval,
 		gocron.NewTask(mc.collectWorkerMetrics(ctx)),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)

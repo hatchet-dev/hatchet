@@ -188,11 +188,15 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		eventKeys = append(eventKeys, opt.childSpawnKey())
 	}
 
+	eventTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(eventTaskInsertedAts)
+
 	lockedEvents, err := s.queries.LockSignalCreatedEvents(ctx, tx, sqlcv1.LockSignalCreatedEventsParams{
-		Tenantid:        tenantId,
-		Taskids:         eventTaskIds,
-		Taskinsertedats: eventTaskInsertedAts,
-		Eventkeys:       eventKeys,
+		Tenantid:          tenantId,
+		Taskids:           eventTaskIds,
+		Taskinsertedats:   eventTaskInsertedAts,
+		Eventkeys:         eventKeys,
+		Mintaskinsertedat: eventTaskInsertedAtBounds.Min,
+		Maxtaskinsertedat: eventTaskInsertedAtBounds.Max,
 	})
 
 	if err != nil {

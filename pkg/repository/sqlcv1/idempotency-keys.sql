@@ -79,6 +79,8 @@ WITH input AS (
         (t.id, t.inserted_at, t.retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
 		AND t.idempotency_key IS NOT NULL
 		AND wv."idempotencyMethod" = 'STATUS'
+		AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+		AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ), keys_to_release AS (
     SELECT *
 	FROM v1_idempotency_key

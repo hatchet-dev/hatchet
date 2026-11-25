@@ -2,18 +2,14 @@ import asyncio
 import random
 
 from examples.fanout.worker import ParentInput, parent_wf
-from hatchet_sdk import Hatchet
 
 
 async def main() -> None:
-
-    hatchet = Hatchet()
-
     # Generate a random stream key to use to track all
     # stream events for this workflow run.
 
-    streamKey = "streamKey"
-    streamVal = f"sk-{random.randint(1, 100)}"
+    stream_key = "streamKey"
+    stream_value = f"sk-{random.randint(1, 100)}"
 
     # Specify the stream key as additional metadata
     # when running the workflow.
@@ -23,7 +19,7 @@ async def main() -> None:
 
     parent_wf.run(
         ParentInput(n=2),
-        additional_metadata={streamKey: streamVal},
+        additional_metadata={stream_key: stream_value},
     )
 
 

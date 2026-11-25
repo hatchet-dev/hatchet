@@ -33,7 +33,7 @@ def test_standalone_task_slot_cost(hatchet: Hatchet) -> None:
 def test_non_positive_slot_cost_is_rejected(hatchet: Hatchet, bad: int) -> None:
     wf = hatchet.workflow(name="slot-cost-invalid-wf")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="slot_cost must be a positive integer"):
         wf.task(name="bad", slot_cost=bad)(dummy)
 
 

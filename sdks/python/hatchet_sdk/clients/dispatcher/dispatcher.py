@@ -1,7 +1,7 @@
 import platform
 from importlib.metadata import version
 from sys import version_info
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import grpc.aio
 import tenacity
@@ -19,7 +19,6 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     BatchActionEvent,
     BatchActionEventItem,
     GetVersionRequest,
-    GetVersionResponse,
     OverridesData,
     RefreshTimeoutRequest,
     ReleaseSlotRequest,
@@ -29,13 +28,15 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     UpsertWorkerLabelsRequest,
     WorkerLabels,
     WorkerRegisterRequest,
-    WorkerRegisterResponse,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, BatchEventItem
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.api_auth import create_authorization_header
+
+if TYPE_CHECKING:
+    from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherAsyncStub
 
 DEFAULT_REGISTER_TIMEOUT = 30
 
@@ -47,7 +48,7 @@ class DispatcherClient:
 
         ## IMPORTANT: This needs to be created lazily so we don't require
         ## an event loop to instantiate the client.
-        self.aio_client: DispatcherStub | None = None
+        self.aio_client: DispatcherAsyncStub | None = None
         self.aio_channel: grpc.aio.Channel | None = None
         self.client: DispatcherStub | None = None
 
@@ -58,7 +59,7 @@ class DispatcherClient:
 
         return self.client
 
-    def _get_or_create_aio_client(self) -> DispatcherStub:
+    def _get_or_create_aio_client(self) -> "DispatcherAsyncStub":
         if self.aio_client is None:
             self.aio_channel = new_conn(self.config, True)
             self.aio_client = DispatcherStub(self.aio_channel)
@@ -81,26 +82,22 @@ class DispatcherClient:
         for key, value in self.config.worker_preset_labels.items():
             proto_labels[key] = WorkerLabels(str_value=str(value))
 
-        response = cast(
-            "WorkerRegisterResponse",
-            # fixme: figure out how to get typing right here
-            await aio_client.Register(
-                WorkerRegisterRequest(
-                    worker_name=worker_name,
-                    actions=actions,
-                    services=services,
-                    labels=proto_labels,
-                    slot_config=slot_config,
-                    runtime_info=RuntimeInfo(
-                        sdk_version=version("hatchet_sdk"),
-                        language=SDKS.PYTHON,
-                        language_version=f"{version_info.major}.{version_info.minor}.{version_info.micro}",
-                        os=platform.system().lower(),
-                    ),
+        response = await aio_client.Register(
+            WorkerRegisterRequest(
+                worker_name=worker_name,
+                actions=actions,
+                services=services,
+                labels=proto_labels,
+                slot_config=slot_config,
+                runtime_info=RuntimeInfo(
+                    sdk_version=version("hatchet_sdk"),
+                    language=SDKS.PYTHON,
+                    language_version=f"{version_info.major}.{version_info.minor}.{version_info.micro}",
+                    os=platform.system().lower(),
                 ),
-                timeout=DEFAULT_REGISTER_TIMEOUT,
-                metadata=create_authorization_header(self.token),
             ),
+            timeout=DEFAULT_REGISTER_TIMEOUT,
+            metadata=create_authorization_header(self.token),
         )
 
         return ActionListener(self.config, response.worker_id)
@@ -121,13 +118,10 @@ class DispatcherClient:
         aio_client = self._get_or_create_aio_client()
 
         try:
-            response = cast(
-                "GetVersionResponse",
-                await aio_client.GetVersion(  # type: ignore[attr-defined]
-                    GetVersionRequest(),
-                    timeout=DEFAULT_REGISTER_TIMEOUT,
-                    metadata=create_authorization_header(self.token),
-                ),
+            response = await aio_client.GetVersion(
+                GetVersionRequest(),
+                timeout=DEFAULT_REGISTER_TIMEOUT,
+                metadata=create_authorization_header(self.token),
             )
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.UNIMPLEMENTED:
@@ -202,12 +196,9 @@ class DispatcherClient:
         )
 
         try:
-            return cast(
-                "ActionEventResponse",
-                await aio_client.SendStepActionEvent(
-                    event,
-                    metadata=create_authorization_header(self.token),
-                ),
+            return await aio_client.SendStepActionEvent(
+                event,
+                metadata=create_authorization_header(self.token),
             )
         except grpc.aio.AioRpcError as e:
             if e.code() == grpc.StatusCode.UNAVAILABLE:
@@ -263,12 +254,9 @@ class DispatcherClient:
         client = self._get_or_create_client()
         event = self._build_batch_action_event(action, event_type, items)
 
-        return cast(
-            "ActionEventResponse",
-            client.SendBatchActionEvent(  # type: ignore[attr-defined]
-                event,
-                metadata=create_authorization_header(self.token),
-            ),
+        return client.SendBatchActionEvent(
+            event,
+            metadata=create_authorization_header(self.token),
         )
 
     async def aio_send_batch_action_event(
@@ -307,12 +295,9 @@ class DispatcherClient:
         event = self._build_batch_action_event(action, event_type, items)
 
         try:
-            return cast(
-                "ActionEventResponse",
-                await aio_client.SendBatchActionEvent(  # type: ignore[attr-defined]
-                    event,
-                    metadata=create_authorization_header(self.token),
-                ),
+            return await aio_client.SendBatchActionEvent(
+                event,
+                metadata=create_authorization_header(self.token),
             )
         except grpc.aio.AioRpcError as e:
             if e.code() == grpc.StatusCode.UNAVAILABLE:

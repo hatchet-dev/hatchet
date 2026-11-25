@@ -4,7 +4,7 @@ from examples.bug_tests.durable_spawn_index_collision.worker import (
     SpawnIndexCollisionInput,
     durable_spawn_index_collision,
 )
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -13,7 +13,7 @@ async def test_spawn_index_collision_fails_loudly(hatchet: Hatchet) -> None:
         input=SpawnIndexCollisionInput(scenario="collision"), wait_for_result=False
     )
 
-    with pytest.raises(Exception, match="[nN]on-determinism"):
+    with pytest.raises(FailedTaskRunExceptionGroup, match=r"[nN]on-determinism"):
         await ref.aio_result()
 
     runs = await hatchet.runs.aio_list(parent_task_run_id=ref.workflow_run_id)

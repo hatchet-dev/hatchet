@@ -1,7 +1,8 @@
-from contextlib import asynccontextmanager, contextmanager
-from typing import Annotated, AsyncGenerator, Generator
-from uuid import uuid4
 import sys
+from collections.abc import AsyncGenerator, Generator
+from contextlib import asynccontextmanager, contextmanager, suppress
+from typing import Annotated
+from uuid import uuid4
 
 from pydantic import BaseModel
 
@@ -20,8 +21,8 @@ if sys.version_info >= (3, 12):
     from examples.dependency_injection.dependency_annotations312 import (
         AsyncDepNoTypeAlias,
         AsyncDepTypeAlias,
-        SyncDepNoTypeAlias,
         AsyncDepTypeSyntax,
+        SyncDepNoTypeAlias,
         SyncDepTypeAlias,
         SyncDepTypeSyntax,
     )
@@ -29,8 +30,8 @@ else:
     from examples.dependency_injection.dependency_annotations310 import (
         AsyncDepNoTypeAlias,
         AsyncDepTypeAlias,
-        SyncDepNoTypeAlias,
         AsyncDepTypeSyntax,
+        SyncDepNoTypeAlias,
         SyncDepTypeAlias,
         SyncDepTypeSyntax,
     )
@@ -335,10 +336,8 @@ async def async_transaction_dep(
 async def exception_swallowing_dep(
     input: None, ctx: Context
 ) -> AsyncGenerator[None, None]:
-    try:
+    with suppress(Exception):
         yield
-    except Exception:
-        pass
 
 
 @hatchet.task()

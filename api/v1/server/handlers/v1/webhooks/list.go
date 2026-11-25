@@ -6,6 +6,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -13,12 +14,12 @@ import (
 func (w *V1WebhooksService) V1WebhookList(ctx echo.Context, request gen.V1WebhookListRequestObject) (gen.V1WebhookListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
-	var sourceNames []sqlcv1.V1IncomingWebhookSourceName
+	var sourceNames []enums.V1IncomingWebhookSourceName
 	var webhookNames []string
 
 	if request.Params.SourceNames != nil {
 		for _, sourceName := range *request.Params.SourceNames {
-			sourceNames = append(sourceNames, sqlcv1.V1IncomingWebhookSourceName(sourceName))
+			sourceNames = append(sourceNames, sourceName)
 		}
 	}
 

@@ -1,3 +1,4 @@
+import uuid
 from subprocess import Popen
 from typing import Any
 
@@ -9,7 +10,6 @@ from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.worker_status import WorkerStatus
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup
 from tests.zombie_worker.worker import die
-import uuid
 
 _worker_name = f"e2e-test-zombie-worker-{uuid.uuid4()}"
 

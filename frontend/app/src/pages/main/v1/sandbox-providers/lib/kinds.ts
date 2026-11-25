@@ -1,5 +1,39 @@
 import { SandboxProviderKind } from '@/lib/api/generated/cloud/data-contracts';
 
+export type ConfigField = {
+  key: string;
+  label: string;
+  help: string;
+} & (
+  | { type: 'text'; placeholder?: string; mono?: boolean }
+  | { type: 'number'; placeholder?: string }
+  | { type: 'boolean' }
+  | { type: 'select'; options: string[] }
+);
+
+const workdir: ConfigField = {
+  key: 'workdir',
+  label: 'Working directory',
+  help: 'Where commands run. Must be an absolute path.',
+  type: 'text',
+  placeholder: '/home/user',
+  mono: true,
+};
+
+const snapshotEveryTurn: ConfigField = {
+  key: 'snapshotEveryTurn',
+  label: 'Snapshot every turn',
+  help: 'Slower, but every command can be replayed.',
+  type: 'boolean',
+};
+
+export const ARCHIL_REGIONS = [
+  'aws-us-east-1',
+  'aws-us-west-2',
+  'aws-eu-west-1',
+  'gcp-us-central1',
+];
+
 export const KIND_ORDER: SandboxProviderKind[] = [
   SandboxProviderKind.DAYTONA,
   SandboxProviderKind.E2B,
@@ -16,74 +50,116 @@ export const KINDS: Record<
     description: string;
     keyHint: string;
     templatePlaceholder: string;
-    configKeys: string[];
+    fields: ConfigField[];
   }
 > = {
   [SandboxProviderKind.DAYTONA]: {
     label: 'Daytona',
-    description: 'Daytona sandboxes with snapshots.',
-    keyHint:
-      'An API key from the Daytona dashboard (Settings → API Keys). Leave the template empty for the default Daytona snapshot.',
+    description: 'Sandboxes with snapshots.',
+    keyHint: 'From the Daytona dashboard under Settings and API Keys.',
     templatePlaceholder: 'daytonaio/sandbox:latest',
-    configKeys: ['template', 'workdir', 'snapshotEveryTurn'],
+    fields: [workdir, snapshotEveryTurn],
   },
   [SandboxProviderKind.E2B]: {
     label: 'E2B',
-    description: 'E2B sandboxes with filesystem snapshots.',
+    description: 'Sandboxes with filesystem snapshots.',
     keyHint:
-      'An API key from the E2B dashboard (Team → API Keys). Leave the template empty for the E2B base template, or set a template name or snapshot id. Sessions are capped at one hour unless the provider config sets "maxTimeoutSeconds" for a plan that allows more.',
+      'From the E2B dashboard under Team and API Keys. On the Hobby plan keep max idle at or below 3600, E2B rejects longer.',
     templatePlaceholder: 'base',
-    configKeys: [
-      'apiUrl',
-      'template',
-      'workdir',
-      'maxTimeoutSeconds',
-      'snapshotEveryTurn',
+    fields: [
+      {
+        key: 'apiUrl',
+        label: 'API URL',
+        help: 'Only for self hosted E2B.',
+        type: 'text',
+        placeholder: 'https://api.e2b.dev',
+        mono: true,
+      },
+      workdir,
+      snapshotEveryTurn,
     ],
   },
   [SandboxProviderKind.ARCHIL]: {
     label: 'Archil',
-    description: 'Archil persistent microVMs with forks.',
-    keyHint:
-      'An API key from the Archil console. Keys are scoped to one region; set "region" in the provider config (default aws-us-east-1). The template is an OCI image.',
+    description: 'Persistent microVMs with forks.',
+    keyHint: 'From the Archil console. A key works in one region only.',
     templatePlaceholder: 'node:24-bookworm',
-    configKeys: ['region', 'template', 'workdir', 'snapshotEveryTurn'],
+    fields: [
+      {
+        key: 'region',
+        label: 'Region',
+        help: 'Must match the region of the API key.',
+        type: 'select',
+        options: ARCHIL_REGIONS,
+      },
+      workdir,
+      snapshotEveryTurn,
+    ],
   },
   [SandboxProviderKind.FREESTYLE]: {
     label: 'Freestyle',
-    description: 'Freestyle VMs with instant memory and disk snapshots.',
-    keyHint:
-      'An API key from admin.freestyle.sh. Leave the template empty for the platform default image, or set a snapshot id or slug.',
-    templatePlaceholder: 'sh-… or your-snapshot-slug',
-    configKeys: ['template', 'workdir', 'snapshotEveryTurn'],
+    description: 'VMs with instant memory and disk snapshots.',
+    keyHint: 'From admin.freestyle.sh.',
+    templatePlaceholder: 'sh-… or a snapshot slug',
+    fields: [workdir, snapshotEveryTurn],
   },
   [SandboxProviderKind.MODAL]: {
     label: 'Modal',
-    description: 'Modal sandboxes with filesystem snapshots.',
-    keyHint:
-      'The token secret (as-…) of a Modal API token. Put the matching token id (ak-…) in the provider config as "tokenId". The template is a registry image or a snapshot image id.',
+    description: 'Sandboxes with filesystem snapshots.',
+    keyHint: 'The token secret (as-…) of a Modal API token.',
     templatePlaceholder: 'debian:bookworm-slim',
-    configKeys: [
-      'tokenId',
-      'app',
-      'environment',
-      'template',
-      'workdir',
-      'snapshotEveryTurn',
+    fields: [
+      {
+        key: 'tokenId',
+        label: 'Token ID',
+        help: 'The ak-… half of the same Modal API token. Required.',
+        type: 'text',
+        placeholder: 'ak-…',
+        mono: true,
+      },
+      {
+        key: 'app',
+        label: 'App',
+        help: 'Modal app the sandboxes run under. Created if missing.',
+        type: 'text',
+        placeholder: 'hatchet-sandboxes',
+        mono: true,
+      },
+      {
+        key: 'environment',
+        label: 'Environment',
+        help: "Modal environment. Leave empty for the token's default.",
+        type: 'text',
+        mono: true,
+      },
+      { ...workdir, placeholder: '/workspace' },
+      snapshotEveryTurn,
     ],
   },
   [SandboxProviderKind.VERCEL]: {
     label: 'Vercel',
-    description: 'Vercel Sandbox microVMs with persistent snapshots.',
-    keyHint:
-      'A Vercel access token. Set "teamId" and "projectId" in the provider config; sandboxes are created in that project. Leave the template empty for the universal image.',
+    description: 'MicroVMs with persistent snapshots.',
+    keyHint: 'A Vercel access token.',
     templatePlaceholder: 'vercel/sandbox/universal',
-    configKeys: [
-      'teamId',
-      'projectId',
-      'template',
-      'workdir',
-      'snapshotEveryTurn',
+    fields: [
+      {
+        key: 'teamId',
+        label: 'Team ID',
+        help: 'Required.',
+        type: 'text',
+        placeholder: 'team_…',
+        mono: true,
+      },
+      {
+        key: 'projectId',
+        label: 'Project ID',
+        help: 'Sandboxes are created in this project. Required.',
+        type: 'text',
+        placeholder: 'prj_…',
+        mono: true,
+      },
+      { ...workdir, placeholder: '/vercel/sandbox' },
+      snapshotEveryTurn,
     ],
   },
 };

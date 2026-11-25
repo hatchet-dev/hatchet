@@ -1,4 +1,5 @@
 import asyncio
+import builtins
 import datetime
 from typing import TYPE_CHECKING, Literal
 
@@ -53,6 +54,7 @@ from hatchet_sdk.clients.v1.api_client import (
 from hatchet_sdk.types.ordering import OrderByDirection
 from hatchet_sdk.types.priority import Priority, priority_from_int
 from hatchet_sdk.types.run_status import RunStatus
+from hatchet_sdk.utils.literals import convert_literal_using_mapping
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 _WORKFLOW_RUN_STATUS_TO_RUN_STATUS: dict[WorkflowRunStatus, RunStatus] = {
@@ -291,7 +293,7 @@ class ScheduledClient(BaseRestClient):
     def bulk_delete(
         self,
         *,
-        scheduled_ids: list[str] | None = None,
+        scheduled_ids: builtins.list[str] | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
         parent_task_run_id: str | None = None,
@@ -350,7 +352,7 @@ class ScheduledClient(BaseRestClient):
     async def aio_bulk_delete(
         self,
         *,
-        scheduled_ids: list[str] | None = None,
+        scheduled_ids: builtins.list[str] | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
         parent_task_run_id: str | None = None,
@@ -378,7 +380,8 @@ class ScheduledClient(BaseRestClient):
     def bulk_update(
         self,
         updates: (
-            list[ScheduledWorkflowsBulkUpdateItem] | list[tuple[str, datetime.datetime]]
+            builtins.list[ScheduledWorkflowsBulkUpdateItem]
+            | builtins.list[tuple[str, datetime.datetime]]
         ),
     ) -> ScheduledWorkflowsBulkUpdateResponse:
         """
@@ -412,7 +415,8 @@ class ScheduledClient(BaseRestClient):
     async def aio_bulk_update(
         self,
         updates: (
-            list[ScheduledWorkflowsBulkUpdateItem] | list[tuple[str, datetime.datetime]]
+            builtins.list[ScheduledWorkflowsBulkUpdateItem]
+            | builtins.list[tuple[str, datetime.datetime]]
         ),
     ) -> ScheduledWorkflowsBulkUpdateResponse:
         """
@@ -429,11 +433,11 @@ class ScheduledClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
-        statuses: list[ScheduledRunStatusFilter] | None = None,
+        statuses: builtins.list[ScheduledRunStatusFilter] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         order_by_field: ScheduledRunOrderByField | None = None,
         order_by_direction: OrderByDirection | None = None,
-    ) -> list[ScheduledRun]:
+    ) -> builtins.list[ScheduledRun]:
         """
         Retrieves a list of scheduled workflows based on provided filters.
 
@@ -467,11 +471,11 @@ class ScheduledClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
-        statuses: list[ScheduledRunStatusFilter] | None = None,
+        statuses: builtins.list[ScheduledRunStatusFilter] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         order_by_field: ScheduledRunOrderByField | None = None,
         order_by_direction: OrderByDirection | None = None,
-    ) -> list[ScheduledRun]:
+    ) -> builtins.list[ScheduledRun]:
         """
         Retrieves a list of scheduled workflows based on provided filters.
 
@@ -495,12 +499,18 @@ class ScheduledClient(BaseRestClient):
                 offset=offset,
                 limit=limit,
                 order_by_field=(
-                    _ORDER_BY_FIELD_TO_REST[order_by_field]
+                    convert_literal_using_mapping(
+                        order_by_field, _ORDER_BY_FIELD_TO_REST, "order_by_field"
+                    )
                     if order_by_field is not None
                     else None
                 ),
                 order_by_direction=(
-                    _ORDER_BY_DIRECTION_TO_REST[order_by_direction]
+                    convert_literal_using_mapping(
+                        order_by_direction,
+                        _ORDER_BY_DIRECTION_TO_REST,
+                        "order_by_direction",
+                    )
                     if order_by_direction is not None
                     else None
                 ),
@@ -513,9 +523,9 @@ class ScheduledClient(BaseRestClient):
                     [
                         scheduled_run_status
                         for status in statuses
-                        for scheduled_run_status in _RUN_STATUS_TO_SCHEDULED_RUN_STATUSES[
-                            status
-                        ]
+                        for scheduled_run_status in convert_literal_using_mapping(
+                            status, _RUN_STATUS_TO_SCHEDULED_RUN_STATUSES, "statuses"
+                        )
                     ]
                     if statuses is not None
                     else None

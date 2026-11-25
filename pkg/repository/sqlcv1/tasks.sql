@@ -192,13 +192,16 @@ FROM
 ;
 
 -- name: DefaultTaskActivityGauge :one
+-- Whether any of the tenant's queues has been active since the cutoff. Written as MAX rather than
+-- EXISTS so that the planner reads the newest entry of v1_queue_tenant_id_last_active_idx: with
+-- EXISTS it expects an early match and seq scans the table, which never ends early for a tenant
+-- whose queues are all stale.
 SELECT
-    COUNT(*)
+    COALESCE(MAX(last_active) > @activeSince::timestamptz, FALSE)::BOOLEAN AS has_activity
 FROM
     v1_queue
 WHERE
-    tenant_id = @tenantId::uuid
-    AND last_active > @activeSince::timestamptz;
+    tenant_id = @tenantId::uuid;
 
 -- name: GetTaskByExternalId :one
 -- Resolve the task key before reading v1_task. Joining the lookup row directly
@@ -334,6 +337,8 @@ WITH input AS (
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
         t.tenant_id = @tenantId::uuid
+        AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
         -- only fail tasks which still have a v1_task_runtime for the current retry count.
         -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
         AND EXISTS (
@@ -366,6 +371,8 @@ FROM
 WHERE
     v1_task.id = tasks_to_steps.id
     AND v1_task.inserted_at = tasks_to_steps.inserted_at
+    AND v1_task.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND v1_task.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
     AND NOT tasks_to_steps.is_non_retryable
     AND tasks_to_steps."retries" > v1_task.app_retry_count
 RETURNING
@@ -403,6 +410,8 @@ WITH input AS (
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
         t.tenant_id = @tenantId::uuid
+        AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
         -- only fail tasks which still have a v1_task_runtime for the current retry count.
         -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
         AND EXISTS (
@@ -426,6 +435,8 @@ WITH input AS (
     WHERE
         v1_task.id = lt.id
         AND v1_task.inserted_at = lt.inserted_at
+        AND v1_task.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND v1_task.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
         AND s."retries" > v1_task.app_retry_count
     RETURNING
         v1_task.id,
@@ -491,6 +502,8 @@ WITH input AS (
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
         t.tenant_id = @tenantId::uuid
+        AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
         -- only fail tasks which still have a v1_task_runtime for the current retry count.
         -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
         AND EXISTS (
@@ -512,7 +525,9 @@ FROM
 WHERE
     v1_task.id = locked_tasks.id
     AND v1_task.inserted_at = locked_tasks.inserted_at
-    AND @maxInternalRetries::int > v1_task.internal_retry_count
+    AND v1_task.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND v1_task.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
+    AND v1_task.internal_retry_count < LEAST(@maxInternalRetries::int, COALESCE(v1_task.max_reassignments_allowed, @maxInternalRetries::int))
 RETURNING
     v1_task.id,
     v1_task.inserted_at,
@@ -740,6 +755,8 @@ WITH input AS (
     WHERE
         e.tenant_id = @tenantId::uuid
         AND e.event_type = 'SIGNAL_CREATED'
+        AND e.task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND e.task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
         -- filtering by key here keeps it in the index probe; a durable parent can have tens of
         -- thousands of signal events, and matching keys afterwards rescanned the input per event
         AND e.event_key = ANY(@eventKeys::TEXT[])
@@ -774,7 +791,9 @@ JOIN
     input i ON i.task_id = e.task_id AND i.task_inserted_at = e.task_inserted_at AND i.event_key = e.event_key
 WHERE
     e.tenant_id = @tenantId::uuid
-    AND e.event_type = @eventType::v1_task_event_type;
+    AND e.event_type = @eventType::v1_task_event_type
+    AND e.task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND e.task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ;
 
 -- name: DeleteMatchingSignalEvents :exec
 WITH input AS (
@@ -797,6 +816,8 @@ WITH input AS (
     WHERE
         e.tenant_id = @tenantId::uuid
         AND e.event_type = @eventType::v1_task_event_type
+        AND e.task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND e.task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
     ORDER BY
         e.id
     FOR UPDATE
@@ -804,7 +825,9 @@ WITH input AS (
 DELETE FROM
     v1_task_event
 WHERE
-    (task_id, task_inserted_at, id) IN (SELECT task_id, task_inserted_at, id FROM matching_events);
+    (task_id, task_inserted_at, id) IN (SELECT task_id, task_inserted_at, id FROM matching_events)
+    AND task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ;
 
 -- name: ListTasksForReplay :many
 -- Lists tasks for replay by recursively selecting all tasks that are children of the input tasks,
@@ -1078,6 +1101,8 @@ JOIN
     input i ON i.dag_id = d.id AND i.dag_inserted_at = d.inserted_at
 WHERE
     d.tenant_id = @tenantId::uuid
+    AND d.inserted_at >= @minDagInsertedAt::TIMESTAMPTZ
+    AND d.inserted_at <= @maxDagInsertedAt::TIMESTAMPTZ
 ORDER BY d.id
 -- We skip locked tasks because replays are the only thing that can lock a DAG for updates
 FOR UPDATE SKIP LOCKED;
@@ -1911,6 +1936,8 @@ FROM v1_task t
 LEFT JOIN v1_task_runtime tr ON (t.id, t.inserted_at, t.retry_count) = (tr.task_id, tr.task_inserted_at, tr.retry_count)
 WHERE
     t.tenant_id = @tenantId::uuid
+    AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
     AND (t.id, t.inserted_at, t.retry_count) IN (
         SELECT task_id, task_inserted_at, task_retry_count
         FROM inputs
@@ -1935,4 +1962,6 @@ WHERE
         FROM inputs
     )
     AND t.tenant_id = @tenantId::uuid
+    AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ;

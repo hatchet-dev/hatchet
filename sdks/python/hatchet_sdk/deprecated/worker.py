@@ -25,10 +25,7 @@ if TYPE_CHECKING:
     import multiprocessing.context
     from multiprocessing import Queue
 
-    from hatchet_sdk.runnables.action import Action
     from hatchet_sdk.runnables.task import Task
-    from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
-    from hatchet_sdk.worker.action_listener_process import ActionEvent
     from hatchet_sdk.worker.worker import Worker
 
 
@@ -67,8 +64,8 @@ async def legacy_aio_start(worker: Worker) -> None:
     has_any_durable = len(durable_action_registry) > 0
 
     # Create separate queues for durable workers
-    durable_action_queue: Queue[Action | STOP_LOOP_TYPE] = worker._ctx.Queue()
-    durable_event_queue: Queue[ActionEvent | STOP_LOOP_TYPE] = worker._ctx.Queue()
+    durable_action_queue = worker._ctx.Queue()
+    durable_event_queue = worker._ctx.Queue()
 
     lifespan_context = None
     if worker._lifespan:
@@ -234,16 +231,14 @@ async def _legacy_check_listener_health(
             ):
                 logger.debug("child action listener process killed...")
                 worker._status = "UNHEALTHY"
-                if worker._loop:
-                    worker._loop.create_task(worker._exit_gracefully())
+                worker._start_exit_task(worker._exit_gracefully)
                 break
 
             if (
                 worker._config.terminate_worker_after_num_tasks
                 and task_count.value >= worker._config.terminate_worker_after_num_tasks
             ):
-                if worker._loop:
-                    worker._loop.create_task(worker._exit_gracefully())
+                worker._start_exit_task(worker._exit_gracefully)
                 break
 
             worker._status = "HEALTHY"

@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +20,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -67,7 +68,7 @@ type SatisfiedEventWithPayload struct {
 
 type BaseIngestEventOpts struct {
 	Task            *sqlcv1.FlattenExternalIdsRow `validate:"required"`
-	Kind            sqlcv1.V1DurableEventLogKind  `validate:"required"`
+	Kind            enums.V1DurableEventLogKind   `validate:"required"`
 	InvocationCount int32
 	TenantId        uuid.UUID `validate:"required"`
 }
@@ -142,7 +143,7 @@ type IngestDurableTaskEventResult struct {
 	MemoResult        *IngestMemoResult
 	TriggerRunsResult *IngestTriggerRunsResult
 	WaitForResult     *IngestWaitForResult
-	Kind              sqlcv1.V1DurableEventLogKind
+	Kind              enums.V1DurableEventLogKind
 }
 
 type HandleBranchResult struct {
@@ -198,23 +199,27 @@ type durableEventsRepository struct {
 	ingestBuffer *durableEventIngestBuffer
 }
 
-// DurableEventBufferOpts configures how IngestDurableTaskEvent requests are buffered into
-// batched database transactions: each request waits up to FlushInterval to accumulate a batch
-// of at most MaxBatchSize requests, and at most MaxConcurrentFlushes batches run at once.
+// DurableEventBufferOpts configures the buffer we use to batch IngestDurableTaskEvent writes.
+// If we haven't flushed in the last FlushInterval, we flush right away so requests don't sit
+// around waiting when there isn't much traffic. Otherwise, we wait until the interval is up
+// so we can write a batch of up to MaxBatchSize requests in one transaction.
+// MaxConcurrentFlushes limits how many flushes can run at the same time.
 type DurableEventBufferOpts struct {
 	FlushInterval        time.Duration
 	MaxBatchSize         int
 	MaxConcurrentFlushes int
 }
 
-func newDurableEventsRepository(shared *sharedRepository, opts DurableEventBufferOpts) *durableEventsRepository {
+func newDurableEventsRepository(shared *sharedRepository, opts DurableEventBufferOpts) (*durableEventsRepository, func()) {
 	r := &durableEventsRepository{
 		sharedRepository: shared,
 	}
 
-	r.ingestBuffer = newDurableEventIngestBuffer(r.appendDurableEventLogBatch, opts.FlushInterval, opts.MaxBatchSize, opts.MaxConcurrentFlushes)
+	ingestBufferCtx, stopIngestBuffer := context.WithCancel(context.Background())
 
-	return r
+	r.ingestBuffer = newDurableEventIngestBuffer(ingestBufferCtx, r.appendDurableEventLogBatch, opts.FlushInterval, opts.MaxBatchSize, opts.MaxConcurrentFlushes)
+
+	return r, stopIngestBuffer
 }
 
 type durableTaskId int64
@@ -241,27 +246,30 @@ type durableEventIngestRequest struct {
 }
 
 type durableEventIngestBuffer struct {
-	mu             sync.Mutex
-	pending        []*durableEventIngestRequest
-	flushScheduled bool
-	flushInterval  time.Duration
-	maxBatchSize   int
-	flushSemaphore chan struct{}
-	ingest         func(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error)
+	pendingRequests *msgqueue.BatchBuffer[*durableEventIngestRequest]
+	flushSemaphore  chan struct{}
+	ingest          func(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error)
 }
 
 func newDurableEventIngestBuffer(
+	ctx context.Context,
 	ingest func(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error),
 	flushInterval time.Duration,
 	maxBatchSize int,
 	maxConcurrentFlushes int,
 ) *durableEventIngestBuffer {
-	return &durableEventIngestBuffer{
-		flushInterval:  flushInterval,
-		maxBatchSize:   maxBatchSize,
+	b := &durableEventIngestBuffer{
 		flushSemaphore: make(chan struct{}, maxConcurrentFlushes),
 		ingest:         ingest,
 	}
+
+	b.pendingRequests = msgqueue.NewBatchBuffer(ctx, flushInterval, maxBatchSize, func(requests []*durableEventIngestRequest) {
+		// the batch buffer only starts the next batch once this function returns, so the flush runs
+		// in its own goroutine to let up to maxConcurrentFlushes batches be written at the same time
+		go b.flush(requests, "buffer_flush")
+	})
+
+	return b
 }
 
 func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTaskId, opts IngestDurableTaskEventOpts) (*appendDurableEventLogResult, error) {
@@ -275,25 +283,8 @@ func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTas
 		responseCh: make(chan durableEventIngestResponse, 1),
 	}
 
-	b.mu.Lock()
-	b.pending = append(b.pending, request)
-
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "pending_requests", Value: len(b.pending)})
-
-	var requestsToFlush []*durableEventIngestRequest
-
-	if len(b.pending) >= b.maxBatchSize {
-		requestsToFlush = b.pending
-		b.pending = nil
-		b.flushScheduled = false
-	} else if !b.flushScheduled {
-		b.flushScheduled = true
-		go b.flushAfterInterval()
-	}
-	b.mu.Unlock()
-
-	if requestsToFlush != nil {
-		go b.flush(requestsToFlush, "max_batch_size") // #nosec G118 -- one flush serves many request contexts, so it intentionally runs detached from any single one
+	if err := b.pendingRequests.Enqueue(request); err != nil {
+		return nil, err
 	}
 
 	select {
@@ -308,20 +299,6 @@ func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTas
 		return response.result, response.err
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	}
-}
-
-func (b *durableEventIngestBuffer) flushAfterInterval() {
-	time.Sleep(b.flushInterval)
-
-	b.mu.Lock()
-	requestsToFlush := b.pending
-	b.pending = nil
-	b.flushScheduled = false
-	b.mu.Unlock()
-
-	if len(requestsToFlush) > 0 {
-		b.flush(requestsToFlush, "interval")
 	}
 }
 
@@ -416,8 +393,8 @@ type NonDeterminismDetail struct {
 type NonDeterminismError struct {
 	Detail                               *NonDeterminismDetail
 	ExistingEntryInsertedAt              pgtype.Timestamptz
-	ExpectedKind                         sqlcv1.V1DurableEventLogKind
-	ActualKind                           sqlcv1.V1DurableEventLogKind
+	ExpectedKind                         enums.V1DurableEventLogKind
+	ActualKind                           enums.V1DurableEventLogKind
 	ExpectedIdempotencyKey               []byte
 	ActualIdempotencyKey                 []byte
 	NodeId                               int64
@@ -618,7 +595,7 @@ func marshalWaitData(wd *WaitData) string {
 
 func (opts IngestDurableTaskEventOpts) formatCall() string {
 	switch opts.Kind {
-	case sqlcv1.V1DurableEventLogKindRUN:
+	case enums.V1DurableEventLogKindRUN:
 		if opts.TriggerRuns != nil {
 			names := make([]string, 0, len(opts.TriggerRuns.TriggerOpts))
 			for _, t := range opts.TriggerRuns.TriggerOpts {
@@ -626,27 +603,27 @@ func (opts IngestDurableTaskEventOpts) formatCall() string {
 			}
 			return "run(" + strings.Join(names, ", ") + ")"
 		}
-	case sqlcv1.V1DurableEventLogKindWAITFOR:
+	case enums.V1DurableEventLogKindWAITFOR:
 		if opts.WaitFor != nil {
 			wd := waitDataFromWaitForConditions(opts.WaitFor.WaitForConditions)
 			if wd != nil {
 				return wd.ToReadableMessage()
 			}
 		}
-	case sqlcv1.V1DurableEventLogKindMEMO:
+	case enums.V1DurableEventLogKindMEMO:
 		return "memo"
 	}
 
 	return string(opts.Kind)
 }
 
-func formatStoredPayload(kind sqlcv1.V1DurableEventLogKind, payload []byte) string {
+func formatStoredPayload(kind enums.V1DurableEventLogKind, payload []byte) string {
 	if len(payload) == 0 {
 		return string(kind)
 	}
 
 	switch kind {
-	case sqlcv1.V1DurableEventLogKindRUN:
+	case enums.V1DurableEventLogKindRUN:
 		var triggerOpts WorkflowNameTriggerOpts
 
 		if err := json.Unmarshal(payload, &triggerOpts); err != nil {
@@ -656,7 +633,7 @@ func formatStoredPayload(kind sqlcv1.V1DurableEventLogKind, payload []byte) stri
 		if triggerOpts.WorkflowName != "" {
 			return "run(" + triggerOpts.WorkflowName + ")"
 		}
-	case sqlcv1.V1DurableEventLogKindWAITFOR:
+	case enums.V1DurableEventLogKindWAITFOR:
 		var conditions []CreateExternalSignalConditionOpt
 
 		if err := json.Unmarshal(payload, &conditions); err != nil {
@@ -669,14 +646,14 @@ func formatStoredPayload(kind sqlcv1.V1DurableEventLogKind, payload []byte) stri
 				return wd.ToReadableMessage()
 			}
 		}
-	case sqlcv1.V1DurableEventLogKindMEMO:
+	case enums.V1DurableEventLogKindMEMO:
 		return "memo"
 	}
 
 	return string(kind)
 }
 
-func nonDeterminismDetail(opts IngestDurableTaskEventOpts, expectedKind sqlcv1.V1DurableEventLogKind, existingPayload []byte) *NonDeterminismDetail {
+func nonDeterminismDetail(opts IngestDurableTaskEventOpts, expectedKind enums.V1DurableEventLogKind, existingPayload []byte) *NonDeterminismDetail {
 	return &NonDeterminismDetail{
 		Expected: formatStoredPayload(expectedKind, existingPayload),
 		Received: opts.formatCall(),
@@ -684,7 +661,7 @@ func nonDeterminismDetail(opts IngestDurableTaskEventOpts, expectedKind sqlcv1.V
 }
 
 type GetOrCreateLogEntryOpt struct {
-	Kind                sqlcv1.V1DurableEventLogKind
+	Kind                enums.V1DurableEventLogKind
 	IdempotencyKey      []byte
 	InputPayload        []byte
 	ResultPayload       []byte
@@ -818,7 +795,7 @@ func satisfiedOrderPtr(v pgtype.Int8) *int64 {
 	return &order
 }
 
-func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
+func (r *durableEventsRepository) createIdempotencyKey(kind enums.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
 	// note: can't use additional metadata here because it's not stable, since we store trace information in it w/ the otel instrumentors
 	dataToHash := []byte(kind)
 
@@ -943,6 +920,7 @@ func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlc
 		Durabletaskinsertedats:   []pgtype.Timestamptz{durableTaskInsertedAt},
 		Tenantids:                []uuid.UUID{tenantId},
 		Mindurabletaskinsertedat: durableTaskInsertedAt,
+		Maxdurabletaskinsertedat: durableTaskInsertedAt,
 	})
 
 	if err != nil {
@@ -1092,6 +1070,10 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 	existingByKey := make(map[taskNodeBranchKey]*sqlcv1.BulkGetDurableEventLogEntriesRow)
 
 	if len(getParams.Nodeids) > 0 {
+		durableTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(getParams.Durabletaskinsertedats)
+		getParams.Mindurabletaskinsertedat = durableTaskInsertedAtBounds.Min
+		getParams.Maxdurabletaskinsertedat = durableTaskInsertedAtBounds.Max
+
 		existing, err := r.queries.BulkGetDurableEventLogEntries(ctx, tx, getParams)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to bulk-get existing entries: %w", err)
@@ -1185,6 +1167,10 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 	var pendingStorePayloadOpts []StorePayloadOpts
 
 	if len(createParams.Nodeids) > 0 {
+		durableTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(createParams.Durabletaskinsertedats)
+		createParams.Mindurabletaskinsertedat = durableTaskInsertedAtBounds.Min
+		createParams.Maxdurabletaskinsertedat = durableTaskInsertedAtBounds.Max
+
 		createdRows, createErr := r.queries.BulkCreateDurableEventLogEntries(ctx, tx, createParams)
 		if createErr != nil {
 			return nil, nil, nil, fmt.Errorf("failed to bulk-create event log entries: %w", createErr)
@@ -1520,7 +1506,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("invalid opts: %w", err)
 	}
 
-	if opts.Kind == sqlcv1.V1DurableEventLogKindRUN && len(opts.TriggerRuns.TriggerOpts) == 0 {
+	if opts.Kind == enums.V1DurableEventLogKindRUN && len(opts.TriggerRuns.TriggerOpts) == 0 {
 		return nil, fmt.Errorf("TriggerOptsList is required and must be non-empty for RUN kind")
 	}
 
@@ -1542,7 +1528,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	var triggerRunsResult *IngestTriggerRunsResult
 
 	switch opts.Kind {
-	case sqlcv1.V1DurableEventLogKindRUN:
+	case enums.V1DurableEventLogKindRUN:
 		entries := make([]*IngestTriggerRunsEntry, len(logEntries))
 
 		for i, entry := range logEntries {
@@ -1623,7 +1609,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 
 		triggerRunsResult.PendingTriggers = pending
-	case sqlcv1.V1DurableEventLogKindWAITFOR:
+	case enums.V1DurableEventLogKindWAITFOR:
 		if len(logEntries) != 1 {
 			// note: we implicitly assume that there will only be one log entry for wait for conditions
 			// if we get more than one, it's an indication something is wrong
@@ -1646,7 +1632,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			ResultPayload:   le.ResultPayload,
 			SatisfiedOrder:  satisfiedOrderPtr(le.Entry.SatisfiedOrder),
 		}
-	case sqlcv1.V1DurableEventLogKindMEMO:
+	case enums.V1DurableEventLogKindMEMO:
 		if len(logEntries) != 1 {
 			// note: we implicitly assume that there will only be one log entry for memo
 			// if we get more than one, it's an indication something is wrong
@@ -1665,7 +1651,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 	}
 
-	if opts.Kind == sqlcv1.V1DurableEventLogKindWAITFOR {
+	if opts.Kind == enums.V1DurableEventLogKindWAITFOR {
 		waitForResult, err = r.handleEventLookback(ctx, tenantId, task, waitForResult, opts.WaitFor.WaitForConditions)
 
 		if err != nil {
@@ -1787,10 +1773,9 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	defer rollback()
 
 	lockParams := sqlcv1.GetAndLockLogFilesWithBranchPointsParams{
-		Durabletaskids:           make([]int64, 0, len(batch)),
-		Durabletaskinsertedats:   make([]pgtype.Timestamptz, 0, len(batch)),
-		Tenantids:                make([]uuid.UUID, 0, len(batch)),
-		Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(time.Now().UTC()),
+		Durabletaskids:         make([]int64, 0, len(batch)),
+		Durabletaskinsertedats: make([]pgtype.Timestamptz, 0, len(batch)),
+		Tenantids:              make([]uuid.UUID, 0, len(batch)),
 	}
 
 	for _, taskId := range taskIds {
@@ -1798,11 +1783,11 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 		lockParams.Durabletaskids = append(lockParams.Durabletaskids, opts.Task.ID)
 		lockParams.Durabletaskinsertedats = append(lockParams.Durabletaskinsertedats, opts.Task.InsertedAt)
 		lockParams.Tenantids = append(lockParams.Tenantids, opts.TenantId)
-
-		if opts.Task.InsertedAt.Time.Before(lockParams.Mindurabletaskinsertedat.Time) {
-			lockParams.Mindurabletaskinsertedat = sqlchelpers.TimestamptzFromTime(opts.Task.InsertedAt.Time)
-		}
 	}
+
+	durableTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(lockParams.Durabletaskinsertedats)
+	lockParams.Mindurabletaskinsertedat = durableTaskInsertedAtBounds.Min
+	lockParams.Maxdurabletaskinsertedat = durableTaskInsertedAtBounds.Max
 
 	lockCtx, lockSpan := telemetry.NewSpan(ctx, "lock-durable-event-log-files")
 	telemetry.WithAttributes(lockSpan, telemetry.AttributeKV{Key: "n_tasks", Value: len(batch)})
@@ -1877,7 +1862,7 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	for _, taskId := range eligibleTaskIds {
 		opts := batch[taskId]
 
-		if opts.Kind == sqlcv1.V1DurableEventLogKindRUN {
+		if opts.Kind == enums.V1DurableEventLogKindRUN {
 			resolveTasks = append(resolveTasks, resolveChildExternalIdsTask{
 				tenantId:    opts.TenantId,
 				task:        opts.Task,
@@ -2033,6 +2018,10 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	}
 
 	if len(nodeIdUpdateParams.Durabletaskids) > 0 {
+		durableTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(nodeIdUpdateParams.Durabletaskinsertedats)
+		nodeIdUpdateParams.Mindurabletaskinsertedat = durableTaskInsertedAtBounds.Min
+		nodeIdUpdateParams.Maxdurabletaskinsertedat = durableTaskInsertedAtBounds.Max
+
 		if updateErr := r.queries.UpdateLogFileLatestNodeIds(ctx, tx, nodeIdUpdateParams); updateErr != nil {
 			return nil, nil, fmt.Errorf("failed to update latest node ids: %w", updateErr)
 		}
@@ -2087,7 +2076,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 	childrenToReplay := make(map[uuid.UUID]bool)
 
 	switch opts.Kind {
-	case sqlcv1.V1DurableEventLogKindRUN:
+	case enums.V1DurableEventLogKindRUN:
 		resolvedChildrenToReplay, dedupeErr := r.resolveOrphanedChildDedupes(ctx, tx, logFile, nextBranchIdToBranchPoint, opts.TriggerRuns.TriggerOpts)
 		if dedupeErr != nil {
 			return nil, nil, dedupeErr
@@ -2105,7 +2094,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				// cached child even when the inputs differ
 				var idempotencyKey []byte
 				if triggerOpts.ChildKey == nil {
-					key, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
+					key, keyErr := r.createIdempotencyKey(enums.V1DurableEventLogKindRUN, triggerOpts, nil)
 					if keyErr != nil {
 						return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr), nil
 					}
@@ -2117,7 +2106,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				}
 
 				innerOpts[i] = GetOrCreateLogEntryOpt{
-					Kind:                sqlcv1.V1DurableEventLogKindRUN,
+					Kind:                enums.V1DurableEventLogKindRUN,
 					ChildTaskExternalId: triggerOpts.ExternalId,
 					IdempotencyKey:      idempotencyKey,
 					IsDagStepTrigger:    triggerOpts.IsDagStepTrigger,
@@ -2139,7 +2128,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				return nil, fmt.Errorf("failed to marshal trigger opts: %w", marshalErr), nil
 			}
 
-			idempotencyKey, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
+			idempotencyKey, keyErr := r.createIdempotencyKey(enums.V1DurableEventLogKindRUN, triggerOpts, nil)
 			if keyErr != nil {
 				return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr), nil
 			}
@@ -2151,7 +2140,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			isSatisfied := triggerOpts.IsCancelled || triggerOpts.IsSkipped
 
 			innerOpts[i] = GetOrCreateLogEntryOpt{
-				Kind:                sqlcv1.V1DurableEventLogKindRUN,
+				Kind:                enums.V1DurableEventLogKindRUN,
 				NodeId:              nodeId,
 				BranchId:            branchId,
 				ChildTaskExternalId: triggerOpts.ExternalId,
@@ -2172,7 +2161,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			DurableTaskExternalId: task.ExternalID,
 			Entries:               innerOpts,
 		}
-	case sqlcv1.V1DurableEventLogKindWAITFOR:
+	case enums.V1DurableEventLogKindWAITFOR:
 		branchId := resolveBranchForNode(baseNodeId, logFile.LatestBranchID, nextBranchIdToBranchPoint)
 
 		inputPayload, marshalErr := json.Marshal(opts.WaitFor.WaitForConditions)
@@ -2180,7 +2169,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			return nil, fmt.Errorf("failed to marshal wait for conditions: %w", marshalErr), nil
 		}
 
-		idempotencyKey, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindWAITFOR, nil, opts.WaitFor.WaitForConditions)
+		idempotencyKey, keyErr := r.createIdempotencyKey(enums.V1DurableEventLogKindWAITFOR, nil, opts.WaitFor.WaitForConditions)
 		if keyErr != nil {
 			return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr), nil
 		}
@@ -2191,7 +2180,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			DurableTaskId:         task.ID,
 			DurableTaskInsertedAt: task.InsertedAt,
 			Entries: []GetOrCreateLogEntryOpt{{
-				Kind:           sqlcv1.V1DurableEventLogKindWAITFOR,
+				Kind:           enums.V1DurableEventLogKindWAITFOR,
 				NodeId:         baseNodeId,
 				BranchId:       branchId,
 				IdempotencyKey: idempotencyKey,
@@ -2200,7 +2189,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				WaitData:       marshalWaitData(waitDataFromWaitForConditions(opts.WaitFor.WaitForConditions)),
 			}},
 		}
-	case sqlcv1.V1DurableEventLogKindMEMO:
+	case enums.V1DurableEventLogKindMEMO:
 		branchId := resolveBranchForNode(baseNodeId, logFile.LatestBranchID, nextBranchIdToBranchPoint)
 
 		var resultPayload []byte
@@ -2216,7 +2205,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			DurableTaskId:         task.ID,
 			DurableTaskInsertedAt: task.InsertedAt,
 			Entries: []GetOrCreateLogEntryOpt{{
-				Kind:           sqlcv1.V1DurableEventLogKindMEMO,
+				Kind:           enums.V1DurableEventLogKindMEMO,
 				NodeId:         baseNodeId,
 				BranchId:       branchId,
 				IdempotencyKey: opts.Memo.MemoKey,
@@ -2297,8 +2286,9 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 
 	triggerOpts := make([]*WorkflowNameTriggerOpts, 0, len(claimedSet))
 	externalIdToEventLogEntryPK := make(map[uuid.UUID]DurableTaskEventLogEntryKey, len(claimedSet))
+	// poorly named: with SERVER_CHILD_RUN_DIRECT_SPAWN on, this holds every durable child, not just DAG steps
 	dagStepChildExternalIds := make(map[uuid.UUID]struct{})
-	stepChildrenSkipMatch := r.operatorStepChildrenSkipCompletionMatch(ctx, tenantId)
+	stepChildrenSkipMatch := r.operatorStepChildrenSkipCompletionMatch(ctx, tx, tenantId)
 
 	for _, t := range tasks {
 		for _, p := range t.PendingRuns {
@@ -2317,7 +2307,7 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 			triggerOpts = append(triggerOpts, p.TriggerOpts)
 			externalIdToEventLogEntryPK[p.TriggerOpts.ExternalId] = k
 
-			if p.TriggerOpts.IsDagStepTrigger && stepChildrenSkipMatch {
+			if r.childRunDirectSpawn || (p.TriggerOpts.IsDagStepTrigger && stepChildrenSkipMatch) {
 				dagStepChildExternalIds[p.TriggerOpts.ExternalId] = struct{}{}
 			}
 		}
@@ -2568,11 +2558,15 @@ func (r *durableEventsRepository) claimDurableEventLogEntriesForTrigger(ctx cont
 		durableTaskInsertedAts[i] = k.DurableTaskInsertedAt
 	}
 
+	durableTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(durableTaskInsertedAts)
+
 	claimed, err := r.queries.ClaimDurableEventLogEntriesForTrigger(ctx, tx, sqlcv1.ClaimDurableEventLogEntriesForTriggerParams{
-		Durabletaskids:         durableTaskIds,
-		Durabletaskinsertedats: durableTaskInsertedAts,
-		Nodeids:                nodeIds,
-		Branchids:              branchIds,
+		Durabletaskids:           durableTaskIds,
+		Durabletaskinsertedats:   durableTaskInsertedAts,
+		Nodeids:                  nodeIds,
+		Branchids:                branchIds,
+		Mindurabletaskinsertedat: durableTaskInsertedAtBounds.Min,
+		Maxdurabletaskinsertedat: durableTaskInsertedAtBounds.Max,
 	})
 
 	if err != nil {
@@ -2911,9 +2905,11 @@ func (r *durableEventsRepository) HandleBranchForDAGReplay(ctx context.Context, 
 	db := r.pool.ForTenant(tenantId)
 
 	logFiles, err := r.queries.GetDurableTaskLogFiles(ctx, db, sqlcv1.GetDurableTaskLogFilesParams{
-		Durabletaskids:         []int64{task.ID},
-		Durabletaskinsertedats: []pgtype.Timestamptz{task.InsertedAt},
-		Tenantids:              []uuid.UUID{tenantId},
+		Durabletaskids:           []int64{task.ID},
+		Durabletaskinsertedats:   []pgtype.Timestamptz{task.InsertedAt},
+		Tenantids:                []uuid.UUID{tenantId},
+		Mindurabletaskinsertedat: task.InsertedAt,
+		Maxdurabletaskinsertedat: task.InsertedAt,
 	})
 
 	if err != nil {
@@ -2943,10 +2939,14 @@ func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Con
 		tenantIds[i] = tenantId
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	logFiles, err := r.queries.GetDurableTaskLogFiles(ctx, db, sqlcv1.GetDurableTaskLogFilesParams{
-		Durabletaskids:         taskIds,
-		Durabletaskinsertedats: taskInsertedAts,
-		Tenantids:              tenantIds,
+		Durabletaskids:           taskIds,
+		Durabletaskinsertedats:   taskInsertedAts,
+		Tenantids:                tenantIds,
+		Mindurabletaskinsertedat: taskInsertedAtBounds.Min,
+		Maxdurabletaskinsertedat: taskInsertedAtBounds.Max,
 	})
 
 	if err != nil {
@@ -2985,13 +2985,21 @@ func (r *durableEventsRepository) ListDurableEventLog(ctx context.Context, tenan
 // operatorStepChildrenSkipCompletionMatch reports whether the tenant's operator step children may
 // be spawned without a completion match. Until every engine pod satisfies entries directly, a pod
 // that still resolves completions through matching would otherwise never finish such a step, so
-// the match is kept unless the tenant is entitled, and kept on a lookup error.
-func (r *sharedRepository) operatorStepChildrenSkipCompletionMatch(ctx context.Context, tenantId uuid.UUID) bool {
+// the match is kept unless SERVER_CHILD_RUN_DIRECT_SPAWN is on or the tenant is entitled, and kept
+// on a lookup error.
+//
+// Every caller is inside a transaction, so the entitlement is read on tx rather than on a second
+// pooled connection.
+func (r *sharedRepository) operatorStepChildrenSkipCompletionMatch(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID) bool {
+	if r.childRunDirectSpawn {
+		return true
+	}
+
 	if r.entitlements == nil {
 		return false
 	}
 
-	entitled, err := r.entitlements.HasEntitlement(ctx, tenantId, EntitlementOperatorStepDirectCompletion)
+	entitled, err := r.entitlements.hasEntitlementTx(ctx, tx, tenantId, EntitlementOperatorStepDirectCompletion)
 
 	if err != nil {
 		r.l.Error().Ctx(ctx).Err(err).Msgf("could not read the operator step direct completion entitlement for tenant %s, keeping the completion match", tenantId)
@@ -3008,11 +3016,13 @@ type OperatorStepChildCompletion struct {
 	OutputEvent  *TaskOutputEvent
 }
 
-// IsOperatorStepChild reports whether a released task was spawned by a DAG orchestrator for one
-// of its steps. The DAG operator groups every step child under the orchestrator's run id and names
-// the orchestrator as the parent, so the two ids coincide only for operator step children.
+// poorly named: besides operator step children (which share the orchestrator's run id), this covers
+// a single-task child run and the orchestrator of an operator DAG child (which own their run id)
 func IsOperatorStepChild(task *sqlcv1.ReleaseTasksRow) bool {
-	return isOperatorStepChild(task.ParentTaskID, task.ParentTaskInsertedAt, task.ParentTaskExternalID, task.WorkflowRunID)
+	return task.ParentTaskID.Valid &&
+		task.ParentTaskInsertedAt.Valid &&
+		task.ParentTaskExternalID != nil &&
+		(*task.ParentTaskExternalID == task.WorkflowRunID || task.ExternalID == task.WorkflowRunID)
 }
 
 func isOperatorStepChild(parentTaskId pgtype.Int8, parentTaskInsertedAt pgtype.Timestamptz, parentTaskExternalId *uuid.UUID, workflowRunId uuid.UUID) bool {
@@ -3022,18 +3032,30 @@ func isOperatorStepChild(parentTaskId pgtype.Int8, parentTaskInsertedAt pgtype.T
 		*parentTaskExternalId == workflowRunId
 }
 
-// with the entitlement flag off, children report through their completion match like they did before direct completion existed.
+// with SERVER_CHILD_RUN_DIRECT_SPAWN and the entitlement flag off, children report through their completion match like they did before direct completion existed.
 // there's a race condition around the flag being changed where a child that was spawned while the flag was on has no match
 // (the flag was rolled back, or this process still has the old value cached after it was enabled), so we need to check if each
 // child has a completion match and complete the ones without one directly, otherwise their orchestrator would never hear from them.
 func (r *sharedRepository) operatorStepChildrenCompletingDirectly(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, completions []OperatorStepChildCompletion) ([]OperatorStepChildCompletion, error) {
-	if len(completions) == 0 || r.operatorStepChildrenSkipCompletionMatch(ctx, tenantId) {
+	if len(completions) == 0 {
 		return completions, nil
 	}
 
-	childExternalIds := enumerables.Map(completions, func(completion OperatorStepChildCompletion) string {
-		return completion.ReleasedTask.ExternalID.String()
-	})
+	stepChildrenSkipMatch := r.operatorStepChildrenSkipCompletionMatch(ctx, tx, tenantId)
+	childExternalIds := make([]string, 0, len(completions))
+
+	// other children may have a match even with the flag on: they were spawned by an instance with the flag off
+	for _, completion := range completions {
+		task := completion.ReleasedTask
+
+		if !stepChildrenSkipMatch || !isOperatorStepChild(task.ParentTaskID, task.ParentTaskInsertedAt, task.ParentTaskExternalID, task.WorkflowRunID) {
+			childExternalIds = append(childExternalIds, task.ExternalID.String())
+		}
+	}
+
+	if len(childExternalIds) == 0 {
+		return completions, nil
+	}
 
 	completionConditions, err := r.queries.ListMatchConditionsForEventWithHint(ctx, tx, sqlcv1.ListMatchConditionsForEventWithHintParams{
 		Tenantid:  tenantId,
@@ -3073,10 +3095,9 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "n_children", Value: len(completions)})
 
 	lookupParams := sqlcv1.ListUnsatisfiedRunEntriesForChildTaskExternalIdsParams{
-		Durabletaskids:           make([]int64, 0, len(completions)),
-		Durabletaskinsertedats:   make([]pgtype.Timestamptz, 0, len(completions)),
-		Childtaskexternalids:     make([]uuid.UUID, 0, len(completions)),
-		Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(time.Now().UTC()),
+		Durabletaskids:         make([]int64, 0, len(completions)),
+		Durabletaskinsertedats: make([]pgtype.Timestamptz, 0, len(completions)),
+		Childtaskexternalids:   make([]uuid.UUID, 0, len(completions)),
 	}
 
 	completionByChildExternalId := make(map[uuid.UUID]OperatorStepChildCompletion, len(completions))
@@ -3088,10 +3109,6 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 		lookupParams.Durabletaskids = append(lookupParams.Durabletaskids, task.ParentTaskID.Int64)
 		lookupParams.Durabletaskinsertedats = append(lookupParams.Durabletaskinsertedats, task.ParentTaskInsertedAt)
 		lookupParams.Childtaskexternalids = append(lookupParams.Childtaskexternalids, task.ExternalID)
-
-		if task.ParentTaskInsertedAt.Time.Before(lookupParams.Mindurabletaskinsertedat.Time) {
-			lookupParams.Mindurabletaskinsertedat = sqlchelpers.TimestamptzFromTime(task.ParentTaskInsertedAt.Time)
-		}
 	}
 
 	tenantIds := make([]uuid.UUID, len(lookupParams.Durabletaskids))
@@ -3099,12 +3116,17 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 		tenantIds[i] = tenantId
 	}
 
+	parentTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(lookupParams.Durabletaskinsertedats)
+	lookupParams.Mindurabletaskinsertedat = parentTaskInsertedAtBounds.Min
+	lookupParams.Maxdurabletaskinsertedat = parentTaskInsertedAtBounds.Max
+
 	// NOTE: need an explicit lock here to prevent segfault caused by Postgres bug, see this issue: https://github.com/hatchet-dev/hatchet/issues/5101
 	_, err := r.queries.GetAndLockLogFilesWithBranchPoints(ctx, tx, sqlcv1.GetAndLockLogFilesWithBranchPointsParams{
 		Durabletaskids:           lookupParams.Durabletaskids,
 		Durabletaskinsertedats:   lookupParams.Durabletaskinsertedats,
 		Tenantids:                tenantIds,
 		Mindurabletaskinsertedat: lookupParams.Mindurabletaskinsertedat,
+		Maxdurabletaskinsertedat: lookupParams.Maxdurabletaskinsertedat,
 	})
 
 	if err != nil {
@@ -3129,6 +3151,7 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 		Childtaskisfailures:      make([]bool, 0, len(unsatisfiedEntries)),
 		Childtaskerrormessages:   make([]string, 0, len(unsatisfiedEntries)),
 		Mindurabletaskinsertedat: lookupParams.Mindurabletaskinsertedat,
+		Maxdurabletaskinsertedat: lookupParams.Maxdurabletaskinsertedat,
 	}
 
 	for _, entry := range unsatisfiedEntries {

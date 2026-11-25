@@ -151,8 +151,8 @@ export type DurableTaskFn<
 
 /**
  * Configures a task as a batch task: concurrent runs are buffered and dispatched together
- * as a single execution once maxSize is reached, maxInterval elapses, or (if groupKey is
- * set) once groupMaxRuns concurrent batches per group are exceeded.
+ * as a single execution once maxSize is reached or maxInterval elapses. While a group has
+ * groupMaxRuns batches running, its ready batches stay buffered.
  *
  * Preview: batch tasks are in beta and may change in future releases.
  */
@@ -163,7 +163,8 @@ export type BatchTaskConfig = {
   maxSize: number;
 
   /**
-   * (optional) maximum time to wait before flushing a partially-filled batch.
+   * (optional) maximum time to wait before flushing a partially-filled batch, measured from
+   * when its first item was buffered. Defaults to 1s.
    * go duration format (e.g., "1s", "5m", "1h").
    */
   maxInterval?: Duration;
@@ -176,7 +177,8 @@ export type BatchTaskConfig = {
   groupKey?: string;
 
   /**
-   * (optional) maximum number of concurrent batches per group.
+   * (optional) maximum number of batches per group that can run at once. Defaults to 100.
+   * Without groupKey, all runs share one group.
    */
   groupMaxRuns?: number;
 
@@ -312,6 +314,16 @@ export type CreateBaseTaskOpts<
   slotRequests?: Record<string, number>;
 
   /**
+   * (optional) the maximum number of times Hatchet will reassign the task to a new worker when the
+   * worker running it stops heartbeating or never acknowledges it. Once reached, the task fails
+   * instead of being reassigned. Set to 0 to never reassign the task, e.g. if re-running it would
+   * be unsafe. Not available on batch, onFailure, or onSuccess tasks.
+   *
+   * default: the server's default limit, which also caps this value
+   */
+  maxReassignmentsAllowed?: number;
+
+  /**
    * (optional) configures this task as a batch task. Not available on durable tasks.
    * retries is always forced to 0 when batch is set.
    *
@@ -413,7 +425,7 @@ export type CreateOnSuccessTaskOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
   C extends TaskFn<I, O> = TaskFn<I, O>,
-> = Omit<CreateBaseTaskOpts<I, O, C>, 'name'>;
+> = Omit<CreateBaseTaskOpts<I, O, C>, 'name' | 'maxReassignmentsAllowed'>;
 
 /**
  * Options for configuring the onFailure task that is invoked when a task fails.
@@ -424,4 +436,4 @@ export type CreateOnFailureTaskOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
   C extends TaskFn<I, O> = TaskFn<I, O>,
-> = Omit<CreateBaseTaskOpts<I, O, C>, 'name'>;
+> = Omit<CreateBaseTaskOpts<I, O, C>, 'name' | 'maxReassignmentsAllowed'>;

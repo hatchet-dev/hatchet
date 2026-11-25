@@ -3,14 +3,15 @@ import { Button } from '@/components/v1/ui/button';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { type ViewOptions } from '@/lib/atoms';
 import { useAtom } from 'jotai';
-import { BiExitFullscreen, BiExpand } from 'react-icons/bi';
+import { FaSitemap } from 'react-icons/fa6';
+import { PiTextColumnsBold } from 'react-icons/pi';
 
 const ToggleIcon = ({ view }: { view: ViewOptions | undefined }) => {
   switch (view) {
     case 'graph':
-      return <BiExpand />;
+      return <PiTextColumnsBold />;
     case 'minimap':
-      return <BiExitFullscreen />;
+      return <FaSitemap />;
     case undefined:
       return null;
     default:

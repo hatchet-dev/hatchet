@@ -1,5 +1,4 @@
 import asyncio
-import time
 
 import pytest
 
@@ -16,31 +15,11 @@ from examples.conditions.worker import (
     task_condition_workflow,
     wait_for_event_only_workflow,
 )
-from examples.test_utils import wait_for_running_status
-from hatchet_sdk import Hatchet, RunStatus
-
-
-async def _wait_for_task_to_complete(
-    hatchet: Hatchet, workflow_run_id: str, task_name: str, timeout: float = 60.0
-) -> None:
-    interval = 0.5
-    deadline = time.monotonic() + timeout
-
-    while time.monotonic() < deadline:
-        details = await hatchet.runs.aio_get(workflow_run_id)
-
-        # a task's display name is "<step readable id>-<unix timestamp>"
-        if any(
-            t.status == "COMPLETED" and t.display_name.startswith(f"{task_name}-")
-            for t in details.tasks
-        ):
-            return
-
-        await asyncio.sleep(interval)
-
-    raise TimeoutError(
-        f"{task_name} did not complete within {timeout}s for run {workflow_run_id}"
-    )
+from examples.test_utils import (
+    wait_for_running_status,
+    wait_for_task_completed_in_read_model,
+)
+from hatchet_sdk import CancelledRunError, Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -49,7 +28,7 @@ async def test_waits(hatchet: Hatchet) -> None:
 
     # skip_on_event's skip match and its 30s sleep are both registered when start
     # completes, so the skip event only counts during the 30s after that.
-    await _wait_for_task_to_complete(hatchet, ref.workflow_run_id, "start")
+    await wait_for_task_completed_in_read_model(hatchet, ref.workflow_run_id, "start")
 
     # Push twice: the read model can show start COMPLETED just before the engine
     # registers the match, and an unmatched event is dropped silently.
@@ -94,7 +73,8 @@ async def test_waits(hatchet: Hatchet) -> None:
 async def test_cancel_if(hatchet: Hatchet) -> None:
     ref = cancel_if_workflow.run(wait_for_result=False)
 
-    await ref.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
@@ -117,7 +97,9 @@ async def test_skip_if_sleep_runs_when_event_wins(hatchet: Hatchet) -> None:
     # that instant. The run reads RUNNING only while sis_start holds a runtime
     # row, which is a few milliseconds, so waiting on RUNNING can miss it and
     # return late enough for the sleep to win. Anchor on sis_start completing.
-    await _wait_for_task_to_complete(hatchet, ref.workflow_run_id, sis_start.name)
+    await wait_for_task_completed_in_read_model(
+        hatchet, ref.workflow_run_id, sis_start.name
+    )
 
     # Push twice: the read model can show sis_start COMPLETED just before the
     # engine registers sis_target's match condition, and an unmatched event is
@@ -152,7 +134,8 @@ async def test_cancel_if_user_event(hatchet: Hatchet) -> None:
         await hatchet.events.aio_push("cancel_if_event:abort", {})
         await asyncio.sleep(3)
 
-    await ref.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
     assert details.status == "CANCELLED"
@@ -162,7 +145,8 @@ async def test_cancel_if_user_event(hatchet: Hatchet) -> None:
 async def test_cancel_if_sleep(hatchet: Hatchet) -> None:
     ref = cancel_if_sleep_workflow.run(wait_for_result=False)
 
-    await ref.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
     assert details.status == "CANCELLED"
@@ -172,7 +156,8 @@ async def test_cancel_if_sleep(hatchet: Hatchet) -> None:
 async def test_cancel_if_or_group(hatchet: Hatchet) -> None:
     ref = cancel_if_or_workflow.run(wait_for_result=False)
 
-    await ref.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
     assert details.status == "CANCELLED"

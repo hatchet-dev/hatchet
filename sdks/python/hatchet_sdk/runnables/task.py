@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import (
     AbstractAsyncContextManager,
     AbstractContextManager,
@@ -59,8 +59,6 @@ from hatchet_sdk.runnables.types import (
     TaskType,
     TWorkflowInput,
     TWorkflowInput_contra,
-    is_async_fn,
-    is_sync_fn,
     normalize_validator,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
@@ -72,6 +70,7 @@ from hatchet_sdk.utils.typing import (
     AwaitableLike,
     CoroutineLike,
     JSONSerializableMapping,
+    get_function_name,
 )
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender
 
@@ -131,6 +130,10 @@ class Depends(Generic[T, TWorkflowInput]):
         self._fn = fn
 
 
+def is_dependency(obj: object) -> TypeGuard[Depends[Any, Any]]:
+    return isinstance(obj, Depends)
+
+
 def find_dependency_in_annotation(param: Parameter) -> Depends[Any, Any] | None:
     annotation = param.annotation
     if is_typealiastype(annotation):
@@ -140,7 +143,7 @@ def find_dependency_in_annotation(param: Parameter) -> Depends[Any, Any] | None:
         return None
 
     return next(
-        (item for item in get_args(annotation)[1:] if isinstance(item, Depends)),
+        (item for item in get_args(annotation)[1:] if is_dependency(item)),
         None,
     )
 
@@ -222,6 +225,7 @@ class Task(Generic[TWorkflowInput, R]):
         batch: BatchTaskConfig | None = None,
         slot_requests: dict[str, int] | None = None,
         eviction_policy: EvictionPolicy | None = None,
+        max_reassignments_allowed: int | None = None,
     ) -> None:
         self._is_durable = is_durable
         self._batch = batch
@@ -232,7 +236,7 @@ class Task(Generic[TWorkflowInput, R]):
         self._slot_requests = slot_requests
 
         self._fn = _fn
-        self._is_async_function = is_async_fn(self._fn)  # type: ignore[arg-type, type-var]
+        self._is_async_function = iscoroutinefunction(self._fn)
 
         if is_durable and not self._is_async_function:
             raise TypeError("Durable tasks must be async functions.")
@@ -252,6 +256,11 @@ class Task(Generic[TWorkflowInput, R]):
         self._backoff_factor = backoff_factor
         self._backoff_max = backoff_max
         self._concurrency = concurrency or []
+
+        if max_reassignments_allowed is not None and max_reassignments_allowed < 0:
+            raise ValueError("max_reassignments_allowed must be a non-negative integer")
+
+        self._max_reassignments_allowed = max_reassignments_allowed
 
         self._wait_for = flatten_conditions(wait_for or [])
         self._skip_if = flatten_conditions(skip_if or [])
@@ -290,7 +299,7 @@ class Task(Generic[TWorkflowInput, R]):
             return resolved_values_by_dependency_fn[fn]
 
         if fn in resolution_stack:
-            stack_path = " -> ".join(f.__name__ for f in resolution_stack)
+            stack_path = " -> ".join(get_function_name(f) for f in resolution_stack)
             raise InvalidDependencyError(
                 f"Circular dependency detected: {fn.__name__} is already being resolved. "
                 f"Dependency chain: {stack_path} -> {fn.__name__}"
@@ -344,7 +353,7 @@ class Task(Generic[TWorkflowInput, R]):
     @asynccontextmanager
     async def _unpack_dependencies_with_cleanup(
         self, ctx: Context | DurableContext
-    ) -> AsyncIterator[dict[str, Any]]:
+    ) -> AsyncGenerator[dict[str, Any], None]:
         input = self._workflow._get_workflow_input(ctx)
 
         async with AsyncExitStack() as exit_stack:
@@ -363,8 +372,9 @@ class Task(Generic[TWorkflowInput, R]):
         workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
 
-        if is_sync_fn(self._fn):  # type: ignore[arg-type, type-var]
-            return self._fn(workflow_input, ctx, **dependencies)  # type: ignore[arg-type, return-value]
+        if not iscoroutinefunction(self._fn):
+            sync_fn = cast("Callable[..., R]", self._fn)
+            return sync_fn(workflow_input, ctx, **dependencies)
         raise TypeError(f"{self.name} is not a sync function. Use `_aio_call` instead.")
 
     async def _aio_call(
@@ -407,6 +417,7 @@ class Task(Generic[TWorkflowInput, R]):
             schedule_timeout=timedelta_to_expr(self._schedule_timeout),
             is_durable=self._is_durable,
             slot_requests=self._slot_requests,
+            max_reassignments_allowed=self._max_reassignments_allowed,
         )
 
         if self._batch is not None:

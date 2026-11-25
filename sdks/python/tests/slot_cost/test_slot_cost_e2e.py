@@ -1,7 +1,6 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from subprocess import Popen
 from typing import Any
-from uuid import uuid4
 
 import pytest
 
@@ -16,8 +15,8 @@ from tests.slot_cost.workflow import WORKER_SLOTS, slot_cost_test_heavy_task
 @pytest.mark.asyncio(loop_scope="session")
 async def test_slot_cost_blocks_second_run_until_first_finishes(
     on_demand_worker: Popen[Any],
+    test_run_id: str,
 ) -> None:
-    test_run_id = str(uuid4())
 
     await slot_cost_test_heavy_task.aio_run_many(
         [
@@ -34,7 +33,9 @@ async def test_slot_cost_blocks_second_run_until_first_finishes(
 
     assert len(runs) == 2
 
-    first, second = sorted(runs, key=lambda r: r.started_at or datetime.max)
+    first, second = sorted(
+        runs, key=lambda r: r.started_at or datetime.max.replace(tzinfo=UTC)
+    )
 
     assert first.started_at is not None
     assert first.finished_at is not None

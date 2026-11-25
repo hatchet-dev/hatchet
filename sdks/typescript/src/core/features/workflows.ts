@@ -50,7 +50,7 @@ export class WorkflowsClient extends RestWorkflowsClient {
         this.deps.retrier
       );
     } catch (e: unknown) {
-      throw new HatchetError(e instanceof Error ? e.message : String(e));
+      throw new HatchetError(e instanceof Error ? e.message : String(e), { cause: e });
     }
   }
 }

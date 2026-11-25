@@ -5,15 +5,14 @@ from __future__ import annotations
 import asyncio
 import multiprocessing
 import time
-from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.config import ClientConfig, HealthcheckConfig
-from hatchet_sdk.runnables.action import ActionType
+from hatchet_sdk.runnables.action import Action, ActionType
 from hatchet_sdk.utils.typing import STOP_LOOP
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
@@ -76,12 +75,6 @@ def _subprocess_target(
         )
 
 
-@dataclass
-class _FakeAction:
-    action_type: Any = ActionType.START_STEP_RUN
-    action_id: str = "test-action-id"
-
-
 def _make_listener(worker_id: str = "test-worker-id") -> ActionListener:
     with patch(f"{_ACTION_LISTENER_MODULE}.new_conn"):
         listener = ActionListener(config=MagicMock(), worker_id=worker_id)
@@ -103,7 +96,7 @@ def _make_process(
     if event_queue is None:
         event_queue = _CTX.Queue()
 
-    process = WorkerActionListenerProcess(
+    return WorkerActionListenerProcess(
         name="test-worker",
         actions=["test_action"],
         slot_config={"default": 1, "durable": 0},
@@ -114,15 +107,6 @@ def _make_process(
         worker_id_queue=worker_id_queue,
         stop_event=stop_event,
     )
-    return process
-
-
-async def _cancel_tasks(*tasks: asyncio.Task[Any] | None) -> None:
-    for task in tasks:
-        if task is not None and not task.done():
-            task.cancel()
-            with pytest.raises((asyncio.CancelledError, Exception)):
-                await task
 
 
 async def test_stop_event_stops_action_loop_without_kill() -> None:
@@ -150,7 +134,7 @@ async def test_stop_event_stops_action_loop_without_kill() -> None:
     # think this worker died, reassigning tasks that are about to finish
     # successfully. cleanup() (which stops the heartbeat) is deferred until
     # finalize_listener_cleanup() is called, after draining is confirmed done.
-    listener.cleanup.assert_not_called()
+    cast("MagicMock", listener.cleanup).assert_not_called()
 
 
 async def test_stop_action_loop_is_idempotent() -> None:
@@ -170,7 +154,7 @@ async def test_stop_action_loop_is_idempotent() -> None:
     await process._stop_action_loop()
     # stop_stream() is called exactly once (the second call short-circuits).
     listener.stop_stream.assert_called_once()
-    listener.cleanup.assert_not_called()  # type: ignore[attr-defined]
+    cast("MagicMock", listener.cleanup).assert_not_called()
 
 
 async def test_finalize_listener_cleanup_stops_heartbeat() -> None:
@@ -183,10 +167,10 @@ async def test_finalize_listener_cleanup_stops_heartbeat() -> None:
     process.listener = listener
 
     await process._stop_action_loop()
-    listener.cleanup.assert_not_called()  # type: ignore[attr-defined]
+    cast("MagicMock", listener.cleanup).assert_not_called()
 
     process.finalize_listener_cleanup()
-    listener.cleanup.assert_called_once()  # type: ignore[attr-defined]
+    cast("MagicMock", listener.cleanup).assert_called_once()
 
 
 async def test_heartbeat_survives_stop_action_loop_until_finalize_cleanup() -> None:
@@ -319,10 +303,10 @@ def test_event_queue_drains_before_process_exits() -> None:
         time.sleep(0.05)
 
     # Simulate the runner finishing a task: put a completion event in the queue.
-    # _FakeAction is a module-level dataclass so it is picklable across the
-    # spawn boundary.
     fake_event = ActionEvent(
-        action=_FakeAction(),  # type: ignore
+        action=Action.model_construct(
+            action_type=ActionType.START_STEP_RUN, action_id="test-action-id"
+        ),
         type=ActionType.START_STEP_RUN,
         payload=None,
         should_not_retry=False,

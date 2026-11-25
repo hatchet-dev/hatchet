@@ -92,8 +92,8 @@ Options for `create`:
 | `id`                    | Pick your own sandbox ID. Lowercase letters, digits, and hyphens. It must not exist yet.                                                                                                                |
 | `template`              | The image or template, in the provider's own terms. Defaults to the provider's default.                                                                                                                 |
 | `from`                  | Start from this snapshot. Create two sandboxes from the same snapshot and you have a fork.                                                                                                              |
-| `metadata`              | Tags you can search for with `list`.                                                                                                                                                                    |
-| `inheritParentMetadata` | With `from`, copy the tags of the sandbox that made the snapshot onto the new one. Tags given in `metadata` take precedence.                                                                            |
+| `metadata`              | Key-value pairs on the sandbox, on top of the provider's default metadata. Searchable with `list` and attached to every task run of the sandbox as run metadata.                                        |
+| `inheritParentMetadata` | With `from`, copy the metadata of the sandbox that made the snapshot onto the new one. Pairs given in `metadata` take precedence.                                                                       |
 | `idleTimeoutMs`         | Stop the sandbox after this long with no calls. The provider sets the maximum.                                                                                                                          |
 | `resources`             | Machine size as `{ vcpu, memory, disk }`. `memory` and `disk` take a number of MiB or a quantity with a unit like `'4Gi'`. Providers that cannot honour a field fail the create with their own message. |
 
@@ -105,6 +105,7 @@ Options for `create`:
 | `kill()`                    | `void`                                                | Stops the sandbox. The snapshots stay, so `connect` still works.                                                                                |
 | `delete()`                  | `void`                                                | Stops the sandbox and deletes every snapshot and file stored for it. `connect` fails afterwards.                                                |
 | `sandboxId`                 | `string`                                              | The ID to use with `connect` later.                                                                                                             |
+| `metadata`                  | `Record<string, string>`                              | The sandbox's metadata as stored, plus `hatchet.sandbox.provider`. Every task run of the sandbox carries it as run metadata.                    |
 | `files`                     | `Files`                                               | The file API below.                                                                                                                             |
 
 Each result also has `timings` in milliseconds for `claim`, `restore`, `exec`, and `checkpoint`, and the `snapshotId` the call made.
@@ -139,7 +140,7 @@ On first use the SDK turns on the Hatchet OpenTelemetry instrumentor. If you hav
 ## What you need
 
 - A Hatchet Cloud tenant with sandboxes enabled.
-- At least one sandbox provider connected to that tenant, configured under Sandboxes in the dashboard with your Daytona, E2B, Archil, or Freestyle API key.
+- At least one sandbox provider connected to that tenant, configured under Sandboxes in the dashboard with your Daytona, E2B, Archil, Freestyle, Modal, or Vercel API key.
 
 ## Changelog
 

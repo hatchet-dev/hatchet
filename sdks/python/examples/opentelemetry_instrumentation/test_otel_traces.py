@@ -1,45 +1,46 @@
-import pytest
 import asyncio
-import time
 
-from uuid import uuid4
+import pytest
 
-from hatchet_sdk.clients.rest.api.observability_api import ObservabilityApi
-from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
-from hatchet_sdk.types.run_status import RunStatus
-from hatchet_sdk import Hatchet
 from examples.opentelemetry_instrumentation.worker import (
+    SimpleOtelTaskInput,
     otel_simple_task,
     otel_spawn_parent,
     otel_workflow,
-    SimpleOtelTaskInput,
 )
+from examples.test_utils import poll_for_runs, poll_until
+from hatchet_sdk import Hatchet
+from hatchet_sdk.clients.rest.api.observability_api import ObservabilityApi
+from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 requires_observability = pytest.mark.usefixtures("_skip_unless_observability")
 
 
-def poll_for_trace(hatchet: Hatchet, run_id: str, min_spans: int = 1) -> list[OtelSpan]:
+async def poll_for_trace(
+    hatchet: Hatchet, run_id: str, min_spans: int = 1
+) -> list[OtelSpan]:
     # avoid race conditions between engine and sdk-side spans
-    time.sleep(5)
+    await asyncio.sleep(5)
 
-    for _ in range(10):
+    def fetch_spans() -> list[OtelSpan]:
         with hatchet.runs.client() as client:
             try:
                 trace = ObservabilityApi(client).v1_observability_get_trace(
                     hatchet.tenant_id, run_id
                 )
             except Exception:
-                time.sleep(1)
-                continue
+                return []
 
-        spans = trace.rows or []
-        if len(spans) >= min_spans:
-            return spans
+        return trace.rows or []
 
-        time.sleep(1)
-
-    raise TimeoutError(f"Trace for run_id {run_id} not found after polling.")
+    return await poll_until(
+        lambda: asyncio.to_thread(fetch_spans),
+        lambda spans: len(spans) >= min_spans,
+        description=f"at least {min_spans} spans in the trace for run {run_id}",
+        timeout=10.0,
+        interval=1.0,
+    )
 
 
 @requires_observability
@@ -58,7 +59,7 @@ async def test_otel_spans_created_on_task_run(
 
     await ref.aio_result()
 
-    spans = await asyncio.to_thread(poll_for_trace, hatchet, ref.workflow_run_id)
+    spans = await poll_for_trace(hatchet, ref.workflow_run_id)
 
     assert (
         len({s.trace_id for s in spans}) == 1
@@ -123,7 +124,8 @@ async def test_otel_spans_created_on_task_run(
     namespaced = hatchet.config.apply_namespace(
         engine_workflow_spans[0].span_attributes.get("hatchet.workflow_name")
     )
-    assert namespaced is not None and namespaced.startswith(otel_simple_task.name)
+    assert namespaced is not None
+    assert namespaced.startswith(otel_simple_task.name)
 
     producer_workflow_spans = [
         s for s in spans if s.span_name == "hatchet.run_workflow"
@@ -151,18 +153,16 @@ async def test_otel_spans_on_event_triggered_run(
         additional_metadata={"test_run_id": test_run_id},
     )
 
-    run_id = None
-    for _ in range(15):
-        runs = await hatchet.runs.aio_list(triggering_event_id=event.id)
-        completed = [r for r in runs if r.status == "COMPLETED"]
-        if completed:
-            run_id = completed[0].task_run_id
-            break
-        await asyncio.sleep(1)
+    runs = await poll_for_runs(
+        hatchet,
+        expected_count=1,
+        triggering_event_id=event.id,
+        statuses=["COMPLETED"],
+        timeout=15.0,
+        interval=1.0,
+    )
 
-    assert run_id is not None, "Event-triggered run did not complete in time."
-
-    spans = await asyncio.to_thread(poll_for_trace, hatchet, run_id)
+    spans = await poll_for_trace(hatchet, runs[0].task_run_id)
 
     assert (
         len(spans) == 7
@@ -232,9 +232,7 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
     ref = await otel_workflow.aio_run(wait_for_result=False)
     await ref.aio_result()
 
-    spans = await asyncio.to_thread(
-        poll_for_trace, hatchet, ref.workflow_run_id, min_spans=4
-    )
+    spans = await poll_for_trace(hatchet, ref.workflow_run_id, min_spans=4)
 
     assert (
         len({s.trace_id for s in spans}) == 1
@@ -319,7 +317,8 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
     namespaced = hatchet.config.apply_namespace(
         engine_workflow_spans[0].span_attributes.get("hatchet.workflow_name")
     )
-    assert namespaced is not None and namespaced.startswith(otel_workflow.name)
+    assert namespaced is not None
+    assert namespaced.startswith(otel_workflow.name)
 
     producer_workflow_spans = [
         s for s in spans if s.span_name == "hatchet.run_workflow"
@@ -348,7 +347,7 @@ async def test_otel_spans_on_child_spawn(hatchet: Hatchet, test_run_id: str) -> 
 
     await ref.aio_result()
 
-    spans = await asyncio.to_thread(poll_for_trace, hatchet, ref.workflow_run_id)
+    spans = await poll_for_trace(hatchet, ref.workflow_run_id)
 
     assert len(spans) == 12, """
         12 spans:

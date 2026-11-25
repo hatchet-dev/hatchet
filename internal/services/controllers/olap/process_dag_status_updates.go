@@ -8,8 +8,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
@@ -57,7 +57,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 		// returns QUEUED->RUNNING rows, and publishing those as
 		// workflow-run-finished makes stream subscribers hang up the moment a
 		// DAG run starts (the dispatcher treats the message as terminal)
-		if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
+		if row.ReadableStatus != enums.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != enums.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != enums.V1ReadableStatusOlapFAILED {
 			continue
 		}
 
@@ -66,7 +66,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 			Status:     row.ReadableStatus,
 		})
 
-		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED {
+		if row.ReadableStatus == enums.V1ReadableStatusOlapFAILED {
 			o.processTenantAlertOperations.RunOrContinue(row.TenantId.String())
 		}
 	}
@@ -74,7 +74,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 	// Send prometheus updates asynchronously
 	if o.prometheusMetricsEnabled && o.dagPrometheusUpdateCh != nil {
 		for _, row := range rows {
-			if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
+			if row.ReadableStatus != enums.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != enums.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != enums.V1ReadableStatusOlapFAILED {
 				continue
 			}
 
