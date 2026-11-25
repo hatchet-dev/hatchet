@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -76,6 +77,90 @@ SELECT
 	}, time.Minute, 50*time.Millisecond)
 
 	requireAggregatesMatchSource(t, pool, false)
+}
+
+// A task event is counted in the minute it happened rather than the minute its task was created,
+// and an event stamped in the future is counted in the minute it was written.
+func TestOLAPTaskEventsAggregateBucketsByEventTime(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	require.NoError(t, createOLAPRepositoryManagingAllPartitions(t, pool).UpdateTablePartitions(ctx))
+
+	now := time.Now().UTC()
+	taskInsertedAt := now.Add(-3 * time.Hour)
+	finishedAt := now.Add(-time.Minute)
+
+	// the task may have been created yesterday
+	yesterday := pgtype.Date{Time: now.AddDate(0, 0, -1), Valid: true}
+	_, err := pool.Exec(ctx, `
+SELECT
+    create_v1_range_partition('v1_task_events_olap', $1::DATE),
+    create_v1_range_partition('v1_agg_task_events_minute_olap', $1::DATE, 70)`, yesterday)
+	require.NoError(t, err)
+
+	tenantID, workflowID := uuid.New(), uuid.New()
+
+	var futureEventWrittenAt time.Time
+
+	err = pool.QueryRow(ctx, `
+WITH inserted AS (
+    INSERT INTO v1_task_events_olap (tenant_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status)
+    VALUES
+        ($1, 1, $3, 'QUEUED', $2, $3, 'QUEUED'),
+        ($1, 1, $3, 'FINISHED', $2, $4, 'COMPLETED'),
+        ($1, 2, $3, 'FAILED', $2, $5, 'FAILED')
+    RETURNING inserted_at
+)
+SELECT MAX(inserted_at) FROM inserted`,
+		tenantID, workflowID, taskInsertedAt, finishedAt, now.Add(72*time.Hour)).Scan(&futureEventWrittenAt)
+	require.NoError(t, err)
+
+	l := zerolog.Nop()
+	stopCompactors := olapagg.New(pool, &l, olapagg.Opts{
+		BatchSize:    50,
+		Partitions:   NUM_PARTITIONS,
+		PollInterval: 20 * time.Millisecond,
+	}).Start()
+	defer stopCompactors()
+
+	require.Eventually(t, func() bool {
+		var unfoldedDeltas int
+		err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM v1_agg_task_events_minute_delta_olap`).Scan(&unfoldedDeltas)
+		return err == nil && unfoldedDeltas == 0
+	}, time.Minute, 50*time.Millisecond)
+
+	type counts struct{ queued, completed, failed int64 }
+
+	bucketKey := func(ts time.Time) string { return ts.UTC().Truncate(time.Minute).Format(time.RFC3339) }
+
+	expected := map[string]counts{}
+	add := func(ts time.Time, c counts) {
+		e := expected[bucketKey(ts)]
+		expected[bucketKey(ts)] = counts{e.queued + c.queued, e.completed + c.completed, e.failed + c.failed}
+	}
+	add(taskInsertedAt, counts{queued: 1})
+	add(finishedAt, counts{completed: 1})
+	add(futureEventWrittenAt, counts{failed: 1})
+
+	rows, err := pool.Query(ctx, `
+SELECT bucket, queued_count, completed_count, failed_count
+FROM v1_agg_task_events_minute_olap
+WHERE tenant_id = $1`, tenantID)
+	require.NoError(t, err)
+
+	actual := map[string]counts{}
+	var bucket time.Time
+	var c counts
+	_, err = pgx.ForEachRow(rows, []any{&bucket, &c.queued, &c.completed, &c.failed}, func() error {
+		actual[bucketKey(bucket)] = c
+		return nil
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, expected, actual)
 }
 
 func createOLAPRepositoryManagingAllPartitions(t *testing.T, pool *pgxpool.Pool) OLAPRepository {
@@ -217,12 +302,12 @@ WHERE r.id = u.id AND r.inserted_at = u.inserted_at`,
 
 	for range 1 + w.rng.Intn(50) {
 		taskEvents = append(taskEvents, []any{
-			randomTenant(), w.rng.Int63(), randomTimestamp(), "FINISHED", randomWorkflow(), randomStatus(), w.rng.Intn(4) == 0,
+			randomTenant(), w.rng.Int63(), randomTimestamp(), "FINISHED", randomWorkflow(), randomTimestamp(), randomStatus(), w.rng.Intn(4) == 0,
 		})
 	}
 
 	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"v1_task_events_olap"},
-		[]string{"tenant_id", "task_id", "task_inserted_at", "event_type", "workflow_id", "readable_status", "is_dag_orchestrator"},
+		[]string{"tenant_id", "task_id", "task_inserted_at", "event_type", "workflow_id", "event_timestamp", "readable_status", "is_dag_orchestrator"},
 		pgx.CopyFromRows(taskEvents)); err != nil {
 		return err
 	}
@@ -282,10 +367,11 @@ GROUP BY 1, 2, 3`,
 		deltaTable: "v1_agg_task_events_minute_delta_olap",
 		keys:       "tenant_id, bucket, workflow_id",
 		counts:     []string{"queued_count", "running_count", "completed_count", "cancelled_count", "failed_count"},
+		// inserted_at defaults to the inserting transaction's time, which caps the event time
 		sourceCounts: `
 SELECT
     tenant_id,
-    date_bin('1 minute', task_inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00'),
+    date_bin('1 minute', LEAST(event_timestamp, inserted_at), TIMESTAMPTZ '1970-01-01 00:00:00+00'),
     workflow_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED'),
     COUNT(*) FILTER (WHERE readable_status = 'RUNNING'),
