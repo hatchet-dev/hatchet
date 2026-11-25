@@ -5,6 +5,7 @@ import {
   formatObservedUsage,
   formatPeriodUsage,
   formatTimeUntil,
+  ingestedBytesRow,
   nextRefillAt,
   selectDailyMeters,
   shouldNotifyUsageFeature,
@@ -693,52 +694,30 @@ describe('ingested bytes', () => {
     );
   });
 
-  it('includes an ingested_bytes period row when metered or granted', () => {
-    const withGrant = shardUsageRows({
-      taskRuns: 1,
-      events: 0,
-      ingestedBytes: feature('ingested_bytes', {
-        name: 'Ingested Bytes',
-        usage: 2_400_000_000,
-        includedUsage: 10_000_000_000,
-      }),
-    }).find((row) => row.feature.featureId === 'ingested_bytes');
-
-    assert.deepEqual(withGrant, {
-      feature: {
-        featureId: 'ingested_bytes',
-        name: 'Ingested Bytes',
-        usage: 2_400_000_000,
-        includedUsage: 10_000_000_000,
-        unlimited: false,
-      },
-      dailyMeter: undefined,
-      showPeriodAsCount: true,
-      countOnly: false,
+  it('builds the org ingested_bytes row from the usage response', () => {
+    const granted = feature('ingested_bytes', {
+      name: 'Ingested Bytes',
+      usage: 2_400_000_000,
+      includedUsage: 10_000_000_000,
     });
+    assert.deepEqual(
+      ingestedBytesRow([feature('task_runs', { usage: 5 }), granted]),
+      { feature: granted, showPeriodAsCount: true },
+    );
 
-    const zeroWithGrant = shardUsageRows({
-      taskRuns: 0,
-      events: 0,
-      ingestedBytes: feature('ingested_bytes', {
-        name: 'Ingested Bytes',
-        usage: 0,
-        includedUsage: 10_000_000_000,
-      }),
-    }).find((row) => row.feature.featureId === 'ingested_bytes');
-    assert.equal(zeroWithGrant?.feature.usage, 0);
-    assert.equal(zeroWithGrant?.feature.includedUsage, 10_000_000_000);
+    const zeroWithGrant = feature('ingested_bytes', {
+      usage: 0,
+      includedUsage: 10_000_000_000,
+    });
+    assert.equal(ingestedBytesRow([zeroWithGrant])?.feature, zeroWithGrant);
 
-    const zeroWithoutGrant = shardUsageRows({
-      taskRuns: 0,
-      events: 0,
-      ingestedBytes: feature('ingested_bytes', {
-        name: 'Ingested Bytes',
-        usage: 0,
-        includedUsage: 0,
-      }),
-    }).find((row) => row.feature.featureId === 'ingested_bytes');
-    assert.equal(zeroWithoutGrant, undefined);
+    assert.equal(
+      ingestedBytesRow([
+        feature('ingested_bytes', { usage: 0, includedUsage: 0 }),
+      ]),
+      undefined,
+    );
+    assert.equal(ingestedBytesRow([]), undefined);
   });
 });
 

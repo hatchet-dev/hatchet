@@ -10,8 +10,6 @@ const BYTE_USAGE_FEATURE_IDS = new Set([
   'stream_published_bytes',
   'stream_delivered_bytes',
   'ingested_bytes',
-  'ingested_log_bytes',
-  'ingested_otel_bytes',
 ]);
 
 const PERIOD_USAGE_FEATURE_IDS = new Set([
@@ -80,7 +78,6 @@ export type ShardUsageCounts = {
   events: number;
   streamPublishedBytes?: number;
   streamDeliveredBytes?: number;
-  ingestedBytes?: OrganizationUsageFeature;
   crons?: number;
   scheduledRuns?: number;
   webhooks?: number;
@@ -136,7 +133,6 @@ const SHARD_USAGE_ROWS: {
     name: 'Stream Bytes Delivered',
     kind: 'period',
   },
-  { id: 'ingested_bytes', name: 'Ingested Bytes', kind: 'period' },
   { id: 'crons', name: 'Crons', kind: 'inventory' },
   { id: 'scheduled_runs', name: 'Scheduled Runs', kind: 'inventory' },
   { id: 'webhooks', name: 'Webhook Endpoints', kind: 'inventory' },
@@ -154,8 +150,6 @@ function shardCount(counts: ShardUsageCounts, id: string): number | undefined {
       return counts.streamPublishedBytes;
     case 'stream_delivered_bytes':
       return counts.streamDeliveredBytes;
-    case 'ingested_bytes':
-      return counts.ingestedBytes?.usage;
     case 'crons':
       return counts.crons;
     case 'scheduled_runs':
@@ -182,9 +176,11 @@ export function shardUsageRows(
     if (value === undefined) {
       continue;
     }
+    // most organizations don't use streams, so their rows only appear once there's usage
+    if (BYTE_USAGE_FEATURE_IDS.has(definition.id) && value === 0) {
+      continue;
+    }
 
-    const ingestedFeature =
-      definition.id === 'ingested_bytes' ? counts.ingestedBytes : undefined;
     const seatAllowance =
       definition.id === 'tenants'
         ? counts.tenants
@@ -195,31 +191,15 @@ export function shardUsageRows(
       ? counts.allowances?.[definition.id]
       : undefined;
     const unlimited =
-      ingestedFeature?.unlimited ??
-      seatAllowance?.unlimited ??
-      inventoryAllowance?.unlimited ??
-      false;
+      seatAllowance?.unlimited ?? inventoryAllowance?.unlimited ?? false;
     const includedUsage = unlimited
       ? 0
-      : (ingestedFeature?.includedUsage ??
-        seatAllowance?.limit ??
-        inventoryAllowance?.limit ??
-        0);
-
-    // Byte features without a plan grant only appear once there is usage.
-    if (
-      BYTE_USAGE_FEATURE_IDS.has(definition.id) &&
-      value === 0 &&
-      !unlimited &&
-      includedUsage <= 0
-    ) {
-      continue;
-    }
+      : (seatAllowance?.limit ?? inventoryAllowance?.limit ?? 0);
 
     rows.push({
       feature: {
         featureId: definition.id,
-        name: ingestedFeature?.name || definition.name,
+        name: definition.name,
         usage: value,
         includedUsage,
         unlimited,
@@ -233,13 +213,24 @@ export function shardUsageRows(
   return rows;
 }
 
+// Observability ingest is metered by the control plane per organization, so
+// unlike the shard rows it comes from the org usage response.
+export function ingestedBytesRow(
+  features: OrganizationUsageFeature[],
+): UsageDisplayRow | undefined {
+  const feature = features.find((item) => item.featureId === 'ingested_bytes');
+  if (
+    !feature ||
+    (feature.usage === 0 && !feature.unlimited && feature.includedUsage <= 0)
+  ) {
+    return undefined;
+  }
+  return { feature, showPeriodAsCount: true };
+}
+
 export type UsageSeverity = 'ok' | 'warn' | 'critical';
 
 export type UsageRangePreset = 'period' | '7d' | '30d';
-
-export function isHiddenUsageFeature(featureId: string) {
-  return HIDDEN_USAGE_FEATURE_IDS.has(featureId);
-}
 
 export function isPeriodUsageFeature(featureId: string) {
   return PERIOD_USAGE_FEATURE_IDS.has(featureId);
@@ -251,7 +242,7 @@ export function isPeriodUsageFeature(featureId: string) {
 // alert.
 export function shouldNotifyUsageFeature(featureId: string) {
   return (
-    !isHiddenUsageFeature(featureId) &&
+    !HIDDEN_USAGE_FEATURE_IDS.has(featureId) &&
     !isPeriodUsageFeature(featureId) &&
     !isDailyLimitFeature(featureId) &&
     featureId !== 'tenants'

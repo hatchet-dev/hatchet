@@ -11,6 +11,7 @@ import {
   nextRefillAt,
   selectDailyMeters,
   inventoryAllowancesFromPlan,
+  ingestedBytesRow,
   shardUsageRows,
   sumUsageSeries,
   tenantUsageChart,
@@ -567,17 +568,13 @@ export function UsageThisPeriod({
     );
   }, [resourceLimits.data?.tenants, tenantId, timeseries.data?.tenants]);
 
-  const ingestedBytes = useMemo(
-    () =>
-      usage.data?.features.find(
-        (feature) => feature.featureId === 'ingested_bytes',
-      ),
-    [usage.data?.features],
-  );
-
   const rows = useMemo(() => {
     const shardTenants = timeseries.data?.tenants ?? [];
-    return shardUsageRows(
+    const ingested =
+      tenantId === 'all'
+        ? ingestedBytesRow(usage.data?.features ?? [])
+        : undefined;
+    const shardRows = shardUsageRows(
       {
         taskRuns: sumUsageSeries(
           (timeseries.data?.series ?? []).map((point) => point.taskRuns),
@@ -595,7 +592,6 @@ export function UsageThisPeriod({
             (point) => point.streamDeliveredBytes ?? 0,
           ),
         ),
-        ingestedBytes: tenantId === 'all' ? ingestedBytes : undefined,
         crons: sumLoadedCount(shardTenants, 'crons'),
         scheduledRuns: sumLoadedCount(shardTenants, 'scheduledRuns'),
         webhooks: sumLoadedCount(shardTenants, 'webhooks'),
@@ -606,15 +602,16 @@ export function UsageThisPeriod({
       },
       dailyMeters,
     );
+    return ingested ? [...shardRows, ingested] : shardRows;
   }, [
     dailyMeters,
     entitlements?.tenants,
     entitlements?.users,
-    ingestedBytes,
     plan,
     tenantId,
     timeseries.data?.series,
     timeseries.data?.tenants,
+    usage.data?.features,
   ]);
   const detailFeature = rows.find(
     (row) => row.feature.featureId === detailFeatureId,
