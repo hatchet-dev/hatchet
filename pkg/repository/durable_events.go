@@ -2282,7 +2282,7 @@ func runInputDifference(existingPayload []byte, received *WorkflowNameTriggerOpt
 	}
 
 	return fmt.Sprintf(
-		"input differs at byte %d: expected %q, received %q",
+		"input differs at byte %d:\n    expected: %s\n    received: %s",
 		position, excerptAroundPosition(existing.Data), excerptAroundPosition(received.Data),
 	)
 }
