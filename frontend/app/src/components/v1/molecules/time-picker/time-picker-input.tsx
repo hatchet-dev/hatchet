@@ -120,7 +120,7 @@ const TimePickerInput = React.forwardRef<
         id={id || picker}
         name={name || picker}
         className={cn(
-          'w-[48px] text-center font-mono text-xs tabular-nums caret-transparent focus:bg-accent focus:text-accent-foreground [&::-webkit-inner-spin-button]:appearance-none',
+          'w-[48px] text-center font-mono text-xs tabular-nums caret-transparent focus:bg-accent focus:text-accent-foreground',
           className,
         )}
         value={value || valueToTwoDigits(parseInt(calculatedValue))}
@@ -128,9 +128,7 @@ const TimePickerInput = React.forwardRef<
           e.preventDefault();
           onChange?.(e);
         }}
-        min={0}
-        max={59}
-        type="number"
+        type="text"
         inputMode="numeric"
         onKeyDown={(e) => {
           onKeyDown?.(e);
