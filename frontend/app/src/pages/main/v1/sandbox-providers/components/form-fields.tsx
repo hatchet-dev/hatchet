@@ -55,11 +55,12 @@ export const ApiKeyField = ({
   optional?: boolean;
 }) => {
   const [visible, setVisible] = useState(false);
+  const keyLabel = KINDS[kind].keyLabel ?? 'API key';
 
   return (
     <div className="space-y-2">
       <Label htmlFor="apiKey" className="text-sm font-medium">
-        {optional ? 'New API key' : 'API key'}{' '}
+        {optional ? `New ${keyLabel.toLowerCase()}` : keyLabel}{' '}
         {optional ? <OptionalMark /> : <RequiredMark />}
       </Label>
       <div className="flex flex-row items-center gap-2">
@@ -68,7 +69,11 @@ export const ApiKeyField = ({
           type={visible ? 'text' : 'password'}
           data-1p-ignore
           autoComplete="off"
-          placeholder={optional ? 'Leave empty to keep the current key' : ''}
+          placeholder={
+            optional
+              ? 'Leave empty to keep the current one'
+              : KINDS[kind].keyPlaceholder
+          }
           className="h-10 font-mono text-xs"
           {...inputProps}
         />
@@ -77,7 +82,7 @@ export const ApiKeyField = ({
           variant="outline"
           size="icon"
           className="shrink-0"
-          aria-label={visible ? 'Hide API key' : 'Show API key'}
+          aria-label={visible ? `Hide ${keyLabel}` : `Show ${keyLabel}`}
           onClick={() => setVisible((v) => !v)}
         >
           {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -145,7 +150,7 @@ const ConfigInput = ({
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>
-        {field.label} <OptionalMark />
+        {field.label} {field.required ? <RequiredMark /> : <OptionalMark />}
       </Label>
       {field.type === 'select' ? (
         <Select
@@ -202,9 +207,20 @@ export const ProviderFields = ({
   const [open, setOpen] = useState(false);
   const configErrors = errors.config as
     Record<string, { message?: string } | undefined> | undefined;
+  const configInput = (field: ConfigField) => (
+    <ConfigInput
+      key={field.key}
+      field={field}
+      value={config[field.key]}
+      error={configErrors?.[field.key]}
+      register={register}
+      onChange={(value) => onConfigChange(field.key, value)}
+    />
+  );
 
   return (
     <>
+      {KINDS[kind].fields.filter((f) => f.required).map(configInput)}
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="defaultTemplate">
@@ -249,16 +265,7 @@ export const ProviderFields = ({
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-4 space-y-4 border-l-2 border-border pl-4">
-          {KINDS[kind].fields.map((field) => (
-            <ConfigInput
-              key={field.key}
-              field={field}
-              value={config[field.key]}
-              error={configErrors?.[field.key]}
-              register={register}
-              onChange={(value) => onConfigChange(field.key, value)}
-            />
-          ))}
+          {KINDS[kind].fields.filter((f) => !f.required).map(configInput)}
           <div className="space-y-2">
             <Label>
               Metadata <OptionalMark />

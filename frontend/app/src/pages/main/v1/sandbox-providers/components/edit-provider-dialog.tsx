@@ -52,7 +52,7 @@ export const EditProviderDialog = ({
     reset,
     formState: { errors },
   } = useForm<ProviderUpdateFormData>({
-    resolver: zodResolver(providerUpdateFormSchema),
+    resolver: zodResolver(providerUpdateFormSchema(provider.kind)),
     defaultValues: updateFormValues(provider),
   });
 
