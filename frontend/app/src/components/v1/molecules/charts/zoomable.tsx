@@ -163,8 +163,9 @@ export function ZoomableChart<T extends string>({
     }
   };
 
-  // remove date from dataKeys
-  const dataKeys = Object.keys(data[0] || {}).filter((key) => key !== 'date');
+  const dataKeys = Object.keys(data[0] || {}).filter(
+    (key): key is T => key !== 'date',
+  );
 
   return (
     <ChartContainer
@@ -215,7 +216,7 @@ type ChildChartProps<T extends string> = {
   refAreaLeft: string | null;
   refAreaRight: string | null;
   chartConfig: ChartConfig;
-  dataKeys: string[];
+  dataKeys: T[];
   stacked?: boolean;
   yScale?: 'linear' | 'sqrt';
 };
@@ -292,8 +293,10 @@ function ChildBarChart<T extends string>({
             stackId={stacked ? 'stack' : undefined}
             // A small count next to a large one (e.g. a few failures among
             // thousands of successes) scales to a fraction of a pixel; keep
-            // any non-zero segment at least 1px so it stays visible.
-            minPointSize={(value) => (value != null && value > 0 ? 1 : 0)}
+            // any non-zero segment at least 1px so it stays visible. The value
+            // recharts passes is the stack's running total, not this segment's
+            // count, so look the segment up by index.
+            minPointSize={(_, index) => (data[index][key] > 0 ? 1 : 0)}
           />
         ))}
 

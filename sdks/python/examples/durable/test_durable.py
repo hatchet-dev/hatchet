@@ -21,6 +21,7 @@ from examples.durable.worker import (
     durable_sleep_event_spawn,
     durable_spawn_dag,
     durable_spawn_many_dags,
+    durable_spawn_with_reordered_child_input,
     durable_task,
     durable_with_bulk_spawn,
     durable_with_spawn,
@@ -285,6 +286,16 @@ async def test_durable_non_determinism(hatchet: Hatchet) -> None:
     assert replayed_result.non_determinism_detected
     assert replayed_result.node_id == 1
     assert replayed_result.attempt_number == 2
+
+
+@requires_durable_eviction
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_non_determinism_error_shows_child_input_difference() -> None:
+    result = await durable_spawn_with_reordered_child_input.aio_run()
+
+    assert "input differs at byte 2:" in result.non_determinism_message
+    assert 'expected: {"foo":"bar","baz":123' in result.non_determinism_message
+    assert 'received: {"baz":123,"foo":"bar"' in result.non_determinism_message
 
 
 @requires_durable_eviction

@@ -33,7 +33,7 @@ func satisfyOperatorStepChildren(t *testing.T, ctx context.Context, repos userEv
 	require.NoError(t, err)
 	defer tx.Rollback(ctx) // nolint: errcheck
 
-	entries, err := repos.shared.satisfyOperatorStepChildEntries(ctx, tx, tenantID, completions)
+	entries, err := repos.shared.satisfyOperatorStepChildEntries(ctx, tx, tx, tenantID, completions)
 	require.NoError(t, err)
 	require.NoError(t, tx.Commit(ctx))
 
