@@ -17,6 +17,8 @@ import (
 
 func noopOpen() error { return nil }
 
+func noopGiveBack() {}
+
 func newLoggedGate(t *testing.T, limit int64, maxWait time.Duration) (*gate, *bytes.Buffer) {
 	t.Helper()
 
@@ -48,12 +50,12 @@ func logLines(t *testing.T, buf *bytes.Buffer) []map[string]any {
 func fillAndReject(t *testing.T, g *gate, key string, n int) {
 	t.Helper()
 
-	hold, err := g.pin(context.Background(), key, uuid.Nil, noopOpen)
+	hold, err := g.pin(context.Background(), key, uuid.Nil, noopOpen, noopGiveBack)
 	require.NoError(t, err)
 	t.Cleanup(hold.release)
 
 	for i := 0; i < n; i++ {
-		_, err := g.pin(context.Background(), key, uuid.Nil, noopOpen)
+		_, err := g.pin(context.Background(), key, uuid.Nil, noopOpen, noopGiveBack)
 		require.ErrorAs(t, err, new(*LimitError))
 	}
 }
@@ -73,7 +75,7 @@ func TestRejectionLogCountsSuppressedRejections(t *testing.T) {
 	g.tenants["tenant-a"].lastRejectLog = time.Now().Add(-2 * logInterval)
 	g.mu.Unlock()
 
-	_, err := g.pin(context.Background(), "tenant-a", uuid.Nil, noopOpen)
+	_, err := g.pin(context.Background(), "tenant-a", uuid.Nil, noopOpen, noopGiveBack)
 	require.ErrorAs(t, err, new(*LimitError))
 
 	lines = logLines(t, buf)
@@ -139,14 +141,14 @@ func TestRejectionLogBurstBoundsKeysAndCarriesCounts(t *testing.T) {
 	require.NotEmpty(t, dropped)
 
 	// a dropped key keeps accumulating, and none of its rejections are lost
-	_, err := g.pin(context.Background(), dropped, uuid.Nil, noopOpen)
+	_, err := g.pin(context.Background(), dropped, uuid.Nil, noopOpen, noopGiveBack)
 	require.ErrorAs(t, err, new(*LimitError))
 	require.Len(t, logLines(t, buf), burst)
 
 	// a fresh period lets the next rejection through with the whole count
 	g.rejectSampler = &zerolog.BurstSampler{Burst: 10, Period: time.Hour}
 
-	_, err = g.pin(context.Background(), dropped, uuid.Nil, noopOpen)
+	_, err = g.pin(context.Background(), dropped, uuid.Nil, noopOpen, noopGiveBack)
 	require.ErrorAs(t, err, new(*LimitError))
 
 	lines := logLines(t, buf)
@@ -158,7 +160,7 @@ func TestRejectionLogBurstBoundsKeysAndCarriesCounts(t *testing.T) {
 func TestWaitLogIsInfoAndSeparateFromRejections(t *testing.T) {
 	g, buf := newLoggedGate(t, 1, time.Second)
 
-	hold, err := g.pin(context.Background(), "tenant-a", uuid.Nil, noopOpen)
+	hold, err := g.pin(context.Background(), "tenant-a", uuid.Nil, noopOpen, noopGiveBack)
 	require.NoError(t, err)
 
 	go func() {
@@ -166,7 +168,7 @@ func TestWaitLogIsInfoAndSeparateFromRejections(t *testing.T) {
 		hold.release()
 	}()
 
-	waitedHold, err := g.pin(context.Background(), "tenant-a", uuid.Nil, noopOpen)
+	waitedHold, err := g.pin(context.Background(), "tenant-a", uuid.Nil, noopOpen, noopGiveBack)
 	require.NoError(t, err)
 	t.Cleanup(waitedHold.release)
 
@@ -182,7 +184,7 @@ func TestWaitLogIsInfoAndSeparateFromRejections(t *testing.T) {
 	// a wait line does not hold back the first rejection line
 	g.maxWait = time.Millisecond
 
-	_, err = g.pin(context.Background(), "tenant-a", uuid.Nil, noopOpen)
+	_, err = g.pin(context.Background(), "tenant-a", uuid.Nil, noopOpen, noopGiveBack)
 	require.ErrorAs(t, err, new(*LimitError))
 
 	lines = logLines(t, buf)

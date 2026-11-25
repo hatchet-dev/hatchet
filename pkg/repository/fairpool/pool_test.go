@@ -262,9 +262,9 @@ func TestTenantCapLetsOtherTenantsThrough(t *testing.T) {
 	requireGone(t, name, tenantA.String())
 }
 
-// Waiters on a full bucket must proceed one at a time as slots free, with
-// exactly one pool acquire each. Guards against checking out a connection
-// before owning a slot, which costs a pool acquire per failed attempt.
+// Waiters on a full bucket must proceed one at a time as slots free. A waiter
+// checks out once, finds the bucket full and gives the connection back, then
+// checks out again with the slot it waited for: two acquires, never a retry loop.
 func TestQueuedWaitersEachProceed(t *testing.T) {
 	const waiters = 5
 
@@ -314,7 +314,63 @@ func TestQueuedWaitersEachProceed(t *testing.T) {
 	requireGone(t, name, tenantA.String())
 
 	acquires := pool.Unwrap().Stat().AcquireCount() - acquiresBefore
-	require.Equal(t, int64(2+waiters), acquires, "each Begin should check out exactly one pool connection")
+	require.Equal(t, int64(2+2*waiters), acquires, "a Begin that waits on the cap should check out exactly twice")
+}
+
+// An exhausted pool must not surface as a tenant LimitError. The tenant here wants more
+// checkouts than its cap while every connection is held elsewhere for longer than MaxWait;
+// before the fix its first two callers held both slots while waiting on the pool and the
+// third was rejected at MaxWait, which is the restart storm seen on many-tenant shards.
+func TestExhaustedPoolIsNotATenantLimit(t *testing.T) {
+	const maxWait = 150 * time.Millisecond
+
+	pool, name := newPoolWithOptions(t, fairpool.Options{MaxPercent: 50, MaxWait: maxWait, AcquireTimeout: 5 * time.Second}, nil)
+	ctx := context.Background()
+	tenantA := uuid.New()
+	dbA := pool.ForTenant(tenantA)
+
+	var held []pgx.Tx
+	for i := 0; i < 4; i++ {
+		tx, err := pool.Unwrap().Begin(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+		held = append(held, tx)
+	}
+
+	const callers = 3
+	errs := make(chan error, callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			tx, err := dbA.Begin(ctx)
+			if err != nil {
+				errs <- err
+				return
+			}
+			errs <- tx.Rollback(ctx)
+		}()
+	}
+
+	time.Sleep(3 * maxWait)
+	select {
+	case err := <-errs:
+		t.Fatalf("checkout returned while the pool was exhausted: %v", err)
+	default:
+	}
+
+	for _, tx := range held {
+		require.NoError(t, tx.Rollback(ctx))
+	}
+
+	for i := 0; i < callers; i++ {
+		select {
+		case err := <-errs:
+			require.NoError(t, err)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("caller %d did not proceed once the pool freed up", i)
+		}
+	}
+
+	requireGone(t, name, tenantA.String())
 }
 
 func TestLimitErrorAndCancel(t *testing.T) {

@@ -260,8 +260,8 @@ func (p *Pool) acquire(ctx context.Context) (*pgxpool.Conn, error) {
 	return conn, err
 }
 
-// pinConn reserves a slot when the bucket is gated, then checks out a connection. Every handle
-// method checks out through here, so each one is bounded by acquireTimeout.
+// pinConn checks out a connection and, when the bucket is gated, takes a slot for it. Every
+// handle method checks out through here, so each one is bounded by acquireTimeout.
 func (h *handle) pinConn(ctx context.Context) (*pgxpool.Conn, *slotHold, error) {
 	if h.gate == nil {
 		conn, err := h.pool.acquire(ctx)
@@ -274,6 +274,9 @@ func (h *handle) pinConn(ctx context.Context) (*pgxpool.Conn, *slotHold, error) 
 		var acquireErr error
 		conn, acquireErr = h.pool.acquire(ctx)
 		return acquireErr
+	}, func() {
+		conn.Release()
+		conn = nil
 	})
 	if err != nil {
 		return nil, nil, err
