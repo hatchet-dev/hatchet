@@ -1289,9 +1289,16 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		return fmt.Errorf("failed to get task: %w", err)
 	}
 
+	parentAdditionalMetadataPayloads, err := d.repo.Payloads().TaskAdditionalMetadata().Retrieve(
+		ctx, nil, v1.TaskAdditionalMetadataPayloadRefs(invocation.tenantId, []*sqlcv1.FlattenExternalIdsRow{task})...,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve task additional metadata: %w", err)
+	}
+
 	triggerOpts := make([]*v1.WorkflowNameTriggerOpts, 0, len(req.TriggerOpts))
 	for _, triggerReq := range req.TriggerOpts {
-		triggerTaskData, triggerErr := d.repo.Triggers().NewTriggerTaskData(ctx, invocation.tenantId, triggerReq, task)
+		triggerTaskData, triggerErr := d.repo.Triggers().NewTriggerTaskData(ctx, invocation.tenantId, triggerReq, task, parentAdditionalMetadataPayloads)
 		if triggerErr != nil {
 			return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to create trigger options: %v", triggerErr))
 		}

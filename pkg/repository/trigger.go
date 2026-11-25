@@ -200,7 +200,9 @@ type TriggerRepository interface {
 
 	PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 
-	NewTriggerTaskData(ctx context.Context, tenantId uuid.UUID, req *v1contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow) (*TriggerTaskData, error)
+	// NewTriggerTaskData reads the parent's additional metadata from parentAdditionalMetadataPayloads, which the
+	// caller retrieves once for every parent in the request.
+	NewTriggerTaskData(ctx context.Context, tenantId uuid.UUID, req *v1contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow, parentAdditionalMetadataPayloads map[PayloadRef[TaskAdditionalMetadataShape]]Payload[TaskAdditionalMetadataShape]) (*TriggerTaskData, error)
 
 	// InvalidateEventKeyWorkflows drops the cached lists of workflows that the tenant's event
 	// keys trigger, for when any engine has created a workflow version for the tenant.
@@ -1766,6 +1768,12 @@ func (r *sharedRepository) triggerWorkflowsWrite(
 	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks)+len(dags))
 
 	for _, task := range tasks {
+		if task.AdditionalMetadataPayloadReferenceID != nil {
+			storePayloadOpts = append(storePayloadOpts, TaskAdditionalMetadataPayloadRef(
+				tenantId, task.ID, task.InsertedAt, task.AdditionalMetadataPayloadReferenceID,
+			).StoreOpts(NewPayload[TaskAdditionalMetadataShape](task.AdditionalMetadata)))
+		}
+
 		if _, ownsInputPayload := runExternalIdsOwningInputPayload[task.ExternalID]; task.PayloadReferenceID != nil && !ownsInputPayload {
 			continue
 		}
@@ -3180,6 +3188,7 @@ func (r *sharedRepository) NewTriggerTaskData(
 	tenantId uuid.UUID,
 	req *v1contracts.TriggerWorkflowRequest,
 	parentTask *sqlcv1.FlattenExternalIdsRow,
+	parentAdditionalMetadataPayloads map[PayloadRef[TaskAdditionalMetadataShape]]Payload[TaskAdditionalMetadataShape],
 ) (*TriggerTaskData, error) {
 	_, span := telemetry.NewSpan(ctx, "sharedRepository.NewTriggerTaskData")
 	defer span.End()
@@ -3263,7 +3272,7 @@ func (r *sharedRepository) NewTriggerTaskData(
 
 		t.AdditionalMetadata = injectParentIDs(
 			t.AdditionalMetadata,
-			parentTask.AdditionalMetadata,
+			TaskAdditionalMetadataFromPayloadOrColumn(parentAdditionalMetadataPayloads, tenantId, parentTask),
 			parentTask.WorkflowRunID,
 			parentTask.ExternalID,
 		)

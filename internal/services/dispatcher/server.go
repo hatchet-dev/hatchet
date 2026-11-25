@@ -2777,6 +2777,12 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId uuid.UUI
 		return nil, err
 	}
 
+	additionalMetadataPayloads, err := s.repov1.Payloads().TaskAdditionalMetadata().Retrieve(ctx, nil, v1.TaskAdditionalMetadataPayloadRefs(tenantId, flattenedRows)...)
+
+	if err != nil {
+		return nil, err
+	}
+
 	for _, row := range flattenedRows {
 		workflowRunId := row.WorkflowRunID
 		if _, ok := foundWorkflowRuns[workflowRunId]; ok {
@@ -2787,9 +2793,11 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId uuid.UUI
 			WorkflowRunId: workflowRunId,
 		}
 
-		if len(row.AdditionalMetadata) > 0 {
+		additionalMetadata := v1.TaskAdditionalMetadataFromPayloadOrColumn(additionalMetadataPayloads, tenantId, row)
+
+		if len(additionalMetadata) > 0 {
 			var additionalMetaMap map[string]interface{}
-			err = json.Unmarshal(row.AdditionalMetadata, &additionalMetaMap)
+			err = json.Unmarshal(additionalMetadata, &additionalMetaMap)
 			if err != nil {
 				return nil, err
 			}

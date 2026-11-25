@@ -911,7 +911,8 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.triggering_event_external_id,
         t.triggering_event_key,
         t.payload_reference_id,
-        t.task_input_payload_version
+        t.task_input_payload_version,
+        t.additional_metadata_payload_reference_id
     FROM
         v1_task t
     WHERE
@@ -964,6 +965,7 @@ SELECT
     t.triggering_event_key,
     t.payload_reference_id,
     t.task_input_payload_version,
+    t.additional_metadata_payload_reference_id,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM

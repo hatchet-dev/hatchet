@@ -579,6 +579,10 @@ CREATE TABLE v1_task (
     child_task_desired_worker_labels JSONB,
     task_input_payload_version SMALLINT NOT NULL DEFAULT 1,
     max_reassignments_allowed INTEGER,
+    -- The v1_payload row holding the task's full additional metadata. NULL when the additional_metadata column
+    -- holds all of it: tasks whose only keys are traceparent, hatchet__* and prom_*, and tasks created before
+    -- metadata was written to v1_payload.
+    additional_metadata_payload_reference_id UUID,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -2499,7 +2503,7 @@ ALTER TABLE v1_durable_sleep SET (
     autovacuum_vacuum_cost_limit = '1000'
 );
 
-CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA', 'USER_EVENT_INPUT', 'DURABLE_EVENT_LOG_ENTRY_DATA', 'DURABLE_EVENT_LOG_ENTRY_RESULT_DATA');
+CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA', 'USER_EVENT_INPUT', 'DURABLE_EVENT_LOG_ENTRY_DATA', 'DURABLE_EVENT_LOG_ENTRY_RESULT_DATA', 'TASK_ADDITIONAL_METADATA');
 
 -- IMPORTANT: Keep these values in sync with `v1_payload_type_olap` in the OLAP db
 CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
