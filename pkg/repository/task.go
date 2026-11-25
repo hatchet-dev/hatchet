@@ -1755,10 +1755,35 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.ListTaskMetasRow, error) {
 	db := r.pool.ForTenant(tenantId)
 
-	return r.queries.ListTaskMetas(ctx, db, sqlcv1.ListTaskMetasParams{
+	metas, err := r.queries.ListTaskMetas(ctx, db, sqlcv1.ListTaskMetasParams{
 		TenantID: tenantId,
 		Ids:      tasks,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	additionalMetadataRefs := make([]PayloadRef[TaskAdditionalMetadataShape], 0, len(metas))
+
+	for _, meta := range metas {
+		if meta.AdditionalMetadataPayloadReferenceID != nil {
+			additionalMetadataRefs = append(additionalMetadataRefs, TaskAdditionalMetadataPayloadRef(tenantId, meta.ID, meta.InsertedAt, meta.AdditionalMetadataPayloadReferenceID))
+		}
+	}
+
+	additionalMetadataPayloads, err := r.payloadStore.TaskAdditionalMetadata().Retrieve(ctx, db, additionalMetadataRefs...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve task additional metadata: %w", err)
+	}
+
+	for _, meta := range metas {
+		ref := TaskAdditionalMetadataPayloadRef(tenantId, meta.ID, meta.InsertedAt, meta.AdditionalMetadataPayloadReferenceID)
+		meta.AdditionalMetadata = RetrievePayloadOrFallback(additionalMetadataPayloads, ref, meta.AdditionalMetadata).Bytes()
+	}
+
+	return metas, nil
 }
 
 // DefaultTaskActivityGauge returns 1 if any of the tenant's queues has been active within the task retention

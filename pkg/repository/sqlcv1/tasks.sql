@@ -292,6 +292,7 @@ SELECT
     workflow_id,
     workflow_run_id,
     additional_metadata,
+    additional_metadata_payload_reference_id,
     step_readable_id,
     action_id,
     display_name,
