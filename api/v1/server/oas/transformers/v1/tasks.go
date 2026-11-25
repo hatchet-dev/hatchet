@@ -31,16 +31,6 @@ func mapOlapStatus[S ~string](olapStatus S) (gen.V1TaskStatus, bool) {
 	return status, false
 }
 
-func workflowRunStatus(run *v1.WorkflowRunData) (gen.V1TaskStatus, bool) {
-	status, isEvicted := mapOlapStatus(run.ReadableStatus)
-
-	if run.Kind == enums.V1RunKindDAG && status == enums.V1TaskStatusRUNNING && !isEvicted && !run.StartedAt.Valid {
-		return enums.V1TaskStatusQUEUED, isEvicted
-	}
-
-	return status, isEvicted
-}
-
 func ToTaskSummary(task *v1.TaskWithPayloads, opts ...PayloadOption) gen.V1TaskSummary {
 	o := applyPayloadOptions(opts)
 	workflowVersionID := task.WorkflowVersionID
@@ -441,7 +431,7 @@ func ToWorkflowRunDetails(
 		payloadsRestricted = boolPtr(true)
 	}
 
-	wrStatus, _ := workflowRunStatus(workflowRun)
+	wrStatus, _ := mapOlapStatus(workflowRun.ReadableStatus)
 
 	parsedWorkflowRun := gen.V1WorkflowRun{
 		AdditionalMetadata:   additionalMetadataPtr,

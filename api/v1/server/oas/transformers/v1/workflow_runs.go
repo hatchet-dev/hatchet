@@ -82,7 +82,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		parentTaskExternalId = &parentTaskExternalIdValue
 	}
 
-	status, isEvicted := workflowRunStatus(task)
+	status, isEvicted := mapOlapStatus(task.ReadableStatus)
 
 	runType := enums.V1RunKindDAG
 	if task.Kind == enums.V1RunKindTASK {
