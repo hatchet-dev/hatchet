@@ -120,11 +120,12 @@ type DefaultFilter = types.DefaultFilter
 type TaskDefaults = create.TaskDefaults
 
 type runOpts struct {
-	AdditionalMetadata  *map[string]string
-	Priority            *RunPriority
-	Sticky              *bool
-	Key                 *string
-	DesiredWorkerLabels map[string]*DesiredWorkerLabel
+	AdditionalMetadata   *map[string]string
+	Priority             *RunPriority
+	Sticky               *bool
+	Key                  *string
+	DesiredWorkerLabels  map[string]*DesiredWorkerLabel
+	CancelOnParentCancel bool
 }
 
 type RunOptFunc func(*runOpts)
@@ -161,6 +162,15 @@ func WithRunKey(key string) RunOptFunc {
 func WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel) RunOptFunc {
 	return func(opts *runOpts) {
 		opts.DesiredWorkerLabels = labels
+	}
+}
+
+// WithCancelOnParentCancel makes the engine cancel the child run when the durable task that spawned
+// it is cancelled, including when that task is evicted and no worker is running it. It applies only
+// to children spawned from a durable task; other runs ignore it.
+func WithCancelOnParentCancel() RunOptFunc {
+	return func(opts *runOpts) {
+		opts.CancelOnParentCancel = true
 	}
 }
 

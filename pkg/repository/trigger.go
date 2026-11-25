@@ -103,6 +103,10 @@ type TriggerTaskData struct {
 	// (optional) when set, the task is created in CANCELLED state immediately (used by DAG operator)
 	IsCancelled bool `json:"is_cancelled,omitempty"`
 
+	// (optional) when set on a run spawned by a durable task, cancelling that durable task cancels
+	// the run if it has not finished
+	CancelOnParentCancel bool `json:"cancel_on_parent_cancel,omitempty"`
+
 	// (optional) when set, overrides the workflow_run_id for the created task (used by DAG operator to group child tasks under the orchestrator's run ID)
 	WorkflowRunId *uuid.UUID `json:"workflow_run_id,omitempty"`
 
@@ -3255,6 +3259,7 @@ func (r *sharedRepository) NewTriggerTaskData(
 		t.ParentTaskId = &parentTask.ID
 		t.ParentTaskInsertedAt = &parentTask.InsertedAt.Time
 		t.ChildKey = req.ChildKey
+		t.CancelOnParentCancel = req.GetCancelOnParentCancel()
 
 		if req.ChildIndex != nil {
 			childIndex := int64(*req.ChildIndex)

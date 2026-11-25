@@ -676,6 +676,8 @@ type GetOrCreateLogEntryOpt struct {
 	// IsTriggered creates the entry with triggered_at already set: the child's task rows exist
 	// (an in-place replay), so there is no run left for the trigger path to spawn.
 	IsTriggered bool
+	// CancelOnParentCancel marks a RUN entry whose child is cancelled when the durable task is.
+	CancelOnParentCancel bool
 }
 
 func (o GetOrCreateLogEntryOpt) idempotencyKeyMatches(existingKey []byte) bool {
@@ -1138,6 +1140,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 		Istriggereds:           make([]bool, 0),
 		Usermessages:           make([]string, 0),
 		Waitdatas:              make([]string, 0),
+		Cancelonparentcancels:  make([]bool, 0),
 	}
 
 	for _, state := range survivingStates {
@@ -1161,6 +1164,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 			}
 
 			createParams.Waitdatas = append(createParams.Waitdatas, entry.WaitData)
+			createParams.Cancelonparentcancels = append(createParams.Cancelonparentcancels, entry.CancelOnParentCancel)
 		}
 	}
 
@@ -2140,17 +2144,18 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			isSatisfied := triggerOpts.IsCancelled || triggerOpts.IsSkipped
 
 			innerOpts[i] = GetOrCreateLogEntryOpt{
-				Kind:                enums.V1DurableEventLogKindRUN,
-				NodeId:              nodeId,
-				BranchId:            branchId,
-				ChildTaskExternalId: triggerOpts.ExternalId,
-				IdempotencyKey:      idempotencyKey,
-				InputPayload:        inputPayload,
-				WaitData:            marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
-				UserMessage:         triggerOpts.UserMessage,
-				IsDagStepTrigger:    triggerOpts.IsDagStepTrigger,
-				IsSatisfied:         isSatisfied,
-				IsTriggered:         childrenToReplay[triggerOpts.ExternalId],
+				Kind:                 enums.V1DurableEventLogKindRUN,
+				NodeId:               nodeId,
+				BranchId:             branchId,
+				ChildTaskExternalId:  triggerOpts.ExternalId,
+				IdempotencyKey:       idempotencyKey,
+				InputPayload:         inputPayload,
+				WaitData:             marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
+				UserMessage:          triggerOpts.UserMessage,
+				IsDagStepTrigger:     triggerOpts.IsDagStepTrigger,
+				IsSatisfied:          isSatisfied,
+				IsTriggered:          childrenToReplay[triggerOpts.ExternalId],
+				CancelOnParentCancel: triggerOpts.CancelOnParentCancel,
 			}
 		}
 

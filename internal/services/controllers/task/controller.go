@@ -648,22 +648,57 @@ func orchestratorIdsWithoutWorker(released []*sqlcv1.ReleaseTasksRow) []uuid.UUI
 	return ids
 }
 
-// cancelChildrenOfOrchestratorsWithoutWorker cancels those orchestrators' unfinished children.
-func (tc *TasksControllerImpl) cancelChildrenOfOrchestratorsWithoutWorker(
+// cancelledDurableTasks returns the current retries of the released durable tasks. Their
+// cancel_on_parent_cancel children are cancelled whether or not the task held a worker: the
+// engine, not the task's handler, owns that cascade.
+func cancelledDurableTasks(released []*sqlcv1.ReleaseTasksRow) []v1.TaskIdInsertedAtRetryCount {
+	var tasks []v1.TaskIdInsertedAtRetryCount
+
+	for _, rt := range released {
+		if rt == nil || !rt.IsDurable || rt.IsDagOrchestrator || !rt.IsCurrentRetry {
+			continue
+		}
+
+		tasks = append(tasks, v1.TaskIdInsertedAtRetryCount{
+			Id:         rt.ID,
+			InsertedAt: rt.InsertedAt,
+			RetryCount: rt.RetryCount,
+		})
+	}
+
+	return tasks
+}
+
+// cancelChildrenOfCancelledTasks cancels the unfinished children of the cancelled tasks that the
+// engine is responsible for: every child of an orchestrator without a worker, and every child a
+// durable task spawned with cancel_on_parent_cancel. A cancelled durable child goes through this
+// path in turn, so the cascade reaches its own opted-in children. The two sets never overlap: an
+// orchestrator's RUN entries are never written with cancel_on_parent_cancel.
+func (tc *TasksControllerImpl) cancelChildrenOfCancelledTasks(
 	ctx context.Context,
 	tenantId uuid.UUID,
 	released []*sqlcv1.ReleaseTasksRow,
 ) error {
-	orchestratorExternalIds := orchestratorIdsWithoutWorker(released)
+	var children []v1.TaskIdInsertedAtRetryCount
 
-	if len(orchestratorExternalIds) == 0 {
-		return nil
+	if orchestratorExternalIds := orchestratorIdsWithoutWorker(released); len(orchestratorExternalIds) > 0 {
+		orchestratorChildren, err := tc.repov1.Tasks().ListUnfinishedDurableOrchestratorChildren(ctx, tenantId, orchestratorExternalIds)
+
+		if err != nil {
+			return fmt.Errorf("could not list unfinished orchestrator children: %w", err)
+		}
+
+		children = append(children, orchestratorChildren...)
 	}
 
-	children, err := tc.repov1.Tasks().ListUnfinishedDurableOrchestratorChildren(ctx, tenantId, orchestratorExternalIds)
+	if durableTasks := cancelledDurableTasks(released); len(durableTasks) > 0 {
+		optedInChildren, err := tc.repov1.Tasks().ListUnfinishedCancelOnParentCancelChildren(ctx, tenantId, durableTasks)
 
-	if err != nil {
-		return fmt.Errorf("could not list unfinished orchestrator children: %w", err)
+		if err != nil {
+			return fmt.Errorf("could not list unfinished cancel_on_parent_cancel children: %w", err)
+		}
+
+		children = append(children, optedInChildren...)
 	}
 
 	return tc.publishChildCancellations(ctx, tenantId, children)
@@ -686,11 +721,11 @@ func (tc *TasksControllerImpl) publishChildCancellations(
 		)
 
 		if err != nil {
-			return fmt.Errorf("could not create cancel message for orchestrator children: %w", err)
+			return fmt.Errorf("could not create cancel message for children: %w", err)
 		}
 
 		if err := tc.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
-			return fmt.Errorf("could not publish cancel message for orchestrator children: %w", err)
+			return fmt.Errorf("could not publish cancel message for children: %w", err)
 		}
 
 		return nil
@@ -1103,9 +1138,9 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		outerErr = multierror.Append(outerErr, emitErr)
 	}
 
-	if cancelErr := tc.cancelChildrenOfOrchestratorsWithoutWorker(ctx, tenantId, res.ReleasedTasks); cancelErr != nil {
+	if cancelErr := tc.cancelChildrenOfCancelledTasks(ctx, tenantId, res.ReleasedTasks); cancelErr != nil {
 		span.RecordError(cancelErr)
-		span.SetStatus(codes.Error, "could not cancel orchestrator children")
+		span.SetStatus(codes.Error, "could not cancel children of cancelled tasks")
 		outerErr = multierror.Append(outerErr, cancelErr)
 	}
 

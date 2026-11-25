@@ -345,7 +345,8 @@ WITH inputs AS (
         UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied,
         UNNEST(@isTriggereds::BOOLEAN[]) AS is_triggered,
         UNNEST(@userMessages::TEXT[]) AS user_message,
-        UNNEST(@waitDatas::TEXT[]) AS wait_data
+        UNNEST(@waitDatas::TEXT[]) AS wait_data,
+        UNNEST(@cancelOnParentCancels::BOOLEAN[]) AS cancel_on_parent_cancel
 ), ordered_inputs AS (
     -- a RUN entry created already satisfied (a skipped or cancelled DAG step) takes its place in
     -- the satisfaction order here, since nothing will satisfy it later
@@ -381,7 +382,8 @@ WITH inputs AS (
         -- !!IMPORTANT: `triggered_at` has a `DEFAULT CURRENT_TIMESTAMP`, so it is written explicitly: NULL
         -- for an entry whose run the trigger path still has to spawn, NOW() for an entry whose child
         -- already exists (an in-place replay)
-        triggered_at
+        triggered_at,
+        cancel_on_parent_cancel
     )
     SELECT
         i.tenant_id,
@@ -399,7 +401,8 @@ WITH inputs AS (
         i.satisfied_order,
         NULLIF(i.user_message, ''),
         NULLIF(i.wait_data, '')::JSONB,
-        CASE WHEN i.is_triggered THEN NOW() END
+        CASE WHEN i.is_triggered THEN NOW() END,
+        i.cancel_on_parent_cancel
     FROM ordered_inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
     RETURNING *

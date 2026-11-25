@@ -74,4 +74,8 @@ message TriggerWorkflowRequest {
 
     // (optional) the desired worker labels for the workflow run, which will be used to determine which workers can pick up the workflow's tasks. if not set, defaults to an empty set of labels, which means any worker can pick up the tasks.
     map<string, DesiredWorkerLabels> desired_worker_labels = 10;
+
+    // (optional) only honored when the run is spawned by a durable task: when true, cancelling that
+    // durable task cancels this run if it has not finished. Defaults to false.
+    optional bool cancel_on_parent_cancel = 11;
 }

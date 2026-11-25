@@ -192,14 +192,15 @@ func durableChildWorkflowOpts(
 	}
 
 	return &v0Client.ChildWorkflowOpts{
-		ParentId:            hCtx.WorkflowRunId(),
-		ParentTaskRunId:     hCtx.StepRunId(),
-		ChildIndex:          childIndexValue,
-		ChildKey:            runOpts.Key,
-		DesiredWorkerId:     desiredWorkerID,
-		AdditionalMetadata:  runOpts.AdditionalMetadata,
-		Priority:            priority,
-		DesiredWorkerLabels: runOpts.DesiredWorkerLabels,
+		ParentId:             hCtx.WorkflowRunId(),
+		ParentTaskRunId:      hCtx.StepRunId(),
+		ChildIndex:           childIndexValue,
+		ChildKey:             runOpts.Key,
+		DesiredWorkerId:      desiredWorkerID,
+		AdditionalMetadata:   runOpts.AdditionalMetadata,
+		Priority:             priority,
+		DesiredWorkerLabels:  runOpts.DesiredWorkerLabels,
+		CancelOnParentCancel: runOpts.CancelOnParentCancel,
 	}, nil
 }
 

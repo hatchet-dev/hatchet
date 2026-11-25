@@ -908,7 +908,8 @@ SELECT
     t.is_dag_orchestrator,
     t.parent_task_external_id,
     t.parent_task_id,
-    t.parent_task_inserted_at
+    t.parent_task_inserted_at,
+    COALESCE(t.is_durable, FALSE)::BOOLEAN AS is_durable
 FROM
     v1_task t
 JOIN
@@ -946,6 +947,7 @@ type ReleaseTasksRow struct {
 	ParentTaskExternalID   *uuid.UUID         `json:"parent_task_external_id"`
 	ParentTaskID           pgtype.Int8        `json:"parent_task_id"`
 	ParentTaskInsertedAt   pgtype.Timestamptz `json:"parent_task_inserted_at"`
+	IsDurable              bool               `json:"is_durable"`
 }
 
 func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
@@ -982,6 +984,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 				&i.ParentTaskExternalID,
 				&i.ParentTaskID,
 				&i.ParentTaskInsertedAt,
+				&i.IsDurable,
 			); err != nil {
 				errCh <- err
 				close(rowsCh)
@@ -1652,5 +1655,180 @@ func appendFlattenExternalIdsRows(items []*FlattenExternalIdsRow, rows pgx.Rows)
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	return items, nil
+}
+
+const listCancelOnParentCancelChildExternalIds = `
+WITH parents AS (
+    SELECT
+        UNNEST($2::BIGINT[]) AS id,
+        UNNEST($3::TIMESTAMPTZ[]) AS inserted_at
+)
+SELECT DISTINCT e.child_task_external_id
+FROM parents p
+JOIN v1_durable_event_log_entry e
+    ON (e.durable_task_id, e.durable_task_inserted_at) = (p.id, p.inserted_at)
+WHERE
+    e.tenant_id = $1::UUID
+    AND e.durable_task_inserted_at >= $4::TIMESTAMPTZ
+    AND e.durable_task_inserted_at <= $5::TIMESTAMPTZ
+    AND e.kind = 'RUN'
+    AND e.cancel_on_parent_cancel
+    AND e.child_task_external_id IS NOT NULL
+`
+
+const listUnfinishedCandidateTasks = `
+WITH candidates AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS id,
+        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST($3::INTEGER[]) AS retry_count
+)
+SELECT c.id, c.inserted_at, c.retry_count
+FROM candidates c
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM v1_task_event ev
+    WHERE ev.task_id = c.id
+      AND ev.task_inserted_at = c.inserted_at
+      AND ev.task_inserted_at >= $4::TIMESTAMPTZ
+      AND ev.task_inserted_at <= $5::TIMESTAMPTZ
+      AND ev.retry_count = c.retry_count
+      AND ev.event_type IN ('COMPLETED', 'FAILED', 'CANCELLED')
+)
+`
+
+type ListUnfinishedCancelOnParentCancelChildrenParams struct {
+	Tenantid               uuid.UUID
+	Durabletaskids         []int64
+	Durabletaskinsertedats []pgtype.Timestamptz
+}
+
+type ListUnfinishedCancelOnParentCancelChildrenRow struct {
+	ID         int64
+	InsertedAt pgtype.Timestamptz
+	RetryCount int32
+}
+
+// ListUnfinishedCancelOnParentCancelChildren returns the unfinished tasks of every run the given
+// durable tasks spawned with cancel_on_parent_cancel, on any branch of their event logs.
+//
+// Each partitioned table is queried in its own statement with explicit inserted_at bounds under
+// forceCustomPlan so Postgres prunes partitions at plan time, and the common case (no opted-in
+// children) returns after step 1 without touching v1_lookup_table, v1_task, v1_dag_to_task, or
+// v1_task_event.
+func (q *Queries) ListUnfinishedCancelOnParentCancelChildren(
+	ctx context.Context,
+	db DBTX,
+	arg ListUnfinishedCancelOnParentCancelChildrenParams,
+) ([]*ListUnfinishedCancelOnParentCancelChildrenRow, error) {
+	if len(arg.Durabletaskids) == 0 {
+		return nil, nil
+	}
+
+	minParentInsertedAt := arg.Durabletaskinsertedats[0]
+	maxParentInsertedAt := arg.Durabletaskinsertedats[0]
+	for _, ts := range arg.Durabletaskinsertedats[1:] {
+		if ts.Time.Before(minParentInsertedAt.Time) {
+			minParentInsertedAt = ts
+		}
+		if ts.Time.After(maxParentInsertedAt.Time) {
+			maxParentInsertedAt = ts
+		}
+	}
+
+	childRows, err := db.Query(ctx, listCancelOnParentCancelChildExternalIds, forceCustomPlan,
+		arg.Tenantid,
+		arg.Durabletaskids,
+		arg.Durabletaskinsertedats,
+		minParentInsertedAt,
+		maxParentInsertedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var childExternalIds []uuid.UUID
+	for childRows.Next() {
+		var id uuid.UUID
+		if err := childRows.Scan(&id); err != nil {
+			childRows.Close()
+			return nil, err
+		}
+		childExternalIds = append(childExternalIds, id)
+	}
+	childRows.Close()
+	if err := childRows.Err(); err != nil {
+		return nil, err
+	}
+	if len(childExternalIds) == 0 {
+		return nil, nil
+	}
+
+	flattened, err := q.FlattenExternalIds(ctx, db, FlattenExternalIdsParams{
+		Tenantid:    arg.Tenantid,
+		Externalids: childExternalIds,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(flattened) == 0 {
+		return nil, nil
+	}
+
+	type candidateKey struct {
+		id         int64
+		insertedAt int64
+		retryCount int32
+	}
+	seen := make(map[candidateKey]struct{}, len(flattened))
+	taskIds := make([]int64, 0, len(flattened))
+	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(flattened))
+	retryCounts := make([]int32, 0, len(flattened))
+	var minTaskInsertedAt, maxTaskInsertedAt pgtype.Timestamptz
+
+	for _, f := range flattened {
+		k := candidateKey{id: f.ID, insertedAt: f.InsertedAt.Time.UnixNano(), retryCount: f.RetryCount}
+		if _, dup := seen[k]; dup {
+			continue
+		}
+		seen[k] = struct{}{}
+
+		if len(taskIds) == 0 || f.InsertedAt.Time.Before(minTaskInsertedAt.Time) {
+			minTaskInsertedAt = f.InsertedAt
+		}
+		if len(taskIds) == 0 || f.InsertedAt.Time.After(maxTaskInsertedAt.Time) {
+			maxTaskInsertedAt = f.InsertedAt
+		}
+
+		taskIds = append(taskIds, f.ID)
+		taskInsertedAts = append(taskInsertedAts, f.InsertedAt)
+		retryCounts = append(retryCounts, f.RetryCount)
+	}
+
+	rows, err := db.Query(ctx, listUnfinishedCandidateTasks, forceCustomPlan,
+		taskIds,
+		taskInsertedAts,
+		retryCounts,
+		minTaskInsertedAt,
+		maxTaskInsertedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []*ListUnfinishedCancelOnParentCancelChildrenRow
+	for rows.Next() {
+		var i ListUnfinishedCancelOnParentCancelChildrenRow
+		if err := rows.Scan(&i.ID, &i.InsertedAt, &i.RetryCount); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return items, nil
 }
