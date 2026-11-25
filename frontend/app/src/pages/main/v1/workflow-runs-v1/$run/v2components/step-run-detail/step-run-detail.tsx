@@ -287,8 +287,11 @@ export const TaskRunDetail = ({
                 isDurable={taskRun.isDurable}
               />
             </TabsContent>
-            <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
-              <div className="flex flex-col h-96">
+            <TabsContent
+              value={TabOption.ChildWorkflowRuns}
+              className="mt-4 flex min-h-0 flex-1 flex-col"
+            >
+              <div className="flex min-h-0 flex-1 flex-col">
                 <RunsProvider
                   tableKey={`child-runs-${taskRunId}`}
                   display={{
