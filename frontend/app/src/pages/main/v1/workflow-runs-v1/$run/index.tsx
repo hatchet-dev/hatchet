@@ -455,7 +455,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
           </TabsList>
           <PausedWorkflowNotice
             workflowId={workflowRun.workflowId}
-            status={workflowRun.status}
+            status={displayedStatus}
           />
           <TabsContent
             value="overview"
