@@ -580,8 +580,8 @@ CREATE TABLE v1_task (
     task_input_payload_version SMALLINT NOT NULL DEFAULT 1,
     max_reassignments_allowed INTEGER,
     -- The v1_payload row holding the task's full additional metadata. NULL when the additional_metadata column
-    -- holds all of it: tasks whose only keys are traceparent, hatchet__* and prom_*, and tasks created before
-    -- metadata was written to v1_payload.
+    -- holds all of it: tasks whose only keys are prom_*, and tasks created before metadata was written to
+    -- v1_payload.
     additional_metadata_payload_reference_id UUID,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);

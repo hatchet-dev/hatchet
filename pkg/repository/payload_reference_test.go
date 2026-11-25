@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -311,23 +310,15 @@ func TestTaskAdditionalMetadataIsReadFromItsPayloadRowAndNotFromTheTaskColumn(t 
 			},
 			ExternalId: uuid.New(),
 		},
-		{
-			TriggerTaskData: &TriggerTaskData{WorkflowName: workflowOpts.Name, Data: []byte(`{"order_id": 2}`)},
-			ExternalId:      uuid.New(),
-		},
 	})
 	require.NoError(t, err)
-	require.Len(t, tasks, 2)
+	require.Len(t, tasks, 1)
 
-	tasksWithPayloadRow := enumerables.Filter(tasks, func(task *V1TaskWithPayload) bool {
-		return task.AdditionalMetadataPayloadReferenceID != nil
-	})
-	require.Len(t, tasksWithPayloadRow, 1, "the engine's own traceparent key alone must not create a payload row")
+	parent := tasks[0]
+	require.NotNil(t, parent.AdditionalMetadataPayloadReferenceID)
 
-	parent := tasksWithPayloadRow[0]
-
-	// the column and the payload row hold the same value until the column stops receiving user keys, so the
-	// row is overwritten here to tell the two sources apart
+	// the column and the payload row hold the same value until the column is reduced to the prom_ keys, so
+	// the row is overwritten here to tell the two sources apart
 	payloadOnlyMetadata := []byte(`{"customer": "acme", "only_in_payload": true}`)
 	parentRef := TaskAdditionalMetadataPayloadRef(internalTenantId, parent.ID, parent.InsertedAt, parent.AdditionalMetadataPayloadReferenceID)
 	require.NoError(t, shared.payloadStore.OverwriteExisting(ctx, pool, parentRef.StoreOpts(NewPayload[TaskAdditionalMetadataShape](payloadOnlyMetadata))))

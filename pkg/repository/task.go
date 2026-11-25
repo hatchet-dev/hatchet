@@ -2228,17 +2228,9 @@ func (r *TaskRepositoryImpl) GetQueueSizes(ctx context.Context, tenantId uuid.UU
 // exported.
 const PrometheusMetadataKeyPrefix = "prom_"
 
-// isAdditionalMetadataKeyReadFromTaskColumn is true for the keys that are read straight from
-// v1_task.additional_metadata without the payload: the OLAP controller derives spans from traceparent and
-// the hatchet__ keys on every monitoring event, and GetQueueSizesByMetadata aggregates the prom_ keys in SQL.
-func isAdditionalMetadataKeyReadFromTaskColumn(key string) bool {
-	return key == "traceparent" ||
-		strings.HasPrefix(key, "hatchet__") ||
-		strings.HasPrefix(key, PrometheusMetadataKeyPrefix)
-}
-
 // additionalMetadataHasKeysNotReadFromTaskColumn decides whether a task gets a payload row for its additional
-// metadata. Every triggered task carries a traceparent, so most tasks without user metadata need no row.
+// metadata. Only the prom_ keys are read straight from v1_task.additional_metadata, by GetQueueSizesByMetadata,
+// which aggregates them in SQL. Every triggered task carries a traceparent, so nearly every task gets a row.
 func additionalMetadataHasKeysNotReadFromTaskColumn(additionalMetadata []byte) bool {
 	if len(additionalMetadata) == 0 {
 		return false
@@ -2251,7 +2243,7 @@ func additionalMetadataHasKeysNotReadFromTaskColumn(additionalMetadata []byte) b
 	}
 
 	for key := range keys {
-		if !isAdditionalMetadataKeyReadFromTaskColumn(key) {
+		if !strings.HasPrefix(key, PrometheusMetadataKeyPrefix) {
 			return true
 		}
 	}
