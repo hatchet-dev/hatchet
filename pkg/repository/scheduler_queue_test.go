@@ -179,6 +179,42 @@ func TestMarkQueueItemsProcessedDuplicateTaskKey(t *testing.T) {
 	assert.Equal(t, 0, queued)
 }
 
+// The dispatcher dedupes local assignments against the pull by assigned_at, so the flush must hand back
+// the exact value it wrote, and nothing when it wrote none.
+func TestMarkQueueItemsProcessedReturnsAssignedAt(t *testing.T) {
+	for _, reassign := range []bool{true, false} {
+		t.Run(fmt.Sprintf("reassign=%t", reassign), func(t *testing.T) {
+			pool, cleanup := setupPostgresWithMigration(t)
+			t.Cleanup(cleanup)
+
+			ctx := context.Background()
+			require.NoError(t, createTaskRepository(pool).UpdateTablePartitions(ctx))
+
+			repo := createSharedRepositoryForTest(pool)
+			repo.reassignUnackedTasks = reassign
+			tenantID := uuid.New()
+
+			qi := insertQueuedTaskForTest(t, ctx, pool, tenantID, 900001, "1h")
+			item := &AssignedItem{WorkerId: uuid.New(), QueueItem: qi}
+
+			tx, err := pool.Begin(ctx)
+			require.NoError(t, err)
+			defer tx.Rollback(ctx) // nolint: errcheck
+
+			succeeded, _, err := repo.markQueueItemsProcessed(ctx, tenantID, &AssignResults{Assigned: []*AssignedItem{item}}, tx)
+			require.NoError(t, err)
+			require.NoError(t, tx.Commit(ctx))
+			require.Equal(t, []*AssignedItem{item}, succeeded)
+
+			var stored pgtype.Timestamptz
+			require.NoError(t, pool.QueryRow(ctx, `SELECT assigned_at FROM v1_task_runtime WHERE task_id = $1`, qi.TaskID).Scan(&stored))
+
+			assert.Equal(t, reassign, item.AssignedAt.Valid)
+			assert.Equal(t, stored, item.AssignedAt)
+		})
+	}
+}
+
 // A scheduler can hold a queue item whose row another scheduler consumed before the task
 // was evicted and restored. Because restoration creates a new queue item for the same task
 // key, the flush must assign that item to the worker the scheduler already reserved.

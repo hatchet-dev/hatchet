@@ -613,10 +613,6 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	}
 
 	for _, innerMsg := range msgs {
-		if d.pubSubDelivery.active() {
-			d.pubSubDelivery.claim(innerMsg)
-		}
-
 		taskIds := make([]int64, 0)
 
 		for _, tasks := range innerMsg.WorkerIdToTaskIds {
@@ -633,7 +629,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			continue
 		}
 
-		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, onlyAssignedAttempts(dispatchData, attempts))
+		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, d.pubSubDelivery.claimDispatch(onlyAssignedAttempts(dispatchData, attempts)))
 
 		if err != nil {
 			// we've already handled the requeue in populateTaskData, and we've logged the error, so we just continue
@@ -700,13 +696,18 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 		toRetryMu.Unlock()
 	}
 
-	// optimistic scheduling skips the pub/sub message, so the pull would otherwise see these assignments
-	// as never received and send them again once the worker's ack is past the grace period
-	if d.pubSubDelivery.active() {
-		tasks = enumerables.Filter(tasks, func(assigned *schedulingv1.AssignedItemWithTask) bool {
-			return d.pubSubDelivery.claimOne(assignmentKey{taskId: assigned.Task.ID, retryCount: assigned.Task.RetryCount})
-		})
-	}
+	// optimistic scheduling skips the queue, so the pull would otherwise see these assignments as never
+	// sent and send them again once the worker's ack is past the grace period
+	tasks = enumerables.Filter(tasks, func(assigned *schedulingv1.AssignedItemWithTask) bool {
+		at := assigned.AssignedItem.AssignedAt
+
+		// without assigned_at the pull never finds the row, so there is nothing to tell it apart from
+		if !at.Valid {
+			return true
+		}
+
+		return d.pubSubDelivery.claim(assignmentKey{taskId: assigned.Task.ID, retryCount: assigned.Task.RetryCount}, at.Time)
+	})
 
 	if len(tasks) == 0 {
 		return nil

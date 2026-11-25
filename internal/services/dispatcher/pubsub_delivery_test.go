@@ -4,72 +4,103 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 
-	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func TestPubSubDeliveryClaimDropsAssignmentsAlreadyHandled(t *testing.T) {
-	b := newPubSubDelivery(PubSubDeliveryOpts{PullInterval: time.Second, PullGrace: time.Second})
-	workerId := uuid.New()
+func dispatchOf(assignedAt map[int64]pgtype.Timestamptz) *v1.TasksForDispatch {
+	data := &v1.TasksForDispatch{Runtimes: map[int64]*sqlcv1.V1TaskRuntime{}}
 
-	first := &tasktypesv1.TaskAssignedBulkTaskPayload{}
-	first.Add(workerId, 1, 0)
-	b.claim(first)
-	assert.Equal(t, []int64{1}, first.WorkerIdToTaskIds[workerId])
-
-	second := &tasktypesv1.TaskAssignedBulkTaskPayload{}
-	second.Add(workerId, 1, 0)
-	second.Add(workerId, 2, 0)
-	b.claim(second)
-	assert.Equal(t, []int64{2}, second.WorkerIdToTaskIds[workerId])
-
-	retried := &tasktypesv1.TaskAssignedBulkTaskPayload{}
-	retried.Add(workerId, 1, 1)
-	b.claim(retried)
-	assert.Equal(t, []int64{1}, retried.WorkerIdToTaskIds[workerId], "a new retry is a new assignment")
-
-	duplicate := &tasktypesv1.TaskAssignedBulkTaskPayload{}
-	duplicate.Add(workerId, 2, 0)
-	b.claim(duplicate)
-	assert.Empty(t, duplicate.WorkerIdToTaskIds)
-}
-
-func TestPubSubDeliveryClaimKeepsAssignmentsWithoutRetryCounts(t *testing.T) {
-	b := newPubSubDelivery(PubSubDeliveryOpts{})
-	workerId := uuid.New()
-
-	for range 2 {
-		legacy := &tasktypesv1.TaskAssignedBulkTaskPayload{WorkerIdToTaskIds: map[uuid.UUID][]int64{workerId: {7}}}
-		b.claim(legacy)
-		assert.Equal(t, []int64{7}, legacy.WorkerIdToTaskIds[workerId])
+	for taskId, at := range assignedAt {
+		data.Tasks = append(data.Tasks, &sqlcv1.V1Task{ID: taskId})
+		data.Runtimes[taskId] = &sqlcv1.V1TaskRuntime{TaskID: taskId, AssignedAt: at}
 	}
+
+	return data
 }
 
-func TestPubSubDeliveryClaimOneBlocksLaterPulls(t *testing.T) {
-	b := newPubSubDelivery(PubSubDeliveryOpts{})
+func taskIds(data *v1.TasksForDispatch) []int64 {
+	ids := make([]int64, 0, len(data.Tasks))
+
+	for _, task := range data.Tasks {
+		ids = append(ids, task.ID)
+	}
+
+	return ids
+}
+
+func TestPubSubDeliveryClaimDropsSecondDeliveryOfAnAssignment(t *testing.T) {
+	b := newPubSubDelivery(PubSubDeliveryOpts{Pull: true})
+	assignedAt := pgtype.Timestamptz{Time: time.Now(), Valid: true}
+
+	assert.Equal(t, []int64{1}, taskIds(b.claimDispatch(dispatchOf(map[int64]pgtype.Timestamptz{1: assignedAt}))))
+	assert.Empty(t, taskIds(b.claimDispatch(dispatchOf(map[int64]pgtype.Timestamptz{1: assignedAt}))), "a late pub/sub message or a pull resending the same assignment")
+}
+
+// Restoring an evicted durable task assigns the same retry again; only assigned_at moves.
+func TestPubSubDeliveryClaimSendsARestoredDurableTask(t *testing.T) {
+	b := newPubSubDelivery(PubSubDeliveryOpts{Pull: true})
+	first := time.Now()
+	key := assignmentKey{taskId: 1, retryCount: 0}
+
+	assert.True(t, b.claim(key, first))
+	assert.True(t, b.claim(key, first.Add(5*time.Second)), "restore")
+	assert.False(t, b.claim(key, first.Add(5*time.Second)), "a second delivery of the restore")
+	assert.True(t, b.seen(key, first), "a late delivery of the first assignment")
+}
+
+// A pull returns the same assigned_at the assignment's first delivery claimed, and a later
+// assignment of the same retry has a later one.
+func TestPubSubDeliveryClaimComparesAssignedAt(t *testing.T) {
+	b := newPubSubDelivery(PubSubDeliveryOpts{Pull: true})
+	assignedAt := time.Now()
 	key := assignmentKey{taskId: 3, retryCount: 0}
 
-	assert.True(t, b.claimOne(key), "a local assignment is claimed the first time")
-	assert.True(t, b.seen(key), "the pull skips an assignment delivered locally")
-	assert.False(t, b.claimOne(key))
-
-	workerId := uuid.New()
-	fromPubSub := &tasktypesv1.TaskAssignedBulkTaskPayload{}
-	fromPubSub.Add(workerId, 3, 0)
-	b.claim(fromPubSub)
-	assert.Empty(t, fromPubSub.WorkerIdToTaskIds, "a late pub/sub message doesn't resend a local assignment")
+	assert.True(t, b.claim(key, assignedAt))
+	assert.True(t, b.seen(key, assignedAt), "the pull finds the same assignment")
+	assert.False(t, b.seen(key, assignedAt.Add(time.Microsecond)), "a later assignment of the same retry")
+	assert.True(t, b.claim(assignmentKey{taskId: 3, retryCount: 1}, assignedAt), "a new retry is a new assignment")
 }
 
-// Until something sends over pub/sub, a dispatcher's assignments all come over the durable queue, so
-// tracking stays off: its key would drop a restored durable task as a duplicate of its first assignment.
-func TestPubSubDeliveryTracksNothingUntilTheFirstPubSubMessage(t *testing.T) {
-	var unwired *pubSubDelivery
-	assert.False(t, unwired.active())
+func TestPubSubDeliveryClaimDispatchMixesTrackedDuplicateAndUntracked(t *testing.T) {
+	b := newPubSubDelivery(PubSubDeliveryOpts{Pull: true})
+	assignedAt := pgtype.Timestamptz{Time: time.Now(), Valid: true}
 
-	b := newPubSubDelivery(PubSubDeliveryOpts{Pull: true, PullInterval: time.Second, PullGrace: time.Second})
-	assert.False(t, b.active())
+	assert.True(t, b.claim(assignmentKey{taskId: 1}, assignedAt.Time))
+
+	kept := taskIds(b.claimDispatch(dispatchOf(map[int64]pgtype.Timestamptz{1: assignedAt, 2: assignedAt, 3: {}})))
+	assert.ElementsMatch(t, []int64{2, 3}, kept)
+}
+
+// Without a pull nothing resends, so nothing is tracked or dropped.
+func TestPubSubDeliveryTracksNothingWithoutAPull(t *testing.T) {
+	b := newPubSubDelivery(PubSubDeliveryOpts{})
+	key := assignmentKey{taskId: 1}
+	at := time.Now()
+
+	assert.True(t, b.claim(key, at))
+	assert.True(t, b.claim(key, at))
+	assert.Equal(t, 0, b.received.Len())
+}
+
+func TestPubSubDeliveryClaimAlwaysSendsWithoutAssignedAt(t *testing.T) {
+	b := newPubSubDelivery(PubSubDeliveryOpts{Pull: true})
+
+	for range 2 {
+		assert.Equal(t, []int64{7}, taskIds(b.claimDispatch(dispatchOf(map[int64]pgtype.Timestamptz{7: {}}))))
+	}
+
+	var unwired *pubSubDelivery
+	assert.True(t, unwired.claim(assignmentKey{taskId: 7}, time.Now()))
+}
+
+// Until something sends over pub/sub every assignment comes over the durable queue, so the pull, which
+// only recovers lost pub/sub messages, doesn't run.
+func TestPubSubDeliveryPullWaitsForTheFirstPubSubMessage(t *testing.T) {
+	b := newPubSubDelivery(PubSubDeliveryOpts{Pull: true})
 
 	select {
 	case <-b.activated:
@@ -79,7 +110,6 @@ func TestPubSubDeliveryTracksNothingUntilTheFirstPubSubMessage(t *testing.T) {
 
 	b.markActive()
 	b.markActive()
-	assert.True(t, b.active())
 
 	select {
 	case <-b.activated:

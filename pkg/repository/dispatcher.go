@@ -70,15 +70,16 @@ type UnackedAssignment struct {
 	WorkerID   uuid.UUID
 	TaskID     int64
 	RetryCount int32
+	AssignedAt time.Time
 }
 
 // The lateral join resolves each worker's tenant first so the runtime lookup can use the
 // (tenant_id, worker_id) index; there is no index on worker_id alone.
 const listUnackedAssignmentsSQL = `
-SELECT w."tenantId", w.id, rt.task_id, rt.retry_count
+SELECT w."tenantId", w.id, rt.task_id, rt.retry_count, rt.assigned_at
 FROM "Worker" w
 JOIN LATERAL (
-    SELECT rt.task_id, rt.retry_count
+    SELECT rt.task_id, rt.retry_count, rt.assigned_at
     FROM v1_task_runtime rt
     WHERE rt.tenant_id = w."tenantId"
         AND rt.worker_id = w.id
@@ -112,7 +113,7 @@ func (d *dispatcherRepository) ListUnackedAssignments(ctx context.Context, worke
 	for rows.Next() {
 		var a UnackedAssignment
 
-		if err := rows.Scan(&a.TenantID, &a.WorkerID, &a.TaskID, &a.RetryCount); err != nil {
+		if err := rows.Scan(&a.TenantID, &a.WorkerID, &a.TaskID, &a.RetryCount, &a.AssignedAt); err != nil {
 			return nil, err
 		}
 

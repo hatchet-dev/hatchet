@@ -4,16 +4,18 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 // PubSubDeliveryOpts configures how a dispatcher receives the messages other engines send it over pub/sub.
@@ -37,26 +39,28 @@ type assignmentKey struct {
 	retryCount int32
 }
 
-// pubSubDelivery tracks which assignments this dispatcher already handled, from pub/sub or from a pull, so
-// that a pull doesn't resend a task the worker already has and a late pub/sub message doesn't resend a
-// task the pull already sent.
+// pubSubDelivery tracks which assignments this dispatcher already sent, whether they came over the
+// queue, pub/sub, a pull or a local assignment, so that a pull doesn't resend a task the worker already
+// has and a late pub/sub message doesn't resend a task the pull already sent.
 //
-// Every dispatcher subscribes, but tracking and the pull only start with the first message that arrives
-// over pub/sub. Until then every sender uses the durable queue, which needs neither, and the tracking
-// would only cost: its key can't tell a restored durable task from a duplicate of its first assignment.
+// An assignment is its (task, retry count) plus when it was made: restoring an evicted durable task
+// assigns the same retry again, and only its new assigned_at tells it from a second delivery of the
+// first assignment.
 type pubSubDelivery struct {
 	opts PubSubDeliveryOpts
 
-	// activatedAt is zero until the first pub/sub message, and then bounds the pull to assignments made
-	// since. Older ones went over the queue or to whichever dispatcher the worker used before, which may
-	// have sent them, so they are left to ReassignUnackedTasks rather than risk a duplicate.
-	// That includes pub/sub messages lost before the first one arrived, which only reassign recovers.
-	activatedAt atomic.Int64
-	activated   chan struct{}
-	activate    sync.Once
+	// startedAt bounds the pull to assignments made while this dispatcher was up. Older ones were
+	// addressed to whichever dispatcher the worker used before, which may have sent them, so they are
+	// left to ReassignUnackedTasks rather than risk a duplicate.
+	startedAt time.Time
+
+	// activated closes on the first message that arrives over pub/sub. Until then every sender uses the
+	// durable queue, so the pull, which would only cost a query every interval, doesn't run.
+	activated chan struct{}
+	activate  sync.Once
 
 	mu       sync.Mutex
-	received *expirable.LRU[assignmentKey, struct{}]
+	received *expirable.LRU[assignmentKey, time.Time]
 }
 
 func newPubSubDeliveryFromOpts(opts *PubSubDeliveryOpts) *pubSubDelivery {
@@ -70,77 +74,72 @@ func newPubSubDeliveryFromOpts(opts *PubSubDeliveryOpts) *pubSubDelivery {
 func newPubSubDelivery(opts PubSubDeliveryOpts) *pubSubDelivery {
 	return &pubSubDelivery{
 		opts:      opts,
+		startedAt: time.Now(),
 		activated: make(chan struct{}),
-		received:  expirable.NewLRU[assignmentKey, struct{}](1_000_000, nil, receivedTTL),
+		received:  expirable.NewLRU[assignmentKey, time.Time](1_000_000, nil, receivedTTL),
 	}
 }
 
 func (b *pubSubDelivery) markActive() {
-	b.activate.Do(func() {
-		b.activatedAt.Store(time.Now().UnixNano())
-		close(b.activated)
-	})
+	b.activate.Do(func() { close(b.activated) })
 }
 
-// active is nil-safe so callers can skip tracking without checking whether pub/sub delivery is wired.
-func (b *pubSubDelivery) active() bool {
-	return b != nil && b.activatedAt.Load() != 0
-}
-
-// claim drops the assignments already handled and marks the rest as handled. Without retry counts
-// (a message from an older scheduler) every assignment is kept, as before.
-func (b *pubSubDelivery) claim(payload *tasktypesv1.TaskAssignedBulkTaskPayload) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	for workerId, taskIds := range payload.WorkerIdToTaskIds {
-		retryCounts, ok := payload.WorkerIdToTaskRetryCounts[workerId]
-
-		if !ok {
-			continue
-		}
-
-		kept := taskIds[:0]
-
-		for _, taskId := range taskIds {
-			key := assignmentKey{taskId: taskId, retryCount: retryCounts[taskId]}
-
-			if b.received.Contains(key) {
-				continue
-			}
-
-			b.received.Add(key, struct{}{})
-			kept = append(kept, taskId)
-		}
-
-		if len(kept) == 0 {
-			delete(payload.WorkerIdToTaskIds, workerId)
-			continue
-		}
-
-		payload.WorkerIdToTaskIds[workerId] = kept
+// claim tracks nothing without a pull: only the pull resends, so there would be nothing to dedupe
+// and the set would only take memory.
+func (b *pubSubDelivery) claim(key assignmentKey, assignedAt time.Time) bool {
+	if !b.tracking() {
+		return true
 	}
-}
 
-// claimOne marks key as handled and reports whether it wasn't already.
-func (b *pubSubDelivery) claimOne(key assignmentKey) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if b.received.Contains(key) {
+	if b.sentLocked(key, assignedAt) {
 		return false
 	}
 
-	b.received.Add(key, struct{}{})
+	b.received.Add(key, assignedAt)
 
 	return true
 }
 
-func (b *pubSubDelivery) seen(key assignmentKey) bool {
+func (b *pubSubDelivery) tracking() bool {
+	return b != nil && b.opts.Pull
+}
+
+func (b *pubSubDelivery) seen(key assignmentKey, assignedAt time.Time) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return b.received.Contains(key)
+	return b.sentLocked(key, assignedAt)
+}
+
+func (b *pubSubDelivery) sentLocked(key assignmentKey, assignedAt time.Time) bool {
+	sentAt, ok := b.received.Get(key)
+
+	return ok && !assignedAt.After(sentAt)
+}
+
+// claimDispatch leaves out the tasks already sent for the same assignment. A runtime without
+// assigned_at is always sent: the pull never finds it, so there is nothing to tell it apart from.
+func (b *pubSubDelivery) claimDispatch(data *v1.TasksForDispatch) *v1.TasksForDispatch {
+	if !b.tracking() {
+		return data
+	}
+
+	return &v1.TasksForDispatch{
+		Tasks: enumerables.Filter(data.Tasks, func(task *sqlcv1.V1Task) bool {
+			rt := data.Runtimes[task.ID]
+
+			if rt == nil || !rt.AssignedAt.Valid {
+				return true
+			}
+
+			return b.claim(assignmentKey{taskId: task.ID, retryCount: rt.RetryCount}, rt.AssignedAt.Time)
+		}),
+		Runtimes:    data.Runtimes,
+		PayloadRows: data.PayloadRows,
+	}
 }
 
 // startPubSubDelivery subscribes to the dispatcher's pub/sub topic alongside its durable queue, so it
@@ -195,7 +194,7 @@ func (d *DispatcherImpl) pullOnce(ctx context.Context) error {
 	rows, err := d.repov1.Dispatcher().ListUnackedAssignments(
 		ctx,
 		workerIds,
-		time.Unix(0, d.pubSubDelivery.activatedAt.Load()),
+		d.pubSubDelivery.startedAt,
 		time.Now().Add(-d.pubSubDelivery.opts.PullGrace),
 		pullLimitPerWorker,
 	)
@@ -207,7 +206,7 @@ func (d *DispatcherImpl) pullOnce(ctx context.Context) error {
 	byTenant := make(map[uuid.UUID]*tasktypesv1.TaskAssignedBulkTaskPayload)
 
 	for _, row := range rows {
-		if d.pubSubDelivery.seen(assignmentKey{taskId: row.TaskID, retryCount: row.RetryCount}) {
+		if d.pubSubDelivery.seen(assignmentKey{taskId: row.TaskID, retryCount: row.RetryCount}, row.AssignedAt) {
 			continue
 		}
 

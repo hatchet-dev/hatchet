@@ -60,6 +60,10 @@ type AssignedItem struct {
 
 	IsDurable bool
 
+	// AssignedAt is the runtime row's assigned_at, unset unless unacked tasks are reassigned. The
+	// dispatcher uses it to tell a later assignment of the same retry from a repeat of this one.
+	AssignedAt pgtype.Timestamptz
+
 	Batch *BatchAssignmentMetadata
 }
 
@@ -435,6 +439,8 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		if !ok {
 			continue
 		}
+
+		assignedItem.AssignedAt = row.AssignedAt
 
 		if row.IsDurable.Valid {
 			assignedItem.IsDurable = row.IsDurable.Bool
