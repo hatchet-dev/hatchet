@@ -2,6 +2,7 @@ package sqlcv1
 
 import (
 	"context"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -996,7 +997,9 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 		return nil
 	})
 
-	batch.Queue(releaseRetryQueueItems, vals...)
+	if slices.ContainsFunc(arg.Retrycounts, func(retryCount int32) bool { return retryCount != 0 }) {
+		batch.Queue(releaseRetryQueueItems, vals...)
+	}
 	batch.Queue(releaseQueueItems, vals...)
 	batch.Queue(releaseBatchedQueueItems, vals...)
 	batch.Queue(lockParentConcurrencySlots, vals...)
