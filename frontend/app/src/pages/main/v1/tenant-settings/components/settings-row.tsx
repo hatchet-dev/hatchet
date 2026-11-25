@@ -1,4 +1,10 @@
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 
 export function SettingRow({
   label,
@@ -29,9 +35,21 @@ export function SettingRow({
 export function ReadOnlyValue({ value }: { value: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="max-w-[280px] truncate font-mono text-sm text-muted-foreground">
-        {value}
-      </span>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              tabIndex={0}
+              className="max-w-[280px] truncate font-mono text-sm text-muted-foreground md:max-w-md xl:max-w-2xl"
+            >
+              {value}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-[90vw] break-all font-mono">
+            {value}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <CopyToClipboard text={value} />
     </div>
   );
