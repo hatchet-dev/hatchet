@@ -2,8 +2,8 @@ import { billingUsageDismissKey } from './dismissed';
 import { Notification, NotificationColor } from './types';
 import {
   dailyLimitAlerts,
-  isDailyLimitFeature,
-  isPeriodUsageFeature,
+  formatUsageValue,
+  shouldNotifyUsageFeature,
 } from '@/components/v1/cloud/billing/usage-features';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -38,14 +38,7 @@ const featureToNotification = (
   organizationName: string,
   timestamp: string,
 ): Notification | null => {
-  // Period included amounts for task runs / events are billing thresholds,
-  // not hard caps. Daily caps notify from the shard meter. Tenant count stays
-  // on the billing page and does not raise the header alert.
-  if (
-    isPeriodUsageFeature(feature.featureId) ||
-    isDailyLimitFeature(feature.featureId) ||
-    feature.featureId === 'tenants'
-  ) {
+  if (!shouldNotifyUsageFeature(feature.featureId)) {
     return null;
   }
 
@@ -62,7 +55,7 @@ const featureToNotification = (
       status === 'exhausted'
         ? `${feature.name} limit reached`
         : `Approaching ${feature.name} limit`,
-    message: `${organizationName}: ${formatUsageCount(feature.usage)} / ${formatUsageCount(feature.includedUsage)} used`,
+    message: `${organizationName}: ${formatUsageValue(feature.featureId, feature.usage)} / ${formatUsageValue(feature.featureId, feature.includedUsage)} used`,
     timestamp,
     dismissKey: billingUsageDismissKey(
       organizationId,

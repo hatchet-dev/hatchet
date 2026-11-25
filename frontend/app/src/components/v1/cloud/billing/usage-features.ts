@@ -9,6 +9,9 @@ import {
 const BYTE_USAGE_FEATURE_IDS = new Set([
   'stream_published_bytes',
   'stream_delivered_bytes',
+  'ingested_bytes',
+  'ingested_log_bytes',
+  'ingested_otel_bytes',
 ]);
 
 const PERIOD_USAGE_FEATURE_IDS = new Set([
@@ -17,7 +20,8 @@ const PERIOD_USAGE_FEATURE_IDS = new Set([
   ...BYTE_USAGE_FEATURE_IDS,
 ]);
 
-// Plan allowances we do not meter. Showing them as 0 / limit reads as usage.
+// Plan allowances we do not meter (showing them as 0 / limit reads as usage)
+// and per-source breakdowns rolled up into ingested_bytes.
 const HIDDEN_USAGE_FEATURE_IDS = new Set([
   'throughput_rps',
   'active_storage_gb',
@@ -25,7 +29,8 @@ const HIDDEN_USAGE_FEATURE_IDS = new Set([
   'data_retention_days',
   'managed_compute_cents',
   'queue_backlog_limit',
-  'ingested_bytes',
+  'ingested_log_bytes',
+  'ingested_otel_bytes',
 ]);
 
 const DAILY_LIMIT_BY_PERIOD: Record<string, string> = {
@@ -75,6 +80,7 @@ export type ShardUsageCounts = {
   events: number;
   streamPublishedBytes?: number;
   streamDeliveredBytes?: number;
+  ingestedBytes?: OrganizationUsageFeature;
   crons?: number;
   scheduledRuns?: number;
   webhooks?: number;
@@ -130,6 +136,7 @@ const SHARD_USAGE_ROWS: {
     name: 'Stream Bytes Delivered',
     kind: 'period',
   },
+  { id: 'ingested_bytes', name: 'Ingested Bytes', kind: 'period' },
   { id: 'crons', name: 'Crons', kind: 'inventory' },
   { id: 'scheduled_runs', name: 'Scheduled Runs', kind: 'inventory' },
   { id: 'webhooks', name: 'Webhook Endpoints', kind: 'inventory' },
@@ -147,6 +154,8 @@ function shardCount(counts: ShardUsageCounts, id: string): number | undefined {
       return counts.streamPublishedBytes;
     case 'stream_delivered_bytes':
       return counts.streamDeliveredBytes;
+    case 'ingested_bytes':
+      return counts.ingestedBytes?.usage;
     case 'crons':
       return counts.crons;
     case 'scheduled_runs':
@@ -173,11 +182,9 @@ export function shardUsageRows(
     if (value === undefined) {
       continue;
     }
-    // most organizations don't use streams, so their rows only appear once there's usage
-    if (BYTE_USAGE_FEATURE_IDS.has(definition.id) && value === 0) {
-      continue;
-    }
 
+    const ingestedFeature =
+      definition.id === 'ingested_bytes' ? counts.ingestedBytes : undefined;
     const seatAllowance =
       definition.id === 'tenants'
         ? counts.tenants
@@ -188,15 +195,31 @@ export function shardUsageRows(
       ? counts.allowances?.[definition.id]
       : undefined;
     const unlimited =
-      seatAllowance?.unlimited ?? inventoryAllowance?.unlimited ?? false;
+      ingestedFeature?.unlimited ??
+      seatAllowance?.unlimited ??
+      inventoryAllowance?.unlimited ??
+      false;
     const includedUsage = unlimited
       ? 0
-      : (seatAllowance?.limit ?? inventoryAllowance?.limit ?? 0);
+      : (ingestedFeature?.includedUsage ??
+        seatAllowance?.limit ??
+        inventoryAllowance?.limit ??
+        0);
+
+    // Byte features without a plan grant only appear once there is usage.
+    if (
+      BYTE_USAGE_FEATURE_IDS.has(definition.id) &&
+      value === 0 &&
+      !unlimited &&
+      includedUsage <= 0
+    ) {
+      continue;
+    }
 
     rows.push({
       feature: {
         featureId: definition.id,
-        name: definition.name,
+        name: ingestedFeature?.name || definition.name,
         usage: value,
         includedUsage,
         unlimited,
@@ -214,8 +237,25 @@ export type UsageSeverity = 'ok' | 'warn' | 'critical';
 
 export type UsageRangePreset = 'period' | '7d' | '30d';
 
+export function isHiddenUsageFeature(featureId: string) {
+  return HIDDEN_USAGE_FEATURE_IDS.has(featureId);
+}
+
 export function isPeriodUsageFeature(featureId: string) {
   return PERIOD_USAGE_FEATURE_IDS.has(featureId);
+}
+
+// Period included amounts are billing thresholds, not hard caps. Hidden
+// features are not shown on the billing page. Daily caps notify from the shard
+// meter. Tenant count stays on the billing page and does not raise the header
+// alert.
+export function shouldNotifyUsageFeature(featureId: string) {
+  return (
+    !isHiddenUsageFeature(featureId) &&
+    !isPeriodUsageFeature(featureId) &&
+    !isDailyLimitFeature(featureId) &&
+    featureId !== 'tenants'
+  );
 }
 
 export function sumUsageSeries(values: number[]) {
@@ -245,6 +285,17 @@ export function formatUsageValue(featureId: string, value: number) {
   return isByteUsageFeature(featureId)
     ? formatBytes(value)
     : new Intl.NumberFormat('en-US').format(value);
+}
+
+export function formatPeriodUsage(feature: OrganizationUsageFeature) {
+  const usage = formatUsageValue(feature.featureId, feature.usage);
+  if (feature.unlimited) {
+    return `${usage} / ∞ this period`;
+  }
+  if (feature.includedUsage > 0) {
+    return `${usage} / ${formatUsageValue(feature.featureId, feature.includedUsage)} this period`;
+  }
+  return `${usage} this period`;
 }
 
 // the value of featureId in a daily point or a tenant's totals

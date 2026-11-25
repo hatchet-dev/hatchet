@@ -3,9 +3,11 @@ import {
   dailyMeterSeverity,
   formatBytes,
   formatObservedUsage,
+  formatPeriodUsage,
   formatTimeUntil,
   nextRefillAt,
   selectDailyMeters,
+  shouldNotifyUsageFeature,
   inventoryAllowancesFromPlan,
   shardUsageRows,
   sumUsageSeries,
@@ -300,7 +302,7 @@ describe('toUsageDisplayRows', () => {
     );
   });
 
-  it('hides unmetered plan allowances', () => {
+  it('hides unmetered plan allowances and per-source ingest breakdowns', () => {
     const rows = toUsageDisplayRows([
       feature('crons', { name: 'Crons', usage: 9, unlimited: true }),
       feature('throughput_rps', {
@@ -334,12 +336,31 @@ describe('toUsageDisplayRows', () => {
         includedUsage: 0,
       }),
       feature('queue_backlog_limit', { name: 'Queue Backlog', usage: 0 }),
-      feature('ingested_bytes', { name: 'Ingested Bytes', usage: 0 }),
+      feature('ingested_bytes', {
+        name: 'Ingested Bytes',
+        usage: 2_400_000_000,
+        includedUsage: 10_000_000_000,
+      }),
+      feature('ingested_log_bytes', {
+        name: 'Ingested Log Bytes',
+        usage: 2_000_000_000,
+      }),
+      feature('ingested_otel_bytes', {
+        name: 'Ingested OTel Bytes',
+        usage: 400_000_000,
+      }),
     ]);
 
     assert.deepEqual(
-      rows.map((row) => row.feature.featureId),
-      ['crons', 'worker_slots_limit'],
+      rows.map((row) => ({
+        id: row.feature.featureId,
+        period: row.showPeriodAsCount,
+      })),
+      [
+        { id: 'crons', period: false },
+        { id: 'worker_slots_limit', period: false },
+        { id: 'ingested_bytes', period: true },
+      ],
     );
   });
 
@@ -631,5 +652,123 @@ describe('stream bytes', () => {
       'stream_delivered_bytes',
     );
     assert.equal(chart?.total, 4);
+  });
+});
+
+describe('ingested bytes', () => {
+  it('formats period usage with included byte allowance without drawing n / 0', () => {
+    assert.equal(
+      formatPeriodUsage(
+        feature('ingested_bytes', {
+          name: 'Ingested Bytes',
+          usage: 2_400_000_000,
+          includedUsage: 10_000_000_000,
+        }),
+      ),
+      '2.4 GB / 10 GB this period',
+    );
+    assert.equal(
+      formatPeriodUsage(
+        feature('ingested_bytes', {
+          name: 'Ingested Bytes',
+          usage: 2_400_000_000,
+          includedUsage: 0,
+        }),
+      ),
+      '2.4 GB this period',
+    );
+    assert.equal(
+      formatPeriodUsage(
+        feature('ingested_bytes', {
+          name: 'Ingested Bytes',
+          usage: 500_000_000,
+          unlimited: true,
+        }),
+      ),
+      '500 MB / ∞ this period',
+    );
+    assert.equal(
+      formatPeriodUsage(feature('task_runs', { usage: 1200 })),
+      '1,200 this period',
+    );
+  });
+
+  it('includes an ingested_bytes period row when metered or granted', () => {
+    const withGrant = shardUsageRows({
+      taskRuns: 1,
+      events: 0,
+      ingestedBytes: feature('ingested_bytes', {
+        name: 'Ingested Bytes',
+        usage: 2_400_000_000,
+        includedUsage: 10_000_000_000,
+      }),
+    }).find((row) => row.feature.featureId === 'ingested_bytes');
+
+    assert.deepEqual(withGrant, {
+      feature: {
+        featureId: 'ingested_bytes',
+        name: 'Ingested Bytes',
+        usage: 2_400_000_000,
+        includedUsage: 10_000_000_000,
+        unlimited: false,
+      },
+      dailyMeter: undefined,
+      showPeriodAsCount: true,
+      countOnly: false,
+    });
+
+    const zeroWithGrant = shardUsageRows({
+      taskRuns: 0,
+      events: 0,
+      ingestedBytes: feature('ingested_bytes', {
+        name: 'Ingested Bytes',
+        usage: 0,
+        includedUsage: 10_000_000_000,
+      }),
+    }).find((row) => row.feature.featureId === 'ingested_bytes');
+    assert.equal(zeroWithGrant?.feature.usage, 0);
+    assert.equal(zeroWithGrant?.feature.includedUsage, 10_000_000_000);
+
+    const zeroWithoutGrant = shardUsageRows({
+      taskRuns: 0,
+      events: 0,
+      ingestedBytes: feature('ingested_bytes', {
+        name: 'Ingested Bytes',
+        usage: 0,
+        includedUsage: 0,
+      }),
+    }).find((row) => row.feature.featureId === 'ingested_bytes');
+    assert.equal(zeroWithoutGrant, undefined);
+  });
+});
+
+describe('shouldNotifyUsageFeature', () => {
+  it('suppresses period, hidden, daily-limit, and tenant features', () => {
+    for (const id of [
+      'task_runs',
+      'events',
+      'stream_published_bytes',
+      'stream_delivered_bytes',
+      'ingested_bytes',
+      'ingested_log_bytes',
+      'ingested_otel_bytes',
+      'throughput_rps',
+      'active_storage_gb',
+      'network_bandwidth_gb',
+      'data_retention_days',
+      'managed_compute_cents',
+      'queue_backlog_limit',
+      'task_runs_daily_limit',
+      'events_daily_limit',
+      'tenants',
+    ]) {
+      assert.equal(shouldNotifyUsageFeature(id), false, id);
+    }
+  });
+
+  it('keeps hard-cap allowance features eligible for notifications', () => {
+    for (const id of ['users', 'crons', 'scheduled_runs', 'webhooks']) {
+      assert.equal(shouldNotifyUsageFeature(id), true, id);
+    }
   });
 });

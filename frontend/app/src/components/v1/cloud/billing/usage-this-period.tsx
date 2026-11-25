@@ -2,6 +2,7 @@ import { UpgradeGate, UpgradeGateDialog } from './upgrade-gate-dialog';
 import {
   dailyMeterSeverity,
   formatObservedUsage,
+  formatPeriodUsage,
   formatTimeUntil,
   formatBytes,
   formatUsageValue,
@@ -148,14 +149,11 @@ const severityStyles: Record<UsageSeverity, { value: string; bar: string }> = {
 };
 
 function formatUsageLabel(feature: OrganizationUsageFeature) {
+  const usage = formatUsageValue(feature.featureId, feature.usage);
   if (feature.unlimited) {
-    return `${formatUsageCount(feature.usage)} / ∞`;
+    return `${usage} / ∞`;
   }
-  return `${formatUsageCount(feature.usage)} / ${formatUsageCount(feature.includedUsage)}`;
-}
-
-function formatPeriodCount(feature: OrganizationUsageFeature) {
-  return `${formatUsageValue(feature.featureId, feature.usage)} this period`;
+  return `${usage} / ${formatUsageValue(feature.featureId, feature.includedUsage)}`;
 }
 
 function formatDailyMeterValue(meter: DailyMeter) {
@@ -390,7 +388,7 @@ function UsageMeter({
   const periodCount =
     observedUsage !== undefined
       ? formatObservedUsage(observedUsage, rangePreset, feature.featureId)
-      : formatPeriodCount(feature);
+      : formatPeriodUsage(feature);
   const percent = dailyMeter
     ? meterPercent(dailyMeter)
     : showPeriodAsCount
@@ -517,6 +515,12 @@ export function UsageThisPeriod({
 
   const { entitlements } = useOrganizationEntitlements(organizationId);
 
+  const usage = useQuery({
+    ...queries.controlPlane.usage(organizationId ?? ''),
+    refetchInterval: 2 * 60_000,
+    enabled: isControlPlaneEnabled && canBill && !!organizationId,
+  });
+
   const resourceLimits = useQuery({
     ...queries.controlPlane.tenantResourceLimits(organizationId ?? ''),
     refetchInterval: 2 * 60_000,
@@ -563,6 +567,14 @@ export function UsageThisPeriod({
     );
   }, [resourceLimits.data?.tenants, tenantId, timeseries.data?.tenants]);
 
+  const ingestedBytes = useMemo(
+    () =>
+      usage.data?.features.find(
+        (feature) => feature.featureId === 'ingested_bytes',
+      ),
+    [usage.data?.features],
+  );
+
   const rows = useMemo(() => {
     const shardTenants = timeseries.data?.tenants ?? [];
     return shardUsageRows(
@@ -583,6 +595,7 @@ export function UsageThisPeriod({
             (point) => point.streamDeliveredBytes ?? 0,
           ),
         ),
+        ingestedBytes: tenantId === 'all' ? ingestedBytes : undefined,
         crons: sumLoadedCount(shardTenants, 'crons'),
         scheduledRuns: sumLoadedCount(shardTenants, 'scheduledRuns'),
         webhooks: sumLoadedCount(shardTenants, 'webhooks'),
@@ -597,6 +610,7 @@ export function UsageThisPeriod({
     dailyMeters,
     entitlements?.tenants,
     entitlements?.users,
+    ingestedBytes,
     plan,
     tenantId,
     timeseries.data?.series,
@@ -695,6 +709,7 @@ export function UsageThisPeriod({
               onClick={() => {
                 void timeseries.refetch();
                 void resourceLimits.refetch();
+                void usage.refetch();
               }}
             >
               Try again
