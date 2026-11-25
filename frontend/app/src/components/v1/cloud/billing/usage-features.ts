@@ -215,8 +215,17 @@ export type UsageSeverity = 'ok' | 'warn' | 'critical';
 
 export type UsageRangePreset = 'period' | '7d' | '30d';
 
-export function isHiddenUsageFeature(featureId: string) {
-  return HIDDEN_USAGE_FEATURE_IDS.has(featureId);
+// Whether an org usage feature can raise a header alert. Period included
+// amounts for task runs / events are billing thresholds, not hard caps. Daily
+// caps notify from the shard meter. Tenant count stays on the billing page.
+// Features hidden from the billing page do not alert either.
+export function shouldNotifyUsageFeature(featureId: string) {
+  return (
+    !HIDDEN_USAGE_FEATURE_IDS.has(featureId) &&
+    !isPeriodUsageFeature(featureId) &&
+    !isDailyLimitFeature(featureId) &&
+    featureId !== 'tenants'
+  );
 }
 
 export function isPeriodUsageFeature(featureId: string) {

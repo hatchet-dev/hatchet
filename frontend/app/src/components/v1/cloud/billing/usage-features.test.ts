@@ -4,11 +4,11 @@ import {
   formatBytes,
   formatObservedUsage,
   formatTimeUntil,
-  isHiddenUsageFeature,
   nextRefillAt,
   selectDailyMeters,
   inventoryAllowancesFromPlan,
   shardUsageRows,
+  shouldNotifyUsageFeature,
   sumUsageSeries,
   tenantUsageChart,
   toUsageDisplayRows,
@@ -235,10 +235,19 @@ describe('shardUsageRows', () => {
   });
 });
 
-describe('isHiddenUsageFeature', () => {
-  it('hides ingested bytes from the billing page and header alerts', () => {
-    assert.equal(isHiddenUsageFeature('ingested_bytes'), true);
-    assert.equal(isHiddenUsageFeature('task_runs'), false);
+describe('shouldNotifyUsageFeature', () => {
+  it('skips features the billing page hides', () => {
+    assert.equal(shouldNotifyUsageFeature('ingested_bytes'), false);
+  });
+
+  it('skips period thresholds, daily caps and tenants', () => {
+    assert.equal(shouldNotifyUsageFeature('task_runs'), false);
+    assert.equal(shouldNotifyUsageFeature('task_runs_daily_limit'), false);
+    assert.equal(shouldNotifyUsageFeature('tenants'), false);
+  });
+
+  it('alerts on visible plan limits', () => {
+    assert.equal(shouldNotifyUsageFeature('users'), true);
   });
 });
 
