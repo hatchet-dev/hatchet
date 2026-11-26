@@ -4,7 +4,7 @@ FROM node:24-alpine AS deployment
 
 WORKDIR /hatchet/sdks/typescript
 
-RUN corepack enable && corepack prepare pnpm@10.16.1 --activate
+RUN corepack enable && corepack prepare pnpm@10.34.9 --activate
 
 COPY sdks/typescript/ .
 
