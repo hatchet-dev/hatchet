@@ -3,6 +3,7 @@ export {
   type SandboxNamespace,
   type SandboxOpts,
   type Resources,
+  type Egress,
   type ConnectOpts,
   type ExecOpts,
   type SandboxListOpts,

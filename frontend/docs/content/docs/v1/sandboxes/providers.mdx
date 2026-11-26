@@ -44,6 +44,8 @@ A template is a [Daytona snapshot](https://www.daytona.io/docs/snapshots) name. 
 
 The working directory defaults to `/home/daytona`. Set **Default template** to the snapshot new sandboxes should start from. Without it, Daytona's default snapshot is used.
 
+An `egress` allow list holds either CIDRs or domains, not both, with at most 10 CIDRs or 100 domains. Daytona has no deny list. Egress rules only apply on Daytona tier 3 and 4 organizations.
+
 ## E2B
 
 A template is an [E2B template](https://e2b.dev/docs/sandbox-template) name or a snapshot ID. Snapshots Hatchet takes are filesystem-only templates.
@@ -52,11 +54,15 @@ The working directory defaults to `/home/user`. **API URL** is only for self hos
 
 E2B pauses a sandbox after the idle time the SDK asks for. The Hobby plan allows at most one hour, so keep **Max idle time** at or below 3600 seconds there.
 
+An `egress` deny list takes IPs and CIDRs only. Domain entries in an allow list match HTTP on port 80 and TLS on port 443, and other ports are filtered by IP.
+
 ## Archil
 
 A template is an OCI image, for example `node:24-bookworm`. A snapshot is a stopped fork of the machine, so forks start fast, and a sandbox's snapshots keep that stopped machine at Archil until you delete them.
 
 **Region** is one of `aws-us-east-1`, `aws-us-west-2`, `aws-eu-west-1` or `gcp-us-central1`, and must match the region the API key was created in. The working directory defaults to `/workspace`. Set **Default template** to the image new sandboxes should start from. Without it, Archil's default image is used.
+
+Every `egress` form is supported. Archil's Free plan refuses any egress policy, so sandboxes there keep Archil's managed allow list.
 
 ## Freestyle
 
@@ -64,14 +70,16 @@ A template is a [Freestyle snapshot](https://docs.freestyle.sh) ID or slug. Snap
 
 The working directory defaults to `/workspace`. Set **Default template** to the snapshot new sandboxes should start from. Without it, Freestyle's default image is used.
 
+Freestyle firewalls match IPs and CIDRs only and have no deny rules, so `egress` takes `'allow-all'`, `'deny-all'` or an allow list of IPs and CIDRs. Without `egress`, a Freestyle sandbox has no outbound network access.
+
 ## Modal
 
 A template is a registry image such as `debian:bookworm-slim`, or a snapshot image ID starting with `im-`. Snapshots Hatchet takes are [Modal filesystem snapshots](https://modal.com/docs/guide/sandbox-snapshots) and never expire until you delete them. A sandbox that Modal stops for idling cannot be started again, so connect to it before its idle TTL runs out or start a new one from a snapshot.
 
-Modal API tokens have two parts, and the form asks for both. **Token secret** starts with `as-` and **Token ID** starts with `ak-`. **App** is the Modal app the sandboxes run under, defaults to `hatchet-sandboxes` and is created if missing. **Environment** picks a Modal environment other than the token's default. The working directory defaults to `/workspace`. Set **Default template** to the image new sandboxes should start from. Without it, `debian:bookworm-slim` is used. Disk size cannot be set on Modal, so a `diskMib` resource request is rejected.
+Modal API tokens have two parts, and the form asks for both. **Token secret** starts with `as-` and **Token ID** starts with `ak-`. **App** is the Modal app the sandboxes run under, defaults to `hatchet-sandboxes` and is created if missing. **Environment** picks a Modal environment other than the token's default. The working directory defaults to `/workspace`. Set **Default template** to the image new sandboxes should start from. Without it, `debian:bookworm-slim` is used. Disk size cannot be set on Modal, so a `diskMib` resource request is rejected. Modal has no deny list, so `egress` takes `'allow-all'`, `'deny-all'` or an allow list. Domains in an allow list only match TLS traffic on port 443.
 
 ## Vercel
 
 A template is a [Vercel Sandbox image](https://vercel.com/docs/sandbox/concepts/images), for example `vercel/sandbox/universal`. Snapshots Hatchet takes are [Vercel snapshots](https://vercel.com/docs/sandbox/concepts/snapshots) that never expire until you delete them. Taking one stops the running session, and the next command resumes the sandbox from it.
 
-A Vercel access token only works together with a team and a project, so **Team ID** and **Project** are required. The project is given by ID or name. The working directory defaults to `/vercel/sandbox`. Set **Default template** to the image new sandboxes should start from. Without it, Vercel's universal image is used. Vercel sizes sandboxes by vCPU only and gives each vCPU 2048 MB of memory, so a resource request may set `vcpu` but not `memoryMib` or `diskMib`. The idle TTL becomes the session timeout, which your Vercel plan caps at 45 minutes on Hobby and 24 hours on Pro and Enterprise. Vercel allows at most 5 tags per sandbox, so sandbox metadata is not forwarded as Vercel tags. Only the Hatchet tenant and sandbox IDs are.
+A Vercel access token only works together with a team and a project, so **Team ID** and **Project** are required. The project is given by ID or name. The working directory defaults to `/vercel/sandbox`. Set **Default template** to the image new sandboxes should start from. Without it, Vercel's universal image is used. Vercel sizes sandboxes by vCPU only and gives each vCPU 2048 MB of memory, so a resource request may set `vcpu` but not `memoryMib` or `diskMib`. The idle TTL becomes the session timeout, which your Vercel plan caps at 45 minutes on Hobby and 24 hours on Pro and Enterprise. Vercel allows at most 5 tags per sandbox, so sandbox metadata is not forwarded as Vercel tags. Only the Hatchet tenant and sandbox IDs are. An `egress` deny list takes IPs and CIDRs only. Domains in an allow list match TLS traffic, so plain HTTP destinations need their IP range allowed.

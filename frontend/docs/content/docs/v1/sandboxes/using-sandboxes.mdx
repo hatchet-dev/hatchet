@@ -65,6 +65,23 @@ Inside a [durable task](/v1/durable-tasks), create a sandbox, run a command, and
 - The result has `stdout`, `stderr` and `exitCode`. A non-zero exit code is a result, not an error.
 - `timeoutMs` stops the command after that long. A timed-out command returns exit code `124`.
 
+## Restricting network access
+
+`egress` on `create` sets the sandbox's outbound network policy. Without it the sandbox gets the provider's default, which is open internet on most providers. The policy replaces that default and is applied again whenever the sandbox is restored from a snapshot.
+
+```typescript
+const sandbox = await hatchet.sandbox.create({
+  egress: { allow: ["*.github.com", "registry.npmjs.org", "10.0.0.0/8"] },
+});
+```
+
+- `'allow-all'` and `'deny-all'` set the whole policy.
+- `{ allow: [...] }` denies everything but its entries. `{ deny: [...] }` allows everything but its entries.
+- An entry is a domain such as `example.com` or `*.example.com`, an IP address, or a CIDR. Ports and paths are not supported.
+- Daytona, Modal and Freestyle only take allow lists and `'deny-all'`. Freestyle matches IPs and CIDRs only. Deny lists take IPs and CIDRs on every provider.
+- A provider that cannot express the policy fails the create with its own message. See [Providers](/v1/sandboxes/providers) for each provider's limits.
+- A self-hosted Brickie cluster ignores `egress` and `resources`. Set network policies and machine sizes in the cluster's Helm values instead.
+
 ## Working with files
 
 `sandbox.files` reads and writes the workspace. Paths are relative to it.
