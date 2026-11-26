@@ -183,11 +183,40 @@ jobs:
             engine.log
             frontend/app/vite.log
 
+  # The e2e-isolated container image must match the @playwright/test version
+  # exactly, so derive its tag from the lockfile instead of pinning it twice.
+  playwright-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: frontend/app/pnpm-lock.yaml
+          sparse-checkout-cone-mode: false
+
+      - name: Read @playwright/test version
+        id: version
+        run: |
+          set -euo pipefail
+          version=$(grep -A2 "^      '@playwright/test':$" frontend/app/pnpm-lock.yaml | sed -n 's/^ *version: //p')
+          version="${version%%(*}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Could not read the @playwright/test version from pnpm-lock.yaml (got '$version')" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   # Isolated tests mock every API call, so this job needs no Go, database or
-  # seed step and runs alongside e2e-seeded.
+  # seed step and runs alongside e2e-seeded. The Playwright image ships the
+  # browser and its system dependencies, which take minutes to install with apt.
   e2e-isolated:
+    needs: playwright-version
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v${{ needs.playwright-version.outputs.version }}-noble
 
     steps:
       - name: Checkout
@@ -218,10 +247,6 @@ jobs:
       - name: Install frontend deps
         working-directory: frontend/app
         run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
-
-      - name: Install Playwright browser
-        working-directory: frontend/app
-        run: pnpm exec playwright install --with-deps chromium
 
       - name: Start frontend
         working-directory: frontend/app
