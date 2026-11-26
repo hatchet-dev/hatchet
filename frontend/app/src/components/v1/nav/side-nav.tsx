@@ -345,7 +345,9 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
         )}
       </div>
 
-      <div className="flex h-full flex-col overflow-hidden">
+      {/* Below 320px of height the pinned footer would squeeze the nav list to
+          nothing, so the whole sidebar scrolls and the footer scrolls with it. */}
+      <div className="flex h-full flex-col overflow-hidden [@media(max-height:320px)]:overflow-y-auto">
         {renderCollapsed ? (
           <>
             {/* Scrollable navigation area (collapsed) */}
@@ -486,7 +488,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
               onScroll={() => {
                 savedScrollTop.current = scrollRef.current?.scrollTop ?? 0;
               }}
-              className="min-h-0 flex-1 overflow-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground"
+              className="min-h-0 flex-1 overflow-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground [@media(max-height:320px)]:flex-none [@media(max-height:320px)]:overflow-visible"
             >
               <div className="px-4 py-4">
                 {navSections.map((section) => (

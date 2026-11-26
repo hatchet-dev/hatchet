@@ -96,18 +96,25 @@ test.describe('layout: viewports', () => {
 
         await expect(page.getByTestId('v1-sidebar')).toBeVisible();
         const footer = page.getByTestId('v1-sidebar-footer');
-        await expect(footer).toBeInViewport();
+        const firstSection = page
+          .locator('h2', { hasText: 'Activity' })
+          .first();
 
-        // Only meaningful when the nav list overflows at this viewport.
+        // When only the nav list scrolls, the footer is pinned below it.
         const scroll = page.getByTestId('v1-sidebar-scroll');
         if (await isVerticallyScrollable(scroll)) {
+          await expect(footer).toBeInViewport();
           await scrollTo(scroll, 'bottom');
           await expect(footer).toBeInViewport();
           await scrollTo(scroll, 'top');
-          await expect(
-            page.locator('h2', { hasText: 'Activity' }).first(),
-          ).toBeInViewport();
         }
+
+        // Short screens scroll the whole sidebar instead, so check that both
+        // ends are reachable whichever element scrolls.
+        await firstSection.scrollIntoViewIfNeeded();
+        await expect(firstSection).toBeInViewport();
+        await footer.scrollIntoViewIfNeeded();
+        await expect(footer).toBeInViewport();
 
         if (vp.width >= 768) {
           // Clicking near the top avoids the toggle button that hovering the
