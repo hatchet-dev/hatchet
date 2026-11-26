@@ -1,6 +1,6 @@
-import { expect, login, tenantBasePath, test } from '../support/fixtures';
+import { expect, login, TAGS, tenantBasePath, test } from '../support/fixtures';
 
-test.describe('side panel: full height', () => {
+test.describe('side panel: full height', { tag: TAGS.seeded }, () => {
   test('scheduled run side panel fills the available vertical space', async ({
     page,
   }) => {
@@ -62,14 +62,12 @@ test.describe('side panel: full height', () => {
     await expect(page).toHaveURL(/\/tenants\/.+/, { timeout: 30_000 });
     await page.goto(`${tenantBasePath(page)}/scheduled`);
 
-    // Clicking the run row opens the scheduled run details side panel.
     await page.getByText(scheduledRunId).first().click();
 
     const panel = page.getByTestId('side-panel');
     await expect(panel).toBeVisible();
 
-    // The panel content should fill the available vertical space, extending
-    // to the bottom of the side panel. Polled because the panel animates in.
+    // Polled because the panel animates in.
     const content = page.getByTestId('side-panel-content');
     await expect
       .poll(

@@ -17,6 +17,8 @@
     "preview": "vite preview",
     "e2e:open": "playwright test --ui",
     "e2e:run": "playwright test",
+    "e2e:seeded": "playwright test --project=seeded",
+    "e2e:isolated": "playwright test --project=isolated",
     "e2e:report": "playwright show-report",
     "typecheck": "tsc -p tsconfig.json",
     "typecheck:build": "tsc -p tsconfig.build.json",

@@ -3,14 +3,15 @@ import {
   declineRemainingInvites,
   expect,
   logOutViaAccountMenu,
+  seededUser,
   signInWithForm,
   switchTenant,
+  TAGS,
   test,
   waitForTenantShell,
 } from '../support/fixtures';
-import { seededUsers } from '../support/seeded-users.generated';
 
-test.describe('Tenant Invite: decline', () => {
+test.describe('Tenant Invite: decline', { tag: TAGS.seeded }, () => {
   test('should close the invite modal after declining all invites', async ({
     page,
   }) => {
@@ -38,7 +39,7 @@ test.describe('Tenant Invite: decline', () => {
 
     const invite = await page.request.post(
       `/api/v1/tenants/${tenantId}/invites`,
-      { data: { email: seededUsers.member.email, role: 'MEMBER' } },
+      { data: { email: seededUser('member').email, role: 'MEMBER' } },
     );
     expect(invite.status()).toBe(201);
 

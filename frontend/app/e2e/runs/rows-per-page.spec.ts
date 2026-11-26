@@ -1,4 +1,4 @@
-import { expect, login, tenantBasePath, test } from '../support/fixtures';
+import { expect, login, TAGS, tenantBasePath, test } from '../support/fixtures';
 import type { Request } from '@playwright/test';
 
 function isRunsListRequest(request: Request) {
@@ -10,7 +10,7 @@ function isRunsListRequest(request: Request) {
   );
 }
 
-test.describe('runs table: rows per page', () => {
+test.describe('runs table: rows per page', { tag: TAGS.seeded }, () => {
   test('changes rows per page and persists the change in the URL', async ({
     page,
   }) => {
@@ -53,7 +53,6 @@ test.describe('runs table: rows per page', () => {
     const rowsPerPage = page.locator('#rows-per-page');
     await rowsPerPage.click();
 
-    // Changing page size should refetch the list with a new limit.
     const resized = page.waitForRequest(isRunsListRequest);
     await page.locator('[role="option"]', { hasText: /^25$/ }).click();
     expect((await resized).url()).toContain('limit=25');

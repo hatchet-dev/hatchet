@@ -1,6 +1,6 @@
-import { expect, test } from '../support/fixtures';
+import { expect, TAGS, test } from '../support/fixtures';
 
-test.describe('Onboarding: create tenant', () => {
+test.describe('Onboarding: create tenant', { tag: TAGS.seeded }, () => {
   test('registers a new user and creates a tenant', async ({ page }) => {
     const ts = Date.now();
     const userName = `E2E User ${ts}`;

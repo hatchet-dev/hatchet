@@ -2,6 +2,7 @@ import {
   expect,
   login,
   pathnameOf,
+  TAGS,
   tenantIdFromUrl,
   test,
 } from '../support/fixtures';
@@ -18,7 +19,7 @@ function expectText(page: Page, text: string) {
   return expect(page.getByText(text).first()).toBeVisible();
 }
 
-test.describe('Error pages', () => {
+test.describe('Error pages', { tag: TAGS.seeded }, () => {
   test.describe('authenticated routes', () => {
     test.beforeEach(async ({ page }) => {
       await login(page, 'owner');

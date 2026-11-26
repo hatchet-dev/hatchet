@@ -3,15 +3,16 @@ import {
   declineRemainingInvites,
   expect,
   logOutViaAccountMenu,
+  seededUser,
   signInWithForm,
   switchTenant,
+  TAGS,
   tenantSwitcherButton,
   test,
   waitForTenantShell,
 } from '../support/fixtures';
-import { seededUsers } from '../support/seeded-users.generated';
 
-test.describe('Tenant Invite: accept', () => {
+test.describe('Tenant Invite: accept', { tag: TAGS.seeded }, () => {
   test('should redirect to tenant page after accepting invite', async ({
     page,
   }) => {
@@ -23,7 +24,6 @@ test.describe('Tenant Invite: accept', () => {
     await signInWithForm(page, 'owner');
     await waitForTenantShell(page);
 
-    // Ensure Tenant 2 exists even if the DB isn't pre-seeded.
     const tenant2Id = await createTenantViaApi(page, {
       name: tenant2Name,
       slug: tenant2Slug,
@@ -40,7 +40,7 @@ test.describe('Tenant Invite: accept', () => {
 
     const invite = await page.request.post(
       `/api/v1/tenants/${tenant2Id}/invites`,
-      { data: { email: seededUsers.member.email, role: 'MEMBER' } },
+      { data: { email: seededUser('member').email, role: 'MEMBER' } },
     );
     expect(invite.status()).toBe(201);
 

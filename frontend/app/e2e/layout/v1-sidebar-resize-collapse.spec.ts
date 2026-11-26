@@ -1,4 +1,4 @@
-import { expect, login, test } from '../support/fixtures';
+import { expect, login, TAGS, test } from '../support/fixtures';
 import type { Page } from '@playwright/test';
 
 const DEFAULT_EXPANDED_WIDTH = 200;
@@ -14,12 +14,6 @@ async function visitAuthed(
 ) {
   await page.setViewportSize(viewport);
   await login(page, 'owner');
-  // Start each test from a clean sidebar state (but keep auth cookies).
-  await page.evaluate(() => {
-    localStorage.removeItem('v1SidebarCollapsed');
-    localStorage.removeItem('v1SidebarWidthExpanded');
-    localStorage.removeItem('v1SidebarWidth'); // legacy key
-  });
   await page.goto('/');
 
   if (opts?.requireVisibleSidebar !== false) {
@@ -61,7 +55,7 @@ async function waitForShell(page: Page) {
   await expect(sidebar(page)).toBeVisible({ timeout: 30_000 });
 }
 
-test.describe('v1 sidebar: resize + collapse', () => {
+test.describe('v1 sidebar: resize + collapse', { tag: TAGS.seeded }, () => {
   test('navbar: sidebar toggle button is only visible on mobile', async ({
     page,
   }) => {
@@ -82,11 +76,10 @@ test.describe('v1 sidebar: resize + collapse', () => {
     await visitAuthed(page, DESKTOP);
     await expectSidebarWidthStyle(page, DEFAULT_EXPANDED_WIDTH);
 
-    // Click without dragging -> collapse.
+    // A click without a drag toggles instead of resizing.
     await clickResizeHandle(page);
     await expectSidebarWidthStyle(page, COLLAPSED_WIDTH);
 
-    // Click again -> expand to last width.
     await clickResizeHandle(page);
     await expectSidebarWidthStyle(page, DEFAULT_EXPANDED_WIDTH);
   });
@@ -101,7 +94,6 @@ test.describe('v1 sidebar: resize + collapse', () => {
     await waitForShell(page);
     await expectSidebarWidthStyle(page, COLLAPSED_WIDTH);
 
-    // Collapsed mode should render icon buttons with aria-labels.
     await expect(page.locator('button[aria-label="Runs"]')).toBeVisible();
     await expect(page.locator('button[aria-label="Events"]')).toBeVisible();
   });
@@ -119,9 +111,7 @@ test.describe('v1 sidebar: resize + collapse', () => {
     await expectSidebarWidthStyle(page, 420);
   });
 
-  // Skipped before the Playwright migration; kept so the drag behaviour has a
-  // ready-made test once it is stable.
-  test.skip('desktop: dragging the resize edge updates width and snaps to collapsed when dragged narrow', async ({
+  test.fixme('desktop: dragging the resize edge updates width and snaps to collapsed when dragged narrow', async ({
     page,
   }) => {
     await visitAuthed(page, DESKTOP);

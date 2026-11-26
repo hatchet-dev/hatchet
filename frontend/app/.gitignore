@@ -31,7 +31,7 @@ src/lib/generated
 /test-results
 /playwright-report
 /playwright/.cache
-e2e/support/seeded-users.generated.ts
+e2e/support/seeded-users.generated.json
 
 # Storybook
 storybook-static

@@ -3,10 +3,11 @@ import {
   expect,
   pathnameOf,
   signInWithForm,
+  TAGS,
   test,
 } from '../support/fixtures';
 
-test.describe('auth: login', () => {
+test.describe('auth: login', { tag: TAGS.seeded }, () => {
   test('should login a user with username and password', async ({ page }) => {
     await page.goto('/');
     await signInWithForm(page, 'owner');

@@ -1,40 +1,10 @@
-import { seededUsers, type SeededUserKey } from './seeded-users.generated';
-import { test as base, expect, type Page } from '@playwright/test';
+import { seededUser, type SeededUserKey } from './seeded-users';
+import { expect } from './test';
+import type { Page } from '@playwright/test';
 
-export { expect };
-
-// Rejections the app already handles through its own error UI. Chromium
-// reports a thrown `Response` by its class name, so match that as well as the
-// stringified form.
-function isIgnoredPageError(err: Error): boolean {
-  const text = `${err.name} ${err.message}`;
-
-  return (
-    err.message === 'Response' ||
-    text.includes('[object Response]') ||
-    text.includes('CancelledError')
-  );
-}
-
-export const test = base.extend({
-  // Playwright ignores uncaught page errors by default; fail the test on them
-  // so app crashes surface in e2e runs.
-  page: async ({ page }, use) => {
-    const pageErrors: Error[] = [];
-    page.on('pageerror', (err) => {
-      if (!isIgnoredPageError(err)) {
-        pageErrors.push(err);
-      }
-    });
-
-    await use(page);
-
-    expect(
-      pageErrors.map((err) => `${err.name}: ${err.message}`),
-      'uncaught errors in the page',
-    ).toEqual([]);
-  },
-});
+export { expect, TAGS, test } from './test';
+export { mockLoggedOutUser, mockSelfHostedApi } from './api-mocks';
+export { seededUser } from './seeded-users';
 
 const TENANT_URL = /\/tenants\/[^/]+/;
 
@@ -71,7 +41,7 @@ export async function completeCreateTenantOnboarding(
 // storageState: specs log out, and a shared session would be invalidated for
 // every spec that runs after them.
 export async function login(page: Page, user: SeededUserKey) {
-  const { email, password } = seededUsers[user];
+  const { email, password } = seededUser(user);
 
   const response = await page.request.post('/api/v1/users/login', {
     data: { email, password },
@@ -109,7 +79,7 @@ export async function login(page: Page, user: SeededUserKey) {
 }
 
 export async function signInWithForm(page: Page, user: SeededUserKey) {
-  const { email, password } = seededUsers[user];
+  const { email, password } = seededUser(user);
 
   await page.locator('input#email').fill(email);
   await page.locator('input#password').fill(password);
@@ -165,8 +135,8 @@ export async function waitForTenantShell(page: Page) {
   await expect(page).toHaveURL(TENANT_URL, { timeout: 30_000 });
 }
 
-// Declines every invite left in the open invites dialog. The modal re-renders
-// after each refetch, so wait for it before looking for the next button.
+// The modal re-renders after each refetch, so wait for it before looking for
+// the next button.
 export async function declineRemainingInvites(
   page: Page,
   opts: { expectRejectStatus?: number } = {},

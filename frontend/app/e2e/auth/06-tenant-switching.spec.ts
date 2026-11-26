@@ -4,6 +4,7 @@ import {
   login,
   logOutViaAccountMenu,
   switchTenant,
+  TAGS,
   tenantSwitcherButton,
   test,
 } from '../support/fixtures';
@@ -30,7 +31,7 @@ async function createTwoTenantsAndSwitch(page: Page) {
   return { tenant1, tenant2 };
 }
 
-test.describe('Tenants: switching', () => {
+test.describe('Tenants: switching', { tag: TAGS.seeded }, () => {
   test.beforeEach(async ({ page }) => {
     await login(page, 'owner');
     await page.goto('/');

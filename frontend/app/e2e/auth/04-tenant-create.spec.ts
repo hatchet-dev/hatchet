@@ -1,6 +1,12 @@
-import { expect, login, tenantSwitcherButton, test } from '../support/fixtures';
+import {
+  expect,
+  login,
+  TAGS,
+  tenantSwitcherButton,
+  test,
+} from '../support/fixtures';
 
-test.describe('Tenants: create', () => {
+test.describe('Tenants: create', { tag: TAGS.seeded }, () => {
   test('creates a new tenant', async ({ page }) => {
     const ts = Date.now();
     await login(page, 'owner');

@@ -1,4 +1,11 @@
-import { expect, login, test } from '../support/fixtures';
+import {
+  expect,
+  login,
+  mockLoggedOutUser,
+  mockSelfHostedApi,
+  TAGS,
+  test,
+} from '../support/fixtures';
 import type { Locator, Page } from '@playwright/test';
 
 type Viewport = { name: string; width: number; height: number };
@@ -35,7 +42,12 @@ async function expectTopAndBottomReachable(page: Page, title: string) {
 }
 
 test.describe('layout: viewports', () => {
-  test.describe('auth pages', () => {
+  test.describe('auth pages', { tag: TAGS.isolated }, () => {
+    test.beforeEach(async ({ page }) => {
+      await mockSelfHostedApi(page);
+      await mockLoggedOutUser(page);
+    });
+
     for (const vp of viewports) {
       test(`[${vp.name}] login: can reach top and bottom content`, async ({
         page,
@@ -62,22 +74,15 @@ test.describe('layout: viewports', () => {
     }
   });
 
-  test.describe('v1 shell', () => {
+  test.describe('v1 shell', { tag: TAGS.seeded }, () => {
     for (const vp of viewports) {
       test(`[${vp.name}] sidebar scrolls and footer stays visible`, async ({
         page,
       }) => {
         await login(page, 'owner');
         await page.setViewportSize(vp);
-        // Start each test from a clean sidebar state (but keep auth cookies).
-        await page.evaluate(() => {
-          localStorage.removeItem('v1SidebarCollapsed');
-          localStorage.removeItem('v1SidebarWidthExpanded');
-          localStorage.removeItem('v1SidebarWidth'); // legacy key
-        });
         await page.goto('/');
 
-        // Wait for the authenticated shell to load (avoids flaking on redirects/hydration).
         await expect(page).toHaveURL(/\/tenants\/.+/, { timeout: 30_000 });
         await expect(page.locator('header')).toBeVisible({ timeout: 30_000 });
 
@@ -92,7 +97,7 @@ test.describe('layout: viewports', () => {
         const footer = page.getByTestId('v1-sidebar-footer');
         await expect(footer).toBeVisible();
 
-        // Footer stays visible when scrolling the nav list (only if the nav list overflows).
+        // Only meaningful when the nav list overflows at this viewport.
         const scroll = page.getByTestId('v1-sidebar-scroll');
         if (await isVerticallyScrollable(scroll)) {
           await scrollTo(scroll, 'bottom');
@@ -103,10 +108,9 @@ test.describe('layout: viewports', () => {
           ).toBeVisible();
         }
 
-        // Collapsed sidebar should also be scrollable on wide viewports.
         if (vp.width >= 768) {
-          // Collapse via the resize edge click (no drag). Clicking near the
-          // top avoids the toggle button that hovering the middle reveals.
+          // Clicking near the top avoids the toggle button that hovering the
+          // middle of the handle reveals.
           await page
             .getByTestId('v1-sidebar-resize-handle')
             .click({ position: { x: 2, y: 10 } });
