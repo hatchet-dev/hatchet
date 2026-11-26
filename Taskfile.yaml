@@ -135,10 +135,10 @@ tasks:
     dotenv: [.env]
     cmds:
       - go run ./cmd/hatchet-admin seed
-  seed-cypress:
+  seed-e2e:
     dotenv: [.env]
     cmds:
-      - go run ./cmd/hatchet-admin seed-cypress
+      - go run ./cmd/hatchet-admin seed-e2e
   start-dev:
     deps:
       - task: goose-migrate
@@ -177,7 +177,7 @@ tasks:
     cmds:
       - bash ./hack/ci/write-e2e-env.sh
   e2e-frontend:
-    desc: Run Cypress E2E for frontend/app against a locally started API stack (CI-friendly).
+    desc: Run Playwright E2E for frontend/app against a locally started API stack (CI-friendly).
     cmds:
       - bash ./hack/ci/e2e-frontend.sh
   start-lite:

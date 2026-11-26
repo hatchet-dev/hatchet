@@ -83,7 +83,7 @@ jobs:
       - name: Build
         working-directory: frontend/app
         run: npm run build
-  cypress:
+  e2e:
     runs-on: ubicloud-standard-4
     timeout-minutes: 30
 
@@ -132,11 +132,15 @@ jobs:
         run: bash ./hack/dev/migrate.sh
 
       - name: Seed
-        run: bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed-cypress
+        run: bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed-e2e
 
       - name: Install frontend deps
         working-directory: frontend/app
         run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        working-directory: frontend/app
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Start API + engine
         run: |
@@ -152,21 +156,21 @@ jobs:
           pnpm run dev -- --host app.localtest.me --port 5173 > vite.log 2>&1 &
           bash ../../hack/ci/wait-for-http.sh http://app.localtest.me:5173 120
 
-      - name: Run Cypress
+      - name: Run Playwright
         working-directory: frontend/app
         env:
-          CYPRESS_BASE_URL: http://app.localtest.me:5173
+          PLAYWRIGHT_BASE_URL: http://app.localtest.me:5173
         run: pnpm run e2e:run
 
-      - name: Upload Cypress artifacts (screenshots/videos)
-        if: failure()
+      # Uploaded on success too so the HTML report is always available from the run summary.
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: cypress-artifacts
+          name: playwright-report
           if-no-files-found: ignore
-          path: |
-            frontend/app/cypress/screenshots
-            frontend/app/cypress/videos
+          retention-days: 14
+          path: frontend/app/playwright-report
 
       - name: Upload logs
         if: always()

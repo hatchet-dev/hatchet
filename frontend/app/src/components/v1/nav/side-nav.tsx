@@ -274,7 +274,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
   return (
     <div
       ref={sidebarRef}
-      data-cy="v1-sidebar"
+      data-testid="v1-sidebar"
       className={cn(
         // On mobile, overlay the content area (which is already positioned below the fixed header).
         // On desktop, participate in the grid as a fixed-width sidebar.
@@ -301,7 +301,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
           'absolute right-0 top-0 bottom-0 z-20 hidden w-1 cursor-col-resize transition-colors hover:bg-blue-500/20 md:block',
           isResizing && 'bg-blue-500/30',
         )}
-        data-cy="v1-sidebar-resize-handle"
+        data-testid="v1-sidebar-resize-handle"
         onMouseDown={handleMouseDown}
         onMouseUp={(e) => {
           // Handle click-up inside the handle immediately (and prevent the document listener
@@ -326,7 +326,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
               'opacity-100',
               isResizing && 'pointer-events-none opacity-0',
             )}
-            data-cy="v1-sidebar-resize-toggle"
+            data-testid="v1-sidebar-resize-toggle"
             onMouseDown={(e) => {
               // Prevent starting a drag resize when clicking the button.
               e.stopPropagation();
@@ -350,7 +350,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
           <>
             {/* Scrollable navigation area (collapsed) */}
             <div
-              data-cy="v1-sidebar-scroll-collapsed"
+              data-testid="v1-sidebar-scroll-collapsed"
               className="min-h-0 flex-1 overflow-auto py-4 pl-2 overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground"
             >
               <div className="flex w-full flex-col items-center gap-y-2 px-2">
@@ -482,7 +482,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
             {/* Scrollable navigation area (keep scrollbar flush to sidebar edge) */}
             <div
               ref={scrollRef}
-              data-cy="v1-sidebar-scroll"
+              data-testid="v1-sidebar-scroll"
               onScroll={() => {
                 savedScrollTop.current = scrollRef.current?.scrollTop ?? 0;
               }}
@@ -549,7 +549,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
 
             {/* Fixed footer: tenant/org picker is always visible and takes up space */}
             <div
-              data-cy="v1-sidebar-footer"
+              data-testid="v1-sidebar-footer"
               className="flex w-full shrink-0 flex-col gap-1 border-t border-slate-200 px-4 py-2 dark:border-slate-800"
             >
               <SidebarCloudCTA collapsed={false} />

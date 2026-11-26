@@ -68,7 +68,7 @@ export function Notifications() {
           variant="icon"
           title={ariaLabel}
           aria-label={ariaLabel}
-          data-cy="notifications-button"
+          data-testid="notifications-button"
           className="relative gap-1.5 rounded-md border border-border px-2.5"
           size="sm"
         >

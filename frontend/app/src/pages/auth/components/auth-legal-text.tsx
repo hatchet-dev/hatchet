@@ -1,7 +1,7 @@
 export function AuthLegalText() {
   return (
     <p
-      data-cy="auth-legal"
+      data-testid="auth-legal"
       className="w-full text-left text-sm text-gray-500 dark:text-gray-500"
     >
       By continuing, you agree to our{' '}

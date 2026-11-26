@@ -21,7 +21,7 @@ task start-db
 task write-e2e-env
 task generate-local-encryption-keys
 task migrate
-task seed-cypress
+task seed-e2e
 
 bash ./hack/ci/start-api.sh &
 bash ./hack/ci/start-engine.sh &
@@ -32,7 +32,9 @@ cd frontend/app
 pnpm run dev -- --host app.localtest.me --port 5173 &
 bash ../../hack/ci/wait-for-http.sh http://app.localtest.me:5173 120
 
+pnpm exec playwright install chromium
+
 set +e
-CYPRESS_BASE_URL=http://app.localtest.me:5173 pnpm run e2e:run
+PLAYWRIGHT_BASE_URL=http://app.localtest.me:5173 pnpm run e2e:run
 TEST_EXIT=$?
 set -e

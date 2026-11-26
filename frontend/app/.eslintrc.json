@@ -17,7 +17,7 @@
   "ignorePatterns": ["dist", "**/generated/**/*", "!.storybook", ".storybook/public"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "project": ["./tsconfig.json", "./tsconfig.node.json", "./tsconfig.cypress.json"],
+    "project": ["./tsconfig.json", "./tsconfig.node.json", "./tsconfig.e2e.json"],
     "warnOnUnsupportedTypeScriptVersion": false
   },
   "plugins": ["react-refresh", "import", "unused-imports", "prettier"],
@@ -51,8 +51,8 @@
       {
         "devDependencies": [
           "vite.config.ts",
-          "cypress.config.ts",
-          "cypress/**/*.{ts,tsx}",
+          "playwright.config.ts",
+          "e2e/**/*.{ts,tsx}",
           ".storybook/**/*.{ts,tsx}",
           "src/**/*.stories.{ts,tsx}",
           "src/**/*.fixtures.{ts,tsx}"

@@ -58,7 +58,7 @@ export type SwitcherFooterAction = {
   label: string;
   icon: React.ReactNode;
   onSelect: () => void;
-  dataCy?: string;
+  testId?: string;
 };
 
 interface TenantSwitcherPanelProps {
@@ -405,7 +405,7 @@ export function TenantSwitcherPanel({
         value={key}
         onSelect={() => onSelectTenant(tenant)}
         aria-current={isCurrent ? 'true' : undefined}
-        data-cy={`tenant-switcher-${isRecent ? 'recent' : 'item'}-${tenant.slug}`}
+        data-testid={`tenant-switcher-${isRecent ? 'recent' : 'item'}-${tenant.slug}`}
         className={cn(
           'group cursor-pointer gap-2',
           organization && !isRecent && 'pl-9',
@@ -580,7 +580,7 @@ export function TenantSwitcherPanel({
       </div>
 
       <CommandList
-        data-cy="tenant-switcher-list"
+        data-testid="tenant-switcher-list"
         className="max-h-none min-h-0 flex-1"
       >
         {isLoading && (
@@ -671,7 +671,7 @@ export function TenantSwitcherPanel({
               key={action.id}
               value={actionKey(action.id)}
               onSelect={action.onSelect}
-              data-cy={action.dataCy}
+              data-testid={action.testId}
               className="cursor-pointer gap-2"
             >
               {action.icon}

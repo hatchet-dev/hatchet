@@ -449,7 +449,7 @@ export function SearchBarWithFilters<
                   ? { caretColor: 'hsl(var(--foreground))' }
                   : undefined
               }
-              data-cy="search-bar-input"
+              data-testid="search-bar-input"
             />
             {/* Coloured highlight overlay – mirrors input text with filter colours */}
             {hasColoredFilters && localValue && (
@@ -492,7 +492,7 @@ export function SearchBarWithFilters<
                 onClick={handleClear}
                 aria-label="Clear search"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                data-cy="search-bar-clear"
+                data-testid="search-bar-clear"
               >
                 {clearIcon || <Cross2Icon className="h-4 w-4" />}
               </button>
@@ -519,7 +519,7 @@ export function SearchBarWithFilters<
             >
               <CommandList
                 className="max-h-[300px] bg-muted/50"
-                data-cy="search-bar-suggestions"
+                data-testid="search-bar-suggestions"
               >
                 <CommandGroup>
                   {suggestions.map((suggestion, index) => (
@@ -534,7 +534,7 @@ export function SearchBarWithFilters<
                           'text-accent-foreground',
                       )}
                       onMouseEnter={() => setSelectedIndex(index)}
-                      data-cy={`search-bar-suggestion-${index}`}
+                      data-testid={`search-bar-suggestion-${index}`}
                     >
                       {renderSuggestionContent(
                         suggestion,
