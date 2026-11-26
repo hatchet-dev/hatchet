@@ -58,6 +58,9 @@ from examples.bug_tests.durable_stream_reconnect_mid_wait.worker import (
 from examples.bug_tests.payload_bug_on_replay.worker import (
     payload_initial_cancel_bug_workflow,
 )
+from examples.bug_tests.root_task_conditions.worker import (
+    root_task_condition_workflows,
+)
 from examples.bug_tests.test_durable_event_wait_scopes.worker import scope_waiter
 from examples.bug_tests.workflow_pause.worker import workflow_pause_concurrency_bug_task
 from examples.bulk_fanout.worker import bulk_child_wf, bulk_parent_wf
@@ -398,6 +401,7 @@ def main() -> None:
             callback_ordering_mid,
             callback_ordering_root,
             workflow_pause_concurrency_bug_task,
+            *root_task_condition_workflows,
             rate_limit_pause_task,
             durable_dag_idempotency_hang_bug_repro_wf,
             durable_dag_status_based_idempotency_wf,

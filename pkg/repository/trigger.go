@@ -1108,7 +1108,7 @@ func (r *sharedRepository) triggerWorkflowsWrite(
 		if tuple.targetActionId != nil {
 			regularSteps = filterStepsByActionId(regularSteps, *tuple.targetActionId)
 		}
-		isDag := len(regularSteps) > 1
+		isDag := triggerCreatesDAG(tuple, regularSteps, stepsToAdditionalMatches)
 
 		for _, step := range regularSteps {
 			if !isDag {
@@ -1177,7 +1177,7 @@ func (r *sharedRepository) triggerWorkflowsWrite(
 				return nil, nil, nil, nil, nil, nil, fmt.Errorf("no step with action id %q found in workflow version %s", *tuple.targetActionId, tuple.workflowVersionId)
 			}
 		}
-		isDag := len(regularSteps) > 1
+		isDag := triggerCreatesDAG(tuple, regularSteps, stepsToAdditionalMatches)
 
 		var orchestratorStep *sqlcv1.ListStepsByWorkflowVersionIdsRow
 		for _, s := range steps {
@@ -2523,6 +2523,16 @@ func meteredTaskCount(tuple triggerTuple, steps []*sqlcv1.ListStepsByWorkflowVer
 	}
 
 	return len(regularUserSteps(steps))
+}
+
+// A single step with wait_for, skip_if or cancel_if conditions is created by a match once its
+// conditions resolve, and that match reads the run's input from the DAG, so the run needs one.
+func triggerCreatesDAG(tuple triggerTuple, regularSteps []*sqlcv1.ListStepsByWorkflowVersionIdsRow, stepsToAdditionalMatches map[uuid.UUID][]*sqlcv1.V1StepMatchCondition) bool {
+	if len(regularSteps) != 1 {
+		return len(regularSteps) > 1
+	}
+
+	return tuple.targetActionId == nil && len(stepsToAdditionalMatches[regularSteps[0].ID]) > 0
 }
 
 func regularUserSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {
