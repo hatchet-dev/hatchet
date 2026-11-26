@@ -13,7 +13,7 @@ ROOT_CANCEL_IF_SLEEP_NEVER_PUSHED_EVENT_KEY = (
 root_wait_for_sleep = hatchet.workflow(name="root-task-wait-for-sleep")
 
 
-@root_wait_for_sleep.task(wait_for=[SleepCondition(timedelta(seconds=3))])
+@root_wait_for_sleep.task(wait_for=[SleepCondition(timedelta(seconds=6))])
 async def root_wait_for_sleep_task(input: None, ctx: Context) -> dict[str, bool]:
     return {"ran": True}
 
