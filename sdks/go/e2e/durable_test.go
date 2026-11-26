@@ -108,6 +108,7 @@ func TestDurableSleepCancelReplay(t *testing.T) {
 		}
 		return *status == rest.V1TaskStatusCANCELLED, nil
 	})
+	requireInterruptCause(t, ctx, ref.RunId, hatchet.ErrTaskCancelled)
 
 	replayStart := time.Now()
 	_, err = sharedClient.Runs().Replay(ctx, rest.V1ReplayTaskRequest{
@@ -650,4 +651,86 @@ func TestTwoEventWaitsSecondPushedFirst(t *testing.T) {
 	assert.Equal(t, "first", output["order1"])
 	assert.Equal(t, "second", output["order2"],
 		"the second wait should find the event pushed before the task started via lookback")
+}
+
+func runCancelledTriggerContextMode(t *testing.T, ctx context.Context, mode string) triggerContextE2EResult {
+	t.Helper()
+
+	ref, err := testDurableTriggerCtxAfterCancel.RunNoWait(ctx, triggerContextE2EInput{Mode: mode})
+	require.NoError(t, err)
+
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
+
+	_, err = sharedClient.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
+		ExternalIds: toUUIDs(ref.RunId),
+	})
+	require.NoError(t, err)
+
+	pollUntil(t, ctx, func() (bool, error) {
+		status, err := sharedClient.Runs().GetStatus(ctx, ref.RunId)
+		if err != nil {
+			return false, err
+		}
+		return *status == rest.V1TaskStatusCANCELLED, nil
+	})
+
+	taskID := getFirstTaskExternalID(t, ctx, ref.RunId)
+	var raw any
+	pollUntil(t, ctx, func() (bool, error) {
+		var ok bool
+		raw, ok = triggerContextE2EResults.Load(taskID)
+		return ok, nil
+	})
+
+	got := raw.(triggerContextE2EResult)
+	if len(got.runIDs) > 0 {
+		_, _ = sharedClient.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
+			ExternalIds: toUUIDs(got.runIDs...),
+		})
+	}
+	return got
+}
+
+func TestDurableWithTriggerContextAfterCancel(t *testing.T) {
+	requireDurableEviction(t)
+	ctx := newTestContext(t)
+
+	t.Run("default_fails_on_cancelled_parent", func(t *testing.T) {
+		got := runCancelledTriggerContextMode(t, ctx, "default")
+		require.ErrorIs(t, got.spawnErr, context.Canceled)
+		assert.Empty(t, got.runIDs)
+	})
+
+	t.Run("detached_returns_run_id_while_result_cancels", func(t *testing.T) {
+		got := runCancelledTriggerContextMode(t, ctx, "detached")
+		require.NoError(t, got.spawnErr)
+		require.Len(t, got.runIDs, 1)
+		_, parseErr := uuid.Parse(got.runIDs[0])
+		require.NoError(t, parseErr)
+		require.ErrorIs(t, got.resultErr, context.Canceled)
+	})
+
+	t.Run("run_many_uses_first_non_nil_trigger_context", func(t *testing.T) {
+		got := runCancelledTriggerContextMode(t, ctx, "run_many")
+		require.NoError(t, got.spawnErr)
+		require.Len(t, got.runIDs, 2)
+		for _, id := range got.runIDs {
+			_, parseErr := uuid.Parse(id)
+			require.NoError(t, parseErr)
+		}
+		require.ErrorIs(t, got.resultErr, context.Canceled)
+	})
+
+	t.Run("canceled_trigger_context_fails_while_parent_active", func(t *testing.T) {
+		ref, err := testDurableTriggerCtxAfterCancel.RunNoWait(ctx, triggerContextE2EInput{Mode: "canceled_trigger_ctx"})
+		require.NoError(t, err)
+		_ = workflowResultWithin(t, ref, 30*time.Second)
+
+		taskID := getFirstTaskExternalID(t, ctx, ref.RunId)
+		raw, ok := triggerContextE2EResults.Load(taskID)
+		require.True(t, ok)
+		got := raw.(triggerContextE2EResult)
+		require.ErrorIs(t, got.spawnErr, context.Canceled)
+		require.NoError(t, got.parentErr)
+	})
 }

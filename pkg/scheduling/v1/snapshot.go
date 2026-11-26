@@ -87,10 +87,11 @@ func (s *Scheduler) buildSnapshotInput() *SnapshotInput {
 		}
 
 		res.Workers[workerId] = &WorkerCp{
-			WorkerId: workerId,
-			Labels:   worker.Labels,
-			Name:     worker.Name,
-			MaxRuns:  totalSlots,
+			WorkerId:            workerId,
+			Labels:              worker.Labels,
+			Name:                worker.Name,
+			MaxRuns:             totalSlots,
+			IsDagOperatorWorker: worker.IsDagOperatorWorker,
 		}
 	}
 

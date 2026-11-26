@@ -308,14 +308,145 @@ func (q *Queries) BulkGetDurableEventLogEntries(ctx context.Context, db DBTX, ar
 	return items, nil
 }
 
+const bulkGetDurableEventLogEntriesAfterLatestNode = `-- name: BulkGetDurableEventLogEntriesAfterLatestNode :many
+WITH inputs AS (
+    SELECT
+        UNNEST($3::BIGINT[]) AS durable_task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($5::BIGINT[]) AS entry_count
+), branches AS (
+    SELECT
+        lf.durable_task_id,
+        lf.durable_task_inserted_at,
+        lf.latest_node_id,
+        lf.latest_invocation_count,
+        i.entry_count,
+        lf.latest_branch_id AS branch_id
+    FROM inputs i
+    JOIN v1_durable_event_log_file lf
+        ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+    WHERE lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+        AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
+
+    UNION
+
+    SELECT
+        lf.durable_task_id,
+        lf.durable_task_inserted_at,
+        lf.latest_node_id,
+        lf.latest_invocation_count,
+        i.entry_count,
+        bp.parent_branch_id AS branch_id
+    FROM inputs i
+    JOIN v1_durable_event_log_file lf
+        ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+    JOIN v1_durable_event_log_branch_point bp
+        ON (bp.durable_task_id, bp.durable_task_inserted_at) = (lf.durable_task_id, lf.durable_task_inserted_at)
+    WHERE lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+        AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
+        AND bp.durable_task_inserted_at >= $1::TIMESTAMPTZ
+        AND bp.durable_task_inserted_at <= $2::TIMESTAMPTZ
+)
+SELECT e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at, b.latest_invocation_count AS invocation_count
+FROM branches b
+JOIN v1_durable_event_log_entry e
+    ON (e.durable_task_id, e.durable_task_inserted_at, e.branch_id) = (b.durable_task_id, b.durable_task_inserted_at, b.branch_id)
+    AND e.node_id > b.latest_node_id
+    AND e.node_id <= b.latest_node_id + b.entry_count
+WHERE e.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND e.durable_task_inserted_at <= $2::TIMESTAMPTZ
+`
+
+type BulkGetDurableEventLogEntriesAfterLatestNodeParams struct {
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+	Maxdurabletaskinsertedat pgtype.Timestamptz   `json:"maxdurabletaskinsertedat"`
+	Durabletaskids           []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Entrycounts              []int64              `json:"entrycounts"`
+}
+
+type BulkGetDurableEventLogEntriesAfterLatestNodeRow struct {
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	InvocationCount         int32                       `json:"invocation_count"`
+}
+
+// IMPORTANT: must run after the log file rows are locked in the same transaction.
+func (q *Queries) BulkGetDurableEventLogEntriesAfterLatestNode(ctx context.Context, db DBTX, arg BulkGetDurableEventLogEntriesAfterLatestNodeParams) ([]*BulkGetDurableEventLogEntriesAfterLatestNodeRow, error) {
+	rows, err := db.Query(ctx, bulkGetDurableEventLogEntriesAfterLatestNode,
+		arg.Mindurabletaskinsertedat,
+		arg.Maxdurabletaskinsertedat,
+		arg.Durabletaskids,
+		arg.Durabletaskinsertedats,
+		arg.Entrycounts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*BulkGetDurableEventLogEntriesAfterLatestNodeRow
+	for rows.Next() {
+		var i BulkGetDurableEventLogEntriesAfterLatestNodeRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ExternalID,
+			&i.ResultPayloadExternalID,
+			&i.ChildTaskExternalID,
+			&i.ChildTaskIsFailure,
+			&i.ChildTaskErrorMessage,
+			&i.InsertedAt,
+			&i.ID,
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.Kind,
+			&i.NodeID,
+			&i.BranchID,
+			&i.IdempotencyKey,
+			&i.IsSatisfied,
+			&i.SatisfiedAt,
+			&i.SatisfiedOrder,
+			&i.UserMessage,
+			&i.WaitData,
+			&i.TriggeredAt,
+			&i.InvocationCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const bulkUpsertDurableChildSignalCreatedEvents = `-- name: BulkUpsertDurableChildSignalCreatedEvents :many
 WITH input AS (
     SELECT
-        UNNEST($1::UUID[]) AS tenant_id,
-        UNNEST($2::BIGINT[]) AS task_id,
-        UNNEST($3::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST($4::TEXT[]) AS event_key,
-        UNNEST($5::UUID[]) AS child_external_id
+        UNNEST($3::UUID[]) AS tenant_id,
+        UNNEST($4::BIGINT[]) AS task_id,
+        UNNEST($5::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($6::TEXT[]) AS event_key,
+        UNNEST($7::UUID[]) AS child_external_id,
+        UNNEST($8::INTEGER[]) AS invocation_count
 )
 
 INSERT INTO v1_task_event (
@@ -336,6 +467,11 @@ SELECT
     i.event_key,
     i.child_external_id
 FROM input i
+JOIN v1_durable_event_log_file lf
+    ON (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) = (i.task_id, i.task_inserted_at, i.tenant_id)
+    AND lf.latest_invocation_count = i.invocation_count
+WHERE lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL
 DO UPDATE SET child_external_id = COALESCE(v1_task_event.child_external_id, EXCLUDED.child_external_id)
 RETURNING
@@ -345,11 +481,14 @@ RETURNING
 `
 
 type BulkUpsertDurableChildSignalCreatedEventsParams struct {
-	Tenantids              []uuid.UUID          `json:"tenantids"`
-	Durabletaskids         []int64              `json:"durabletaskids"`
-	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
-	Eventkeys              []string             `json:"eventkeys"`
-	Childexternalids       []uuid.UUID          `json:"childexternalids"`
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+	Maxdurabletaskinsertedat pgtype.Timestamptz   `json:"maxdurabletaskinsertedat"`
+	Tenantids                []uuid.UUID          `json:"tenantids"`
+	Durabletaskids           []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Eventkeys                []string             `json:"eventkeys"`
+	Childexternalids         []uuid.UUID          `json:"childexternalids"`
+	Invocationcounts         []int32              `json:"invocationcounts"`
 }
 
 type BulkUpsertDurableChildSignalCreatedEventsRow struct {
@@ -358,13 +497,18 @@ type BulkUpsertDurableChildSignalCreatedEventsRow struct {
 	ChildExternalID *uuid.UUID  `json:"child_external_id"`
 }
 
+// IMPORTANT: must run after the log file rows are locked in the same transaction, so that the
+// invocation count it checks cannot change before commit.
 func (q *Queries) BulkUpsertDurableChildSignalCreatedEvents(ctx context.Context, db DBTX, arg BulkUpsertDurableChildSignalCreatedEventsParams) ([]*BulkUpsertDurableChildSignalCreatedEventsRow, error) {
 	rows, err := db.Query(ctx, bulkUpsertDurableChildSignalCreatedEvents,
+		arg.Mindurabletaskinsertedat,
+		arg.Maxdurabletaskinsertedat,
 		arg.Tenantids,
 		arg.Durabletaskids,
 		arg.Durabletaskinsertedats,
 		arg.Eventkeys,
 		arg.Childexternalids,
+		arg.Invocationcounts,
 	)
 	if err != nil {
 		return nil, err
@@ -387,10 +531,10 @@ func (q *Queries) BulkUpsertDurableChildSignalCreatedEvents(ctx context.Context,
 const claimDurableEventLogEntriesForTrigger = `-- name: ClaimDurableEventLogEntriesForTrigger :many
 WITH inputs AS (
     SELECT
-        UNNEST($3::BIGINT[]) AS node_id,
-        UNNEST($4::BIGINT[]) AS branch_id,
-        UNNEST($5::BIGINT[]) AS durable_task_id,
-        UNNEST($6::TIMESTAMPTZ[]) AS durable_task_inserted_at
+        UNNEST((SELECT $3::BIGINT[])) AS node_id,
+        UNNEST((SELECT $4::BIGINT[])) AS branch_id,
+        UNNEST((SELECT $5::BIGINT[])) AS durable_task_id,
+        UNNEST((SELECT $6::TIMESTAMPTZ[])) AS durable_task_inserted_at
 ), to_claim AS (
     SELECT
         e.durable_task_id,

@@ -429,6 +429,33 @@ async def durable_non_determinism(
     )
 
 
+@hatchet.task(input_validator=dict[str, str | int])
+def child_with_dict_input(input: dict[str, str | int], ctx: Context) -> dict[str, str]:
+    return {"message": "hello from child"}
+
+
+class ReorderedChildInputOutput(BaseModel):
+    non_determinism_message: str
+
+
+@hatchet.durable_task(retries=1, execution_timeout=timedelta(seconds=10))
+async def durable_spawn_with_reordered_child_input(
+    input: None, ctx: DurableContext
+) -> ReorderedChildInputOutput:
+    child_input: dict[str, str | int] = (
+        {"foo": "bar", "baz": 123}
+        if ctx.attempt_number == 1
+        else {"baz": 123, "foo": "bar"}
+    )
+
+    try:
+        await child_with_dict_input.aio_run(input=child_input)
+    except NonDeterminismError as e:
+        return ReorderedChildInputOutput(non_determinism_message=e.message)
+
+    raise Exception("failing so that the retry spawns the child again")
+
+
 class ReplayResetResponse(BaseModel):
     sleep_1_duration: float
     sleep_2_duration: float
@@ -569,6 +596,8 @@ def main() -> None:
             durable_with_bulk_spawn,
             durable_sleep_event_spawn,
             durable_non_determinism,
+            child_with_dict_input,
+            durable_spawn_with_reordered_child_input,
             durable_replay_reset,
             durable_child_key_dedup_replay,
             wait_for_event_lookback,

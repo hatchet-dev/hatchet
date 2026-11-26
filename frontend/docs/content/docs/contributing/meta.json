@@ -1,7 +1,6 @@
 {
   "pages": [
     "index",
-    "github-app-setup",
     "sdks"
   ],
   "title": "Contributing",

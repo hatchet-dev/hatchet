@@ -2129,10 +2129,10 @@ func (r *sharedRepository) registerChildWorkflows(
 
 	potentialMatchTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(potentialMatchTaskInsertedAts)
 
-	matchingEvents, err := r.queries.LockSignalCreatedEvents(
+	matchingEvents, err := r.queries.ListSignalCreatedEventsWithChildLookup(
 		ctx,
 		tx,
-		sqlcv1.LockSignalCreatedEventsParams{
+		sqlcv1.ListSignalCreatedEventsWithChildLookupParams{
 			Tenantid:          tenantId,
 			Taskids:           potentialMatchTaskIds,
 			Taskinsertedats:   potentialMatchTaskInsertedAts,
@@ -2172,49 +2172,54 @@ func (r *sharedRepository) registerChildWorkflows(
 		}
 	}
 
-	// parse the event match data, and determine whether the child external ID has already been written
-	// we're safe to do this read since we've acquired a lock on the relevant rows
-	rootExternalIdsToLookup := make([]uuid.UUID, 0, len(matchingEvents))
+	tuplesToSkip = make(map[uuid.UUID]struct{})
+
+	// events created before the child_external_id column existed only have the child id in their
+	// payload, so the read of the events could not check whether those children exist
+	childExternalIdsFromPayloads := make([]uuid.UUID, 0, len(retrievePayloadOpts))
 
 	for _, event := range matchingEvents {
-		var childExternalId uuid.UUID
-
 		if event.ChildExternalID != nil {
-			childExternalId = *event.ChildExternalID
-		} else {
-			payload := RetrievePayloadOrFallback(payloads, PayloadRef[ChildWorkflowSignalCreatedShape]{
-				Id:         event.ID,
-				InsertedAt: event.InsertedAt,
-				TenantId:   tenantId,
-				ExternalId: event.ExternalID,
-			}, event.Data)
-
-			c, err := DecodeChildWorkflowSignalCreatedPayload(payload)
-
-			if err != nil {
-				r.l.Error().Msgf("failed to unmarshal child workflow signal created data: %s", err)
-				continue
+			if event.ChildExists {
+				tuplesToSkip[*event.ChildExternalID] = struct{}{}
 			}
 
-			childExternalId = c.ChildExternalId
+			continue
 		}
 
-		if childExternalId != uuid.Nil {
-			rootExternalIdsToLookup = append(rootExternalIdsToLookup, childExternalId)
+		payload := RetrievePayloadOrFallback(payloads, PayloadRef[ChildWorkflowSignalCreatedShape]{
+			Id:         event.ID,
+			InsertedAt: event.InsertedAt,
+			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
+		}, event.Data)
+
+		c, err := DecodeChildWorkflowSignalCreatedPayload(payload)
+
+		if err != nil {
+			r.l.Error().Msgf("failed to unmarshal child workflow signal created data: %s", err)
+			continue
+		}
+
+		if c.ChildExternalId != uuid.Nil {
+			childExternalIdsFromPayloads = append(childExternalIdsFromPayloads, c.ChildExternalId)
 		}
 	}
 
-	// get the child external IDs that have already been written
-	existingExternalIds, err := r.queries.LookupExternalIds(ctx, tx, sqlcv1.LookupExternalIdsParams{
-		Tenantid:    tenantId,
-		Externalids: rootExternalIdsToLookup,
-	})
+	if len(childExternalIdsFromPayloads) > 0 {
+		existingExternalIds, err := r.queries.LookupExternalIds(ctx, tx, sqlcv1.LookupExternalIdsParams{
+			Tenantid:    tenantId,
+			Externalids: childExternalIdsFromPayloads,
+		})
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+
+		for _, existingExternalId := range existingExternalIds {
+			tuplesToSkip[existingExternalId.ExternalID] = struct{}{}
+		}
 	}
-
-	tuplesToSkip = enumerables.ToSet(existingExternalIds, func(dbExternalId *sqlcv1.V1LookupTable) uuid.UUID { return dbExternalId.ExternalID })
 
 	if r.childRunDirectSpawn {
 		return tuplesToSkip, nil

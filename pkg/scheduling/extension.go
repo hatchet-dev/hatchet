@@ -32,10 +32,11 @@ type SlotUtilization struct {
 }
 
 type WorkerCp struct {
-	WorkerId uuid.UUID
-	MaxRuns  int
-	Labels   []*sqlcv1.ListManyWorkerLabelsRow
-	Name     string
+	WorkerId            uuid.UUID
+	MaxRuns             int
+	Labels              []*sqlcv1.ListManyWorkerLabelsRow
+	Name                string
+	IsDagOperatorWorker bool
 }
 
 type SlotCp struct {

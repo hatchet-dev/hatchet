@@ -302,6 +302,55 @@ RETURNING *
 ;
 
 
+-- name: BulkGetDurableEventLogEntriesAfterLatestNode :many
+-- IMPORTANT: must run after the log file rows are locked in the same transaction.
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@entryCounts::BIGINT[]) AS entry_count
+), branches AS (
+    SELECT
+        lf.durable_task_id,
+        lf.durable_task_inserted_at,
+        lf.latest_node_id,
+        lf.latest_invocation_count,
+        i.entry_count,
+        lf.latest_branch_id AS branch_id
+    FROM inputs i
+    JOIN v1_durable_event_log_file lf
+        ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+    WHERE lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+        AND lf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
+
+    UNION
+
+    SELECT
+        lf.durable_task_id,
+        lf.durable_task_inserted_at,
+        lf.latest_node_id,
+        lf.latest_invocation_count,
+        i.entry_count,
+        bp.parent_branch_id AS branch_id
+    FROM inputs i
+    JOIN v1_durable_event_log_file lf
+        ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+    JOIN v1_durable_event_log_branch_point bp
+        ON (bp.durable_task_id, bp.durable_task_inserted_at) = (lf.durable_task_id, lf.durable_task_inserted_at)
+    WHERE lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+        AND lf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
+        AND bp.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+        AND bp.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
+)
+SELECT e.*, b.latest_invocation_count AS invocation_count
+FROM branches b
+JOIN v1_durable_event_log_entry e
+    ON (e.durable_task_id, e.durable_task_inserted_at, e.branch_id) = (b.durable_task_id, b.durable_task_inserted_at, b.branch_id)
+    AND e.node_id > b.latest_node_id
+    AND e.node_id <= b.latest_node_id + b.entry_count
+WHERE e.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND e.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ;
+
 -- name: BulkGetDurableEventLogEntries :many
 WITH inputs AS (
     SELECT
@@ -445,10 +494,10 @@ WHERE (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) IN (
 -- name: ClaimDurableEventLogEntriesForTrigger :many
 WITH inputs AS (
     SELECT
-        UNNEST(@nodeIds::BIGINT[]) AS node_id,
-        UNNEST(@branchIds::BIGINT[]) AS branch_id,
-        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
-        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at
+        UNNEST((SELECT @nodeIds::BIGINT[])) AS node_id,
+        UNNEST((SELECT @branchIds::BIGINT[])) AS branch_id,
+        UNNEST((SELECT @durableTaskIds::BIGINT[])) AS durable_task_id,
+        UNNEST((SELECT @durableTaskInsertedAts::TIMESTAMPTZ[])) AS durable_task_inserted_at
 ), to_claim AS (
     SELECT
         e.durable_task_id,
@@ -495,13 +544,16 @@ LIMIT @eventLogLimit::BIGINT
 ;
 
 -- name: BulkUpsertDurableChildSignalCreatedEvents :many
+-- IMPORTANT: must run after the log file rows are locked in the same transaction, so that the
+-- invocation count it checks cannot change before commit.
 WITH input AS (
     SELECT
         UNNEST(@tenantIds::UUID[]) AS tenant_id,
         UNNEST(@durableTaskIds::BIGINT[]) AS task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
         UNNEST(@eventKeys::TEXT[]) AS event_key,
-        UNNEST(@childExternalIds::UUID[]) AS child_external_id
+        UNNEST(@childExternalIds::UUID[]) AS child_external_id,
+        UNNEST(@invocationCounts::INTEGER[]) AS invocation_count
 )
 
 INSERT INTO v1_task_event (
@@ -522,6 +574,11 @@ SELECT
     i.event_key,
     i.child_external_id
 FROM input i
+JOIN v1_durable_event_log_file lf
+    ON (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) = (i.task_id, i.task_inserted_at, i.tenant_id)
+    AND lf.latest_invocation_count = i.invocation_count
+WHERE lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
 ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL
 DO UPDATE SET child_external_id = COALESCE(v1_task_event.child_external_id, EXCLUDED.child_external_id)
 RETURNING

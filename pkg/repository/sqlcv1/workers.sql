@@ -320,6 +320,11 @@ WHERE
 SELECT
     sqlc.embed(w),
     ww."url" AS "webhookUrl",
+    EXISTS (
+        SELECT 1
+        FROM v1_operator op
+        WHERE op.id = w."operatorId" AND op.kind = 'DAG'
+    ) AS "isDagOperatorWorker",
     w."maxRuns" - (
         SELECT COUNT(*)
         FROM v1_task_runtime runtime
@@ -417,6 +422,11 @@ WHERE
     AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND "isActive" = true
     AND "isPaused" = false
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_operator op
+        WHERE op.id = "Worker"."operatorId" AND op.kind = 'DAG'
+    )
 GROUP BY "tenantId", "language", "languageVersion", "sdkVersion", "os"
 ;
 
@@ -428,6 +438,11 @@ WHERE
     AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND "isActive" = true
     AND "isPaused" = false
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_operator op
+        WHERE op.id = "Worker"."operatorId" AND op.kind = 'DAG'
+    )
 GROUP BY "tenantId"
 ;
 

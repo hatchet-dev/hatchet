@@ -7,7 +7,6 @@ import {
   RiTimeLine,
   RiStackLine,
   RiWebhookLine,
-  RiCpuLine,
   RiCloudLine,
   RiBox3Line,
   RiEqualizer3Line,
@@ -24,7 +23,6 @@ export function sideNavItems(opts: {
   canBill?: boolean;
   isControlPlaneEnabled?: boolean;
   orgId?: string;
-  hasManagedWorkers?: boolean;
   hasServerlessEndpoints?: boolean;
   hasSandboxProviders?: boolean;
   hasDurableStreams?: boolean;
@@ -259,20 +257,6 @@ export function sideNavItems(opts: {
             />
           ),
         },
-        ...(opts.isControlPlaneEnabled && opts.hasManagedWorkers
-          ? [
-              {
-                key: 'managed-compute',
-                name: 'Managed Compute',
-                to: appRoutes.tenantManagedWorkersRoute.to,
-                icon: ({ collapsed }: { collapsed: boolean }) => (
-                  <RiCpuLine
-                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-                  />
-                ),
-              },
-            ]
-          : []),
         {
           key: 'rate-limits',
           name: 'Rate Limits',
