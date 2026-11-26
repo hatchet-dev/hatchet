@@ -19,6 +19,11 @@ import (
 // the gRPC process, so one task's events can be applied out of order or more than once. These tests pin
 // the guards that make that safe: every change is keyed on (task, retry count), and an event for a
 // retry that is no longer current, or for a task already released, changes no task state.
+//
+// What isn't deduplicated are the side effects of an event that changes nothing, which these tests
+// don't cover: a second terminal event for the current retry emits another internal event, a stale
+// failure still publishes its OLAP FAILED event (OLAP keeps the higher-priority status), and stale
+// completions still count towards the succeeded-tasks metric.
 
 type eventOrderFixture struct {
 	t        *testing.T
