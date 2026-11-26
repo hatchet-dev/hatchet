@@ -7,7 +7,13 @@ import { Callout } from "@/components/nextra-compat";
 
 # Sandbox Providers
 
-<Callout type="info">Sandboxes are available on Hatchet Cloud only.</Callout>
+<Callout type="info">
+  Connecting a hosted sandbox provider is a Hatchet Cloud feature. To run
+  sandboxes in your own Kubernetes cluster, on Hatchet Cloud or on a self-hosted
+  Hatchet v0.110.0 or newer, use{" "}
+  <a href="https://github.com/hatchet-dev/brickie">Brickie</a>. The same{" "}
+  <code>@hatchet-dev/sandbox</code> SDK drives both. Brickie is in beta.
+</Callout>
 
 <Callout type="warning">
   Sandboxes are a Labs feature and may change in future releases. In the
@@ -15,9 +21,9 @@ import { Callout } from "@/components/nextra-compat";
   and turn on <strong>Sandboxes</strong>.
 </Callout>
 
-A provider is a sandbox vendor account connected to your tenant. Every sandbox runs in your own account at the vendor, on your plan and within your limits, and Hatchet drives it through the vendor's API with the key you saved.
+A provider is a sandbox provider account connected to your tenant. Every sandbox runs in your own account at the provider, on your plan and within your limits, and Hatchet drives it through the provider's API with the key you saved.
 
-The SDK is the same on every provider. `create`, `exec`, the file operations, `kill`, `connect` and forks behave the same way, so moving to another vendor means changing the `provider` name and nothing else. A tenant can connect several providers at once and pick one for each sandbox.
+The SDK is the same on every provider. `create`, `exec`, the file operations, `kill`, `connect` and forks behave the same way, so moving to another provider means changing the `provider` name and nothing else. A tenant can connect several providers at once and pick one for each sandbox.
 
 What differs is what sits underneath.
 
@@ -34,7 +40,7 @@ Each provider has its own meaning of a template and its own settings in the dash
 
 Every provider has a **Working directory**, where commands run and file paths resolve, and a **Snapshot every turn** switch, described under [Snapshots](/v1/sandboxes/setup#snapshots).
 
-**Metadata** on a provider is the default metadata of every sandbox it creates. The `metadata` passed to `create` overrides it key by key. The result is stored on the sandbox, sent to the vendor as labels or metadata where the vendor supports it, and attached to every task run of the sandbox, so runs can be filtered by it. The API field is still named `labels`.
+**Metadata** on a provider is the default metadata of every sandbox it creates. The `metadata` passed to `create` overrides it key by key. The result is stored on the sandbox, sent to the provider as labels or metadata where the provider supports it, and attached to every task run of the sandbox, so runs can be filtered by it. The API field is still named `labels`.
 
 A template is chosen in the following order. The `template` passed to `create` wins, then the provider's **Default template** field, and lastly the provider's own default.
 
@@ -83,3 +89,9 @@ Modal API tokens have two parts, and the form asks for both. **Token secret** st
 A template is a [Vercel Sandbox image](https://vercel.com/docs/sandbox/concepts/images), for example `vercel/sandbox/universal`. Snapshots Hatchet takes are [Vercel snapshots](https://vercel.com/docs/sandbox/concepts/snapshots) that never expire until you delete them. Taking one stops the running session, and the next command resumes the sandbox from it.
 
 A Vercel access token only works together with a team and a project, so **Team ID** and **Project** are required. The project is given by ID or name. The working directory defaults to `/vercel/sandbox`. Set **Default template** to the image new sandboxes should start from. Without it, Vercel's universal image is used. Vercel sizes sandboxes by vCPU only and gives each vCPU 2048 MB of memory, so a resource request may set `vcpu` but not `memoryMib` or `diskMib`. The idle TTL becomes the session timeout, which your Vercel plan caps at 45 minutes on Hobby and 24 hours on Pro and Enterprise. Vercel allows at most 5 tags per sandbox, so sandbox metadata is not forwarded as Vercel tags. Only the Hatchet tenant and sandbox IDs are. An `egress` deny list takes IPs and CIDRs only. Domains in an allow list match TLS traffic, so plain HTTP destinations need their IP range allowed.
+
+## Brickie
+
+[Brickie](https://github.com/hatchet-dev/brickie) runs sandboxes in your own Kubernetes cluster and is not connected in the dashboard. You deploy it into your cluster with its Helm chart and give it a tenant API token, and the SDK finds it on your tenant like any other provider. Sandboxes run as pods under Kata, gVisor or AWS Nitro, and snapshots go to your own S3, GCS or Azure bucket.
+
+`resources` and `egress` are ignored, since machine sizes and network policies come from the chart's values. A self-hosted Hatchet needs `SERVER_GRPC_OPERATORS_ENABLED=true`. Brickie is in beta. See the [Brickie docs](https://github.com/hatchet-dev/brickie/tree/main/docs) for install and configuration.
