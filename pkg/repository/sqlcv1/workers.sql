@@ -876,7 +876,8 @@ INSERT INTO "Worker" (
     "actionHash",
     "operatorActionCount",
     "operatorId",
-    "isExemptFromLimits"
+    "isExemptFromLimits",
+    "maxHeartbeatDelayBeforeDeclaredDead"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -896,7 +897,8 @@ INSERT INTO "Worker" (
     -- set for workers backing an operator connection; NULL for SDK workers
     sqlc.narg('operatorId')::uuid,
     -- true only for workers the in-process operator host creates; the limit queries skip them
-    @isExemptFromLimits::boolean
+    @isExemptFromLimits::boolean,
+    sqlc.arg('maxHeartbeatDelayBeforeDeclaredDead')::interval
 ) RETURNING *;
 
 -- name: LinkServicesToWorker :exec

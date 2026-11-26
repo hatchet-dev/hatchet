@@ -102,6 +102,11 @@ class Worker(BaseModel):
         description="The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers.",
         alias="evictedDurableTaskCount",
     )
+    max_heartbeat_delay_before_declared_dead_seconds: Optional[StrictInt] = Field(
+        default=None,
+        description="How long, in seconds, the worker can go without sending a heartbeat before it is declared dead and its tasks are reassigned.",
+        alias="maxHeartbeatDelayBeforeDeclaredDeadSeconds",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "name",
@@ -121,6 +126,7 @@ class Worker(BaseModel):
         "runtimeInfo",
         "operatorId",
         "evictedDurableTaskCount",
+        "maxHeartbeatDelayBeforeDeclaredDeadSeconds",
     ]
 
     model_config = ConfigDict(
@@ -268,6 +274,9 @@ class Worker(BaseModel):
                 ),
                 "operatorId": obj.get("operatorId"),
                 "evictedDurableTaskCount": obj.get("evictedDurableTaskCount"),
+                "maxHeartbeatDelayBeforeDeclaredDeadSeconds": obj.get(
+                    "maxHeartbeatDelayBeforeDeclaredDeadSeconds"
+                ),
             }
         )
         return _obj

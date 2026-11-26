@@ -1,5 +1,7 @@
 module Hatchet
   class Worker
+    MAX_HEARTBEAT_DELAY_BEFORE_DECLARED_DEAD_SECONDS_RANGE: Range[Integer]
+
     attr_reader name: String
     attr_reader workflows: Array[Workflow | Task]
     attr_reader slots: Integer
@@ -15,7 +17,8 @@ module Hatchet
       ?workflows: Array[Workflow | Task],
       ?slots: Integer,
       ?durable_slots: Integer?,
-      ?labels: Hash[String, String | Integer]
+      ?labels: Hash[String, String | Integer],
+      ?max_heartbeat_delay_before_declared_dead_seconds: Integer?
     ) -> void
 
     def start: () -> void

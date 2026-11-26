@@ -304,6 +304,7 @@ module Hatchet
     # @option opts [Integer] :slots (10) Slot count for standard tasks, i.e. the number of tasks the worker can run concurrently
     # @option opts [Integer, nil] :durable_slots (nil) Slot count for durable tasks; defaults to +slots+ if not provided
     # @option opts [Hash] :labels ({}) A hash of labels to assign to the worker, for use with worker affinity; merged with the client's +worker_preset_labels+
+    # @option opts [Integer, nil] :max_heartbeat_delay_before_declared_dead_seconds (nil) How long the worker can go without sending a heartbeat before Hatchet declares it dead and reassigns its tasks; the engine defaults to 30 seconds. Must be between 4 and 3600
     # @return [Hatchet::Worker] The created worker object, which exposes an instance
     #   method +start+ which can be called to start the worker (blocking until
     #   shutdown), and +stop+ to request a graceful shutdown

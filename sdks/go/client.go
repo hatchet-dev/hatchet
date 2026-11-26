@@ -247,6 +247,10 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		workerOpts = append(workerOpts, worker.WithLabels(config.labels))
 	}
 
+	if config.maxHeartbeatDelayBeforeDeclaredDead != nil {
+		workerOpts = append(workerOpts, worker.WithMaxHeartbeatDelayBeforeDeclaredDead(*config.maxHeartbeatDelayBeforeDeclaredDead))
+	}
+
 	mainWorker, err := worker.NewWorker(workerOpts...)
 	if err != nil {
 		return nil, err

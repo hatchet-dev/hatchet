@@ -7,7 +7,7 @@ import sys
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from concurrent.futures import Future
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from multiprocessing import Queue
 from types import FrameType
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
@@ -76,6 +76,7 @@ class Worker:
         labels: list[WorkerLabel] | None = None,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
+        max_heartbeat_delay_before_declared_dead: timedelta | None = None,
     ) -> None:
         self._config = config
         self._name = self._config.apply_namespace(name)
@@ -84,6 +85,9 @@ class Worker:
         self._durable_slots = slot_config.get("durable", 0)
 
         self._labels = labels or []
+        self._max_heartbeat_delay_before_declared_dead = (
+            max_heartbeat_delay_before_declared_dead
+        )
 
         self._action_registry: dict[str, Task[Any, Any]] = {}
 
@@ -411,6 +415,7 @@ class Worker:
                     self._worker_id_queue,
                     self._stop_listener_event,
                     self._shared_slot_usage_by_pool,
+                    self._max_heartbeat_delay_before_declared_dead,
                 ),
             )
             process.start()

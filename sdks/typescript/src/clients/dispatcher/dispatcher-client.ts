@@ -18,6 +18,7 @@ import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { HATCHET_VERSION } from '@hatchet/version';
 import { SlotConfig, SlotType } from '@hatchet/v1/slot-types';
+import { Duration, durationToMs } from '@hatchet/v1/client/duration';
 import { ActionListener } from './action-listener';
 
 import type { WorkerLabels } from '@hatchet/v1/client/worker/runtime';
@@ -36,6 +37,7 @@ interface GetActionListenerOptions {
   /** @deprecated use slots */
   maxRuns?: number;
   labels: WorkerLabels;
+  maxHeartbeatDelayBeforeDeclaredDead?: Duration;
 }
 
 type StepActionEventInput = StepActionEvent & {
@@ -84,6 +86,10 @@ export class DispatcherClient {
       actions: options.actions,
       slotConfig,
       labels: options.labels ? mapLabels(options.labels) : undefined,
+      maxHeartbeatDelayBeforeDeclaredDeadSeconds:
+        options.maxHeartbeatDelayBeforeDeclaredDead !== undefined
+          ? Math.floor(durationToMs(options.maxHeartbeatDelayBeforeDeclaredDead) / 1000)
+          : undefined,
       runtimeInfo: this.getRuntimeInfo(),
     });
 

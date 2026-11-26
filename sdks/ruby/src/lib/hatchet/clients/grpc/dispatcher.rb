@@ -38,8 +38,11 @@ module Hatchet
         # @param slots [Integer] Number of concurrent task slots
         # @param slot_config [Hash{String => Integer}, nil] Slot counts by slot type
         # @param labels [Hash] Worker labels (String keys, String or Integer values)
+        # @param max_heartbeat_delay_before_declared_dead_seconds [Integer, nil] How long the worker can go
+        #   without a heartbeat before the engine declares it dead and reassigns its tasks
         # @return [WorkerRegisterResponse] Registration response with worker_id
-        def register(name:, actions:, slots:, slot_config: nil, labels: {})
+        def register(name:, actions:, slots:, slot_config: nil, labels: {},
+                     max_heartbeat_delay_before_declared_dead_seconds: nil)
           ensure_connected!
 
           label_map = labels.each_with_object({}) do |(k, v), map|
@@ -65,6 +68,11 @@ module Hatchet
             runtime_info: runtime_info,
           }
 
+          unless max_heartbeat_delay_before_declared_dead_seconds.nil?
+            request_args[:max_heartbeat_delay_before_declared_dead_seconds] =
+              max_heartbeat_delay_before_declared_dead_seconds
+          end
+
           if slot_config && !slot_config.empty?
             request_args[:slot_config] = slot_config
           else
@@ -81,6 +89,7 @@ module Hatchet
               actions: actions,
               slots: slots,
               labels: label_map,
+              max_heartbeat_delay_before_declared_dead_seconds: max_heartbeat_delay_before_declared_dead_seconds,
             )
             response = @stub.register(request, metadata: @config.auth_metadata)
             @logger.warn("Registered without runtime_info/slot_config after #{e.class}; " \

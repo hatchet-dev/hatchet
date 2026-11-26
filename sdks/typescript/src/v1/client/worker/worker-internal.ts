@@ -19,6 +19,7 @@ import HatchetPromise, { CancellationReason } from '@util/hatchet-promise/hatche
 import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
 import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
 import { NonRetryableError, RetryAfterError } from '@hatchet/v1/task';
+import type { Duration } from '@hatchet/v1/client/duration';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
@@ -89,6 +90,8 @@ export class InternalWorker {
 
   labels: WorkerLabels = {};
 
+  maxHeartbeatDelayBeforeDeclaredDead: Duration | undefined;
+
   healthPort: number;
   enableHealthServer: boolean;
 
@@ -105,6 +108,7 @@ export class InternalWorker {
       durableSlots?: number;
       slotConfig?: SlotConfig;
       labels?: WorkerLabels;
+      maxHeartbeatDelayBeforeDeclaredDead?: Duration;
     }
   ) {
     this.client = client;
@@ -115,6 +119,7 @@ export class InternalWorker {
     this.slotConfig = options.slotConfig || {};
 
     this.labels = options.labels || {};
+    this.maxHeartbeatDelayBeforeDeclaredDead = options.maxHeartbeatDelayBeforeDeclaredDead;
 
     this.enableHealthServer = client.config.healthcheck?.enabled ?? false;
     this.healthPort = client.config.healthcheck?.port ?? 8001;
@@ -940,6 +945,7 @@ export class InternalWorker {
       actions: Object.keys(this.action_registry),
       slotConfig: this.slotConfig,
       labels: this.labels,
+      maxHeartbeatDelayBeforeDeclaredDead: this.maxHeartbeatDelayBeforeDeclaredDead,
     });
   }
 

@@ -277,6 +277,17 @@ export default function WorkerDetail() {
                   )}
                 </div>
               </div>
+              {worker.maxHeartbeatDelayBeforeDeclaredDeadSeconds !==
+                undefined && (
+                <div>
+                  <div className="text-gray-500 dark:text-gray-400">
+                    Declared Dead After Heartbeat Delay Of
+                  </div>
+                  <div className="font-medium text-gray-900 dark:text-gray-100">
+                    {worker.maxHeartbeatDelayBeforeDeclaredDeadSeconds}s
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

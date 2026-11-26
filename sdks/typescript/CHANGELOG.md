@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.50.0] - 2026-11-23
+
+### Added
+
+- `maxHeartbeatDelayBeforeDeclaredDead` on worker options (`hatchet.worker`), a `Duration` setting how long the worker can go without sending a heartbeat before Hatchet declares it dead and reassigns its tasks to other workers. It is sent to the engine in whole seconds, defaults to 30 seconds, and must be between the 4 second heartbeat interval and 1 hour, or registration fails. Older engines ignore it.
+
 ## [1.49.0] - 2026-11-23
 
 ### Added

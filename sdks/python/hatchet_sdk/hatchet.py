@@ -296,6 +296,7 @@ class Hatchet:
         labels: list[WorkerLabel] | None = None,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
+        max_heartbeat_delay_before_declared_dead: timedelta | None = None,
     ) -> Worker:
         """
         Create a Hatchet worker on which to run workflows.
@@ -306,6 +307,7 @@ class Hatchet:
         :param labels: A list of labels to assign to the worker. For more details, view examples on affinity and worker labels.
         :param workflows: A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them.
         :param lifespan: A lifespan function to run on the worker. This function will be called when the worker is started, and can be used to perform any setup or teardown tasks.
+        :param max_heartbeat_delay_before_declared_dead: How long the worker can go without sending a heartbeat before Hatchet declares it dead and reassigns its tasks to other workers. Sent to the engine in whole seconds. Defaults to 30 seconds, and must be between 4 seconds and 1 hour.
 
         :returns: The created `Worker` object, which exposes an instance method `start` which can be called to start the worker.
 
@@ -334,6 +336,7 @@ class Hatchet:
             config=self._config,
             workflows=workflows,
             lifespan=lifespan,
+            max_heartbeat_delay_before_declared_dead=max_heartbeat_delay_before_declared_dead,
         )
 
     @overload

@@ -444,11 +444,12 @@ Parameters:
 
 Options for `Client.NewWorker`:
 
-| Name               | Signature                                                         | Description                                                               |
-| ------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `WithDurableSlots` | `WithDurableSlots(durableSlots int)`                              | WithDurableSlots sets the maximum number of concurrent durable task runs. |
-| `WithLabels`       | `WithLabels(labels map[string]any)`                               | WithLabels assigns labels to the worker for task routing.                 |
-| `WithLogger`       | `WithLogger(logger *zerolog.Logger)`                              | WithLogger sets a custom logger for the worker.                           |
-| `WithPanicHandler` | `WithPanicHandler(panicHandler func(ctx Context, recovered any))` | WithPanicHandler sets a custom panic handler for the worker.              |
-| `WithSlots`        | `WithSlots(slots int)`                                            | WithSlots sets the maximum number of concurrent workflow runs.            |
-| `WithWorkflows`    | `WithWorkflows(workflows ...WorkflowBase)`                        | WithWorkflows registers workflows and standalone tasks with the worker.   |
+| Name                                      | Signature                                                                  | Description                                                                                                                                                                      |
+| ----------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WithDurableSlots`                        | `WithDurableSlots(durableSlots int)`                                       | WithDurableSlots sets the maximum number of concurrent durable task runs.                                                                                                        |
+| `WithLabels`                              | `WithLabels(labels map[string]any)`                                        | WithLabels assigns labels to the worker for task routing.                                                                                                                        |
+| `WithLogger`                              | `WithLogger(logger *zerolog.Logger)`                                       | WithLogger sets a custom logger for the worker.                                                                                                                                  |
+| `WithMaxHeartbeatDelayBeforeDeclaredDead` | `WithMaxHeartbeatDelayBeforeDeclaredDead(maxHeartbeatDelay time.Duration)` | WithMaxHeartbeatDelayBeforeDeclaredDead sets how long the worker can go without sending a heartbeat before the engine declares it dead and reassigns its tasks to other workers. |
+| `WithPanicHandler`                        | `WithPanicHandler(panicHandler func(ctx Context, recovered any))`          | WithPanicHandler sets a custom panic handler for the worker.                                                                                                                     |
+| `WithSlots`                               | `WithSlots(slots int)`                                                     | WithSlots sets the maximum number of concurrent workflow runs.                                                                                                                   |
+| `WithWorkflows`                           | `WithWorkflows(workflows ...WorkflowBase)`                                 | WithWorkflows registers workflows and standalone tasks with the worker.                                                                                                          |

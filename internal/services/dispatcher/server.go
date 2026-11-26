@@ -78,6 +78,16 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		opts.SlotConfig = map[string]int32{v1.SlotTypeDefault: *request.Slots}
 	}
 
+	if request.MaxHeartbeatDelayBeforeDeclaredDeadSeconds != nil {
+		maxHeartbeatDelay := time.Duration(*request.MaxHeartbeatDelayBeforeDeclaredDeadSeconds) * time.Second
+
+		if maxHeartbeatDelay < HeartbeatInterval || maxHeartbeatDelay > MaxHeartbeatDelayBeforeDeclaredDead {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("max_heartbeat_delay_before_declared_dead_seconds must be between the heartbeat interval (%s) and %s", HeartbeatInterval, MaxHeartbeatDelayBeforeDeclaredDead))
+		}
+
+		opts.MaxHeartbeatDelayBeforeDeclaredDead = &maxHeartbeatDelay
+	}
+
 	if apiErrors, err := s.v.ValidateAPI(opts); err != nil {
 		return nil, err
 	} else if apiErrors != nil {
@@ -428,6 +438,8 @@ func (s *DispatcherImpl) deactivateWorkerListener(ctx context.Context, tenantId,
 }
 
 const HeartbeatInterval = 4 * time.Second
+
+const MaxHeartbeatDelayBeforeDeclaredDead = time.Hour
 
 // Heartbeat is used to update the last heartbeat time for a worker
 func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.HeartbeatRequest) (*contracts.HeartbeatResponse, error) {

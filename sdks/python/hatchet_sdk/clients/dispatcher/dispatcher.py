@@ -1,4 +1,5 @@
 import platform
+from datetime import timedelta
 from importlib.metadata import version
 from sys import version_info
 from typing import TYPE_CHECKING, cast
@@ -73,6 +74,7 @@ class DispatcherClient:
         actions: list[str],
         slot_config: dict[str, int],
         labels: list[WorkerLabel],
+        max_heartbeat_delay_before_declared_dead: timedelta | None = None,
     ) -> ActionListener:
         aio_client = self._get_or_create_aio_client()
 
@@ -89,6 +91,11 @@ class DispatcherClient:
                 services=services,
                 labels=proto_labels,
                 slot_config=slot_config,
+                max_heartbeat_delay_before_declared_dead_seconds=(
+                    int(max_heartbeat_delay_before_declared_dead.total_seconds())
+                    if max_heartbeat_delay_before_declared_dead is not None
+                    else None
+                ),
                 runtime_info=RuntimeInfo(
                     sdk_version=version("hatchet_sdk"),
                     language=SDKS.PYTHON,

@@ -2946,6 +2946,8 @@ export interface Worker {
   operatorId?: string;
   /** The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers. */
   evictedDurableTaskCount?: number;
+  /** How long, in seconds, the worker can go without sending a heartbeat before it is declared dead and its tasks are reassigned. */
+  maxHeartbeatDelayBeforeDeclaredDeadSeconds?: number;
 }
 
 export interface WorkerList {

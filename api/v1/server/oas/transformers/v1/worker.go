@@ -8,6 +8,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -113,6 +114,9 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotCon
 	if worker.OperatorId != nil {
 		res.OperatorId = worker.OperatorId
 	}
+
+	maxHeartbeatDelaySeconds := int(sqlchelpers.PgIntervalToDuration(worker.MaxHeartbeatDelayBeforeDeclaredDead).Seconds())
+	res.MaxHeartbeatDelayBeforeDeclaredDeadSeconds = &maxHeartbeatDelaySeconds
 
 	res.Actions = &actions
 

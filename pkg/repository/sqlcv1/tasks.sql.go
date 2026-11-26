@@ -2886,7 +2886,11 @@ WITH tasks_on_inactive_workers AS (
         runtime.task_id,
         runtime.task_inserted_at,
         runtime.retry_count,
-        'Worker did not send a heartbeat for 30 seconds'::text AS reason
+        (
+            'Worker did not send a heartbeat for '
+            || EXTRACT(EPOCH FROM w."maxHeartbeatDelayBeforeDeclaredDead")::bigint
+            || ' seconds'
+        )::text AS reason
     FROM
         "Worker" w
     JOIN
@@ -2894,7 +2898,7 @@ WITH tasks_on_inactive_workers AS (
     WHERE
         w."tenantId" = $1::uuid
         AND w."tenantId" = runtime.tenant_id
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        AND w."lastHeartbeatAt" < NOW() - w."maxHeartbeatDelayBeforeDeclaredDead"
         -- evicted tasks are not eligible for re-assignment
         AND runtime.evicted_at IS NULL
     -- NOTE: without this ORDER BY, the planner assumes most runtimes belong to the tenant's many stale workers and

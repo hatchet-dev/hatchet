@@ -15,3 +15,9 @@ func DurationToPgInterval(d time.Duration) pgtype.Interval {
 		Valid:        true,
 	}
 }
+
+// PgIntervalToDuration reads only the interval's microseconds and ignores its days and months,
+// so it is only correct for intervals with no day or month part, such as those DurationToPgInterval writes.
+func PgIntervalToDuration(interval pgtype.Interval) time.Duration {
+	return time.Duration(interval.Microseconds) * time.Microsecond
+}
