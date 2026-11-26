@@ -53,7 +53,7 @@ INSERT INTO "User" (
 type CreateUserParams struct {
 	ID            uuid.UUID   `json:"id"`
 	Email         string      `json:"email"`
-	EmailVerified pgtype.Bool `json:"emailVerified"`
+	EmailVerified *bool       `json:"emailVerified"`
 	Name          pgtype.Text `json:"name"`
 }
 
@@ -426,7 +426,7 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", email, "emailVerified", nam
 `
 
 type UpdateUserParams struct {
-	EmailVerified pgtype.Bool `json:"emailVerified"`
+	EmailVerified *bool       `json:"emailVerified"`
 	Name          pgtype.Text `json:"name"`
 	ID            uuid.UUID   `json:"id"`
 }

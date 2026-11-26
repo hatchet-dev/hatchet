@@ -204,10 +204,10 @@ WHERE
 
 type CountWorkersParams struct {
 	Tenantid           uuid.UUID        `json:"tenantid"`
-	IncludeOperators   pgtype.Bool      `json:"includeOperators"`
+	IncludeOperators   *bool            `json:"includeOperators"`
 	ActionId           pgtype.Text      `json:"actionId"`
 	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
-	Assignable         pgtype.Bool      `json:"assignable"`
+	Assignable         *bool            `json:"assignable"`
 	Statuses           []string         `json:"statuses"`
 	LabelKeys          []string         `json:"labelKeys"`
 	LabelValues        []string         `json:"labelValues"`
@@ -1530,7 +1530,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	BatchKey_2                   pgtype.Text        `json:"batch_key_2"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
-	IsDurable                    pgtype.Bool        `json:"is_durable"`
+	IsDurable                    bool               `json:"is_durable"`
 	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
 	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
 	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
@@ -1862,10 +1862,10 @@ LIMIT
 
 type ListWorkersParams struct {
 	Tenantid           uuid.UUID        `json:"tenantid"`
-	IncludeOperators   pgtype.Bool      `json:"includeOperators"`
+	IncludeOperators   *bool            `json:"includeOperators"`
 	ActionId           pgtype.Text      `json:"actionId"`
 	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
-	Assignable         pgtype.Bool      `json:"assignable"`
+	Assignable         *bool            `json:"assignable"`
 	Statuses           []string         `json:"statuses"`
 	LabelKeys          []string         `json:"labelKeys"`
 	LabelValues        []string         `json:"labelValues"`
@@ -2209,7 +2209,7 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatA
 type UpdateWorkerParams struct {
 	DispatcherId      *uuid.UUID       `json:"dispatcherId"`
 	LastHeartbeatAt   pgtype.Timestamp `json:"lastHeartbeatAt"`
-	IsPaused          pgtype.Bool      `json:"isPaused"`
+	IsPaused          *bool            `json:"isPaused"`
 	ID                uuid.UUID        `json:"id"`
 	Tenantid          uuid.UUID        `json:"tenantid"`
 	ListenerSessionId *uuid.UUID       `json:"listenerSessionId"`

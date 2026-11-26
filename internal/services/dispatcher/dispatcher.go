@@ -664,7 +664,7 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 		}
 		taskIds = append(taskIds, assigned.Task.ID)
 
-		if assigned.Task.IsDurable.Valid && assigned.Task.IsDurable.Bool {
+		if assigned.Task.IsDurable {
 			getDurableInvocationCountOpts = append(getDurableInvocationCountOpts, v1.IdInsertedAt{
 				ID:                   assigned.Task.ID,
 				InsertedAtUnixMicros: assigned.Task.InsertedAt.Time.UnixMicro(),
@@ -679,7 +679,7 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 			d.l.Error().Err(err).Msgf("could not get durable task invocation counts for %d tasks", len(getDurableInvocationCountOpts))
 		} else {
 			for _, assigned := range tasks {
-				if assigned.Task.IsDurable.Valid && assigned.Task.IsDurable.Bool {
+				if assigned.Task.IsDurable {
 					count := invocationCounts[v1.IdInsertedAt{
 						ID:                   assigned.Task.ID,
 						InsertedAtUnixMicros: assigned.Task.InsertedAt.Time.UnixMicro(),
@@ -720,7 +720,7 @@ func (d *DispatcherImpl) populateTaskData(
 	getInvocationCountOpts := make([]v1.IdInsertedAt, 0)
 
 	for _, task := range bulkDatas {
-		if task.IsDurable.Valid && task.IsDurable.Bool {
+		if task.IsDurable {
 			getInvocationCountOpts = append(getInvocationCountOpts, v1.IdInsertedAt{
 				ID:                   task.ID,
 				InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro(),
@@ -1406,7 +1406,7 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 			},
 		}
 
-		if task.IsDurable.Valid && task.IsDurable.Bool {
+		if task.IsDurable {
 			durableTaskIds = append(durableTaskIds, v1.IdInsertedAt{
 				ID:                   task.ID,
 				InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro(),

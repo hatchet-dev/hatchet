@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 
@@ -546,7 +545,7 @@ type endpointSpec struct {
 	enabled   bool
 	// durable is the row's durable_supported: what the endpoint's last healthcheck said.
 	durable bool
-	healthy pgtype.Bool
+	healthy *bool
 }
 
 // newEndpointRow builds an endpoint row with a fresh id. URLs derive from the

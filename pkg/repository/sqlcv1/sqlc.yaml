@@ -86,6 +86,11 @@ sql:
               import: "github.com/google/uuid"
               type: "UUID"
               pointer: true
+          - db_type: "pg_catalog.bool"
+            nullable: true
+            go_type:
+              type: "bool"
+              pointer: true
           # enums shared with the API layer; hack/sqlc/extract-enums.go moves their sqlc output into pkg/enums
           - db_type: "TenantMemberRole"
             go_type:

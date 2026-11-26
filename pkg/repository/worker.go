@@ -255,10 +255,7 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 	}
 
 	if opts.Assignable != nil {
-		queryParams.Assignable = pgtype.Bool{
-			Bool:  *opts.Assignable,
-			Valid: true,
-		}
+		queryParams.Assignable = opts.Assignable
 		countParams.Assignable = queryParams.Assignable
 	}
 
@@ -268,10 +265,7 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 	}
 
 	if opts.IncludeOperators != nil {
-		queryParams.IncludeOperators = pgtype.Bool{
-			Bool:  *opts.IncludeOperators,
-			Valid: true,
-		}
+		queryParams.IncludeOperators = opts.IncludeOperators
 		countParams.IncludeOperators = queryParams.IncludeOperators
 	}
 
@@ -1256,12 +1250,7 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 		updateParams.DispatcherId = &parsed
 	}
 
-	if opts.IsPaused != nil {
-		updateParams.IsPaused = pgtype.Bool{
-			Bool:  *opts.IsPaused,
-			Valid: true,
-		}
-	}
+	updateParams.IsPaused = opts.IsPaused
 
 	worker, err := w.queries.UpdateWorker(ctx, tx, updateParams)
 
@@ -1406,7 +1395,7 @@ func (w *workerRepository) PauseWorkerForListener(ctx context.Context, tenantId 
 	if _, err := w.queries.UpdateWorker(ctx, db, sqlcv1.UpdateWorkerParams{
 		ID:                workerId,
 		Tenantid:          tenantId,
-		IsPaused:          pgtype.Bool{Bool: paused, Valid: true},
+		IsPaused:          &paused,
 		ListenerSessionId: &sessionId,
 	}); err != nil {
 		return fmt.Errorf("could not set paused=%t on worker %s for listener session %s: %w", paused, workerId, sessionId, err)

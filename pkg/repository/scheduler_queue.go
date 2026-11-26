@@ -436,10 +436,10 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 			continue
 		}
 
-		if row.IsDurable.Valid {
-			assignedItem.IsDurable = row.IsDurable.Bool
+		if row.IsDurable != nil {
+			assignedItem.IsDurable = *row.IsDurable
 
-			if row.IsDurable.Bool {
+			if *row.IsDurable {
 				incrementInvocationCountOpts = append(incrementInvocationCountOpts, IncrementDurableTaskInvocationCountsOpts{
 					TaskId:         row.TaskID,
 					TaskInsertedAt: row.TaskInsertedAt,

@@ -1522,7 +1522,7 @@ type FlattenExternalIdsRow struct {
 	IsDagOrchestrator         bool               `json:"is_dag_orchestrator"`
 	WorkflowVersionID         uuid.UUID          `json:"workflow_version_id"`
 	ParentTaskExternalID      *uuid.UUID         `json:"parent_task_external_id"`
-	IsDurable                 pgtype.Bool        `json:"is_durable"`
+	IsDurable                 bool               `json:"is_durable"`
 	TaskInputPayloadVersion   int16              `json:"task_input_payload_version"`
 	PayloadReferenceID        *uuid.UUID         `json:"payload_reference_id"`
 	DagPayloadReferenceID     *uuid.UUID         `json:"dag_payload_reference_id"`

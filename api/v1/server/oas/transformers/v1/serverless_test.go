@@ -83,7 +83,7 @@ func TestToV1ServerlessEndpointStatus(t *testing.T) {
 	t.Run("healthy with registered actions", func(t *testing.T) {
 		endpoint := testServerlessEndpoint()
 		changedAt := time.Date(2026, 9, 7, 13, 0, 0, 0, time.UTC)
-		endpoint.Healthy = pgtype.Bool{Bool: true, Valid: true}
+		endpoint.Healthy = new(true)
 		endpoint.StatusChangedAt = pgtype.Timestamptz{Time: changedAt, Valid: true}
 		endpoint.RegisteredActions = []string{"ns_billing:charge", "ns_billing:refund"}
 
@@ -99,7 +99,7 @@ func TestToV1ServerlessEndpointStatus(t *testing.T) {
 
 	t.Run("unhealthy with error", func(t *testing.T) {
 		endpoint := testServerlessEndpoint()
-		endpoint.Healthy = pgtype.Bool{Bool: false, Valid: true}
+		endpoint.Healthy = new(false)
 		endpoint.StatusError = pgtype.Text{String: "healthcheck returned 503", Valid: true}
 
 		status := ToV1ServerlessEndpoint(endpoint).Status

@@ -9,7 +9,6 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const anyTenantHasAuditLogs = `-- name: AnyTenantHasAuditLogs :one
@@ -72,10 +71,10 @@ RETURNING tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_
 `
 
 type UpdateTenantLabsEntitlementsParams struct {
-	Tenantid           uuid.UUID   `json:"tenantid"`
-	DurableStreams     pgtype.Bool `json:"durableStreams"`
-	ServerlessOperator pgtype.Bool `json:"serverlessOperator"`
-	SandboxOperator    pgtype.Bool `json:"sandboxOperator"`
+	Tenantid           uuid.UUID `json:"tenantid"`
+	DurableStreams     *bool     `json:"durableStreams"`
+	ServerlessOperator *bool     `json:"serverlessOperator"`
+	SandboxOperator    *bool     `json:"sandboxOperator"`
 }
 
 func (q *Queries) UpdateTenantLabsEntitlements(ctx context.Context, db DBTX, arg UpdateTenantLabsEntitlementsParams) (*TenantEntitlement, error) {

@@ -208,8 +208,8 @@ type CreateStepParams struct {
 	ScheduleTimeout         pgtype.Text      `json:"scheduleTimeout"`
 	RetryBackoffFactor      pgtype.Float8    `json:"retryBackoffFactor"`
 	RetryMaxBackoff         pgtype.Int4      `json:"retryMaxBackoff"`
-	IsDurable               pgtype.Bool      `json:"isDurable"`
-	IsDagOrchestrator       pgtype.Bool      `json:"isDagOrchestrator"`
+	IsDurable               *bool            `json:"isDurable"`
+	IsDagOrchestrator       *bool            `json:"isDagOrchestrator"`
 	MaxReassignmentsAllowed pgtype.Int4      `json:"maxReassignmentsAllowed"`
 }
 
@@ -1048,7 +1048,7 @@ type CreateWorkflowVersionParams struct {
 	DefaultPriority           pgtype.Int4           `json:"defaultPriority"`
 	CreateWorkflowVersionOpts []byte                `json:"createWorkflowVersionOpts"`
 	InputJsonSchema           []byte                `json:"inputJsonSchema"`
-	IsUsingDagOperator        pgtype.Bool           `json:"isUsingDagOperator"`
+	IsUsingDagOperator        *bool                 `json:"isUsingDagOperator"`
 	DagShape                  []byte                `json:"dagShape"`
 	IdempotencyKeyExpression  pgtype.Text           `json:"idempotencyKeyExpression"`
 	IdempotencyKeyTtlMs       pgtype.Int8           `json:"idempotencyKeyTtlMs"`
@@ -2432,8 +2432,8 @@ WHERE "id" = $2::uuid
 `
 
 type UpdateCronTriggerParams struct {
-	Enabled       pgtype.Bool `json:"enabled"`
-	Crontriggerid uuid.UUID   `json:"crontriggerid"`
+	Enabled       *bool     `json:"enabled"`
+	Crontriggerid uuid.UUID `json:"crontriggerid"`
 }
 
 func (q *Queries) UpdateCronTrigger(ctx context.Context, db DBTX, arg UpdateCronTriggerParams) error {
@@ -2540,7 +2540,7 @@ type UpsertDesiredWorkerLabelParams struct {
 	Key        string                    `json:"key"`
 	IntValue   pgtype.Int4               `json:"intValue"`
 	StrValue   pgtype.Text               `json:"strValue"`
-	Required   pgtype.Bool               `json:"required"`
+	Required   *bool                     `json:"required"`
 	Weight     pgtype.Int4               `json:"weight"`
 	Comparator NullWorkerLabelComparator `json:"comparator"`
 }

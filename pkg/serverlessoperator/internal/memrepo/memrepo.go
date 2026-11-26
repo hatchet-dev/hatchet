@@ -538,7 +538,7 @@ func (e *endpoints) UpdateStatus(_ context.Context, endpointId uuid.UUID, health
 	now := e.r.Now()
 
 	if ep, ok := e.r.endpoints[endpointId]; ok {
-		ep.Healthy = pgtype.Bool{Bool: healthy, Valid: true}
+		ep.Healthy = &healthy
 		ep.StatusError = pgtype.Text{}
 		ep.StatusChangedAt = pgtype.Timestamptz{Time: now, Valid: true}
 

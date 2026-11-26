@@ -230,9 +230,7 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 		Email: strings.ToLower(opts.Email),
 	}
 
-	if opts.EmailVerified != nil {
-		params.EmailVerified = sqlchelpers.BoolFromBoolean(*opts.EmailVerified)
-	}
+	params.EmailVerified = opts.EmailVerified
 
 	if opts.Name != nil {
 		params.Name = sqlchelpers.TextFromStr(*opts.Name)
@@ -324,9 +322,7 @@ func (r *userRepository) updateUser(ctx context.Context, id uuid.UUID, opts *Upd
 		ID: id,
 	}
 
-	if opts.EmailVerified != nil {
-		params.EmailVerified = sqlchelpers.BoolFromBoolean(*opts.EmailVerified)
-	}
+	params.EmailVerified = opts.EmailVerified
 
 	if opts.Name != nil {
 		params.Name = sqlchelpers.TextFromStr(*opts.Name)

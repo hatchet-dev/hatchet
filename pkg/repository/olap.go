@@ -1696,7 +1696,7 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 	rows, err := r.queries.ListTaskEventsForWorkflowRun(ctx, readDB, sqlcv1.ListTaskEventsForWorkflowRunParams{
 		Tenantid:                  tenantId,
 		Workflowrunid:             workflowRunId,
-		IncludeOrchestratorEvents: sqlchelpers.BoolFromBoolean(includeOrchestratorEvents),
+		IncludeOrchestratorEvents: &includeOrchestratorEvents,
 		Eventlimit:                maxTaskEventsPerWorkflowRun,
 	})
 
@@ -2461,7 +2461,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		params.Daginsertedats = append(params.Daginsertedats, task.DagInsertedAt)
 		params.Parenttaskexternalids = append(params.Parenttaskexternalids, task.ParentTaskExternalID)
 		params.Workflowrunids = append(params.Workflowrunids, task.WorkflowRunID)
-		params.Isdurables = append(params.Isdurables, task.IsDurable.Bool)
+		params.Isdurables = append(params.Isdurables, task.IsDurable)
 		params.IdempotencyKeys = append(params.IdempotencyKeys, task.IdempotencyKey)
 		params.PayloadReferenceIds = append(params.PayloadReferenceIds, task.PayloadReferenceID)
 

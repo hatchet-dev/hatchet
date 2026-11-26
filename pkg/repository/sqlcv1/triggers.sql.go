@@ -42,7 +42,7 @@ type ListWorkflowsByNamesRow struct {
 	WorkflowName             string      `json:"workflowName"`
 	IdempotencyKeyExpression pgtype.Text `json:"idempotencyKeyExpression"`
 	IdempotencyKeyTtlMs      pgtype.Int8 `json:"idempotencyKeyTtlMs"`
-	WorkflowIsPaused         pgtype.Bool `json:"workflowIsPaused"`
+	WorkflowIsPaused         bool        `json:"workflowIsPaused"`
 }
 
 func (q *Queries) ListWorkflowsByNames(ctx context.Context, db DBTX, arg ListWorkflowsByNamesParams) ([]*ListWorkflowsByNamesRow, error) {
@@ -125,7 +125,7 @@ type ListWorkflowsForEventsRow struct {
 	IncomingEventKey                  string      `json:"incomingEventKey"`
 	IdempotencyKeyExpression          pgtype.Text `json:"idempotencyKeyExpression"`
 	IdempotencyKeyTtlMs               pgtype.Int8 `json:"idempotencyKeyTtlMs"`
-	WorkflowIsPaused                  pgtype.Bool `json:"workflowIsPaused"`
+	WorkflowIsPaused                  bool        `json:"workflowIsPaused"`
 }
 
 // Get all of the latest workflow versions

@@ -369,13 +369,9 @@ func (r *tenantRepository) UpdateTenant(ctx context.Context, id uuid.UUID, opts 
 		params.Name = sqlchelpers.TextFromStr(*opts.Name)
 	}
 
-	if opts.AnalyticsOptOut != nil {
-		params.AnalyticsOptOut = sqlchelpers.BoolFromBoolean(*opts.AnalyticsOptOut)
-	}
+	params.AnalyticsOptOut = opts.AnalyticsOptOut
 
-	if opts.AlertMemberEmails != nil {
-		params.AlertMemberEmails = sqlchelpers.BoolFromBoolean(*opts.AlertMemberEmails)
-	}
+	params.AlertMemberEmails = opts.AlertMemberEmails
 
 	if opts.Version != nil {
 		params.Version = opts.Version
@@ -430,7 +426,7 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid
 			Tenantid:        tenantId,
 			Userid:          opts.UserId,
 			Role:            enums.TenantMemberRole(opts.Role),
-			CanViewPayloads: canViewPayloadsParam(opts.CanViewPayloads),
+			CanViewPayloads: opts.CanViewPayloads,
 		},
 	)
 
@@ -540,9 +536,7 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, tenantId uuid
 		params.Role = new(enums.TenantMemberRole(*opts.Role))
 	}
 
-	if opts.CanViewPayloads != nil {
-		params.CanViewPayloads = sqlchelpers.BoolFromBoolean(*opts.CanViewPayloads)
-	}
+	params.CanViewPayloads = opts.CanViewPayloads
 
 	updatedMember, err := r.queries.UpdateTenantMember(
 		ctx,
@@ -964,12 +958,4 @@ func getPartitionName() pgtype.Text {
 	}
 
 	return sqlchelpers.TextFromStr(hostname)
-}
-
-func canViewPayloadsParam(v *bool) pgtype.Bool {
-	if v == nil {
-		return pgtype.Bool{}
-	}
-
-	return sqlchelpers.BoolFromBoolean(*v)
 }

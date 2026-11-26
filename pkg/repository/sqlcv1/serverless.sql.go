@@ -1219,7 +1219,7 @@ type UpdateServerlessEndpointParams struct {
 	PollIntervalSeconds   pgtype.Int4                     `json:"pollIntervalSeconds"`
 	InlineWaitBudgetMs    pgtype.Int4                     `json:"inlineWaitBudgetMs"`
 	Labels                []byte                          `json:"labels"`
-	Enabled               pgtype.Bool                     `json:"enabled"`
+	Enabled               *bool                           `json:"enabled"`
 	Tenantid              uuid.UUID                       `json:"tenantid"`
 	ID                    uuid.UUID                       `json:"id"`
 }

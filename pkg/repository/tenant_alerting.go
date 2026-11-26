@@ -97,17 +97,11 @@ func (r *tenantAlertingRepository) UpsertTenantAlertingSettings(ctx context.Cont
 		params.MaxFrequency = sqlchelpers.TextFromStr(*opts.MaxFrequency)
 	}
 
-	if opts.EnableExpiringTokenAlerts != nil {
-		params.EnableExpiringTokenAlerts = sqlchelpers.BoolFromBoolean(*opts.EnableExpiringTokenAlerts)
-	}
+	params.EnableExpiringTokenAlerts = opts.EnableExpiringTokenAlerts
 
-	if opts.EnableWorkflowRunFailureAlerts != nil {
-		params.EnableWorkflowRunFailureAlerts = sqlchelpers.BoolFromBoolean(*opts.EnableWorkflowRunFailureAlerts)
-	}
+	params.EnableWorkflowRunFailureAlerts = opts.EnableWorkflowRunFailureAlerts
 
-	if opts.EnableTenantResourceLimitAlerts != nil {
-		params.EnableTenantResourceLimitAlerts = sqlchelpers.BoolFromBoolean(*opts.EnableTenantResourceLimitAlerts)
-	}
+	params.EnableTenantResourceLimitAlerts = opts.EnableTenantResourceLimitAlerts
 
 	return r.queries.UpsertTenantAlertingSettings(
 		ctx,

@@ -39,7 +39,7 @@ type CreateAPITokenParams struct {
 	TenantId  *uuid.UUID       `json:"tenantId"`
 	Name      pgtype.Text      `json:"name"`
 	Expiresat pgtype.Timestamp `json:"expiresat"`
-	Internal  pgtype.Bool      `json:"internal"`
+	Internal  *bool            `json:"internal"`
 	Readonly  bool             `json:"readonly"`
 }
 
