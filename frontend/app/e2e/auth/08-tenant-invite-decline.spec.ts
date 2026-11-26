@@ -52,7 +52,7 @@ test.describe('Tenant Invite: decline', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible({
       timeout: 10_000,
     });
-    await expect(page.getByText(tenantName)).toBeVisible();
+    await expect(page.locator('td', { hasText: tenantName })).toBeVisible();
 
     await declineRemainingInvites(page, { expectRejectStatus: 200 });
 
