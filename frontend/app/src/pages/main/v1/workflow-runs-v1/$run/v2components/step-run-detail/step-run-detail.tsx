@@ -289,7 +289,7 @@ export const TaskRunDetail = ({
             </TabsContent>
             <TabsContent
               value={TabOption.ChildWorkflowRuns}
-              className="mt-4 flex min-h-0 flex-1 flex-col"
+              className="mt-4 flex min-h-96 flex-1 flex-col"
             >
               <div className="flex min-h-0 flex-1 flex-col">
                 <RunsProvider
