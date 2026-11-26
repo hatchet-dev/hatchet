@@ -59,7 +59,7 @@ export function AuthPage({
         <div className="flex w-full flex-col items-center gap-2 lg:flex-row lg:items-center lg:justify-between">
           <h2
             className="text-2xl font-semibold tracking-tight"
-            data-cy="auth-title"
+            data-testid="auth-title"
           >
             {title}
           </h2>

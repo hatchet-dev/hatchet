@@ -83,7 +83,7 @@ jobs:
       - name: Build
         working-directory: frontend/app
         run: npm run build
-  cypress:
+  e2e-seeded:
     runs-on: ubicloud-standard-4
     timeout-minutes: 30
 
@@ -132,11 +132,15 @@ jobs:
         run: bash ./hack/dev/migrate.sh
 
       - name: Seed
-        run: bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed-cypress
+        run: bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed-e2e
 
       - name: Install frontend deps
         working-directory: frontend/app
         run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        working-directory: frontend/app
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm exec playwright install --with-deps chromium
 
       - name: Start API + engine
         run: |
@@ -152,21 +156,21 @@ jobs:
           pnpm run dev -- --host app.localtest.me --port 5173 > vite.log 2>&1 &
           bash ../../hack/ci/wait-for-http.sh http://app.localtest.me:5173 120
 
-      - name: Run Cypress
+      - name: Run Playwright
         working-directory: frontend/app
         env:
-          CYPRESS_BASE_URL: http://app.localtest.me:5173
-        run: pnpm run e2e:run
+          PLAYWRIGHT_BASE_URL: http://app.localtest.me:5173
+        run: pnpm run e2e:seeded
 
-      - name: Upload Cypress artifacts (screenshots/videos)
-        if: failure()
+      # Uploaded on success too so the HTML report is always available from the run summary.
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: cypress-artifacts
+          name: playwright-report-seeded
           if-no-files-found: ignore
-          path: |
-            frontend/app/cypress/screenshots
-            frontend/app/cypress/videos
+          retention-days: 14
+          path: frontend/app/playwright-report
 
       - name: Upload logs
         if: always()
@@ -178,3 +182,107 @@ jobs:
             api.log
             engine.log
             frontend/app/vite.log
+
+  # The e2e-isolated container image must match the @playwright/test version
+  # exactly, so derive its tag from the lockfile instead of pinning it twice.
+  playwright-version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: frontend/app/pnpm-lock.yaml
+          sparse-checkout-cone-mode: false
+
+      - name: Read @playwright/test version
+        id: version
+        run: |
+          set -euo pipefail
+          # `|| true` lets the format check below report a missing entry.
+          version=$(grep -A2 "^      '@playwright/test':$" frontend/app/pnpm-lock.yaml | sed -n 's/^ *version: //p' || true)
+          version="${version%%(*}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Could not read the @playwright/test version from pnpm-lock.yaml (got '$version')" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  # Isolated tests mock every API call, so this job needs no Go, database or
+  # seed step and runs alongside e2e-seeded. The Playwright image ships the
+  # browser and its system dependencies, which take minutes to install with apt.
+  e2e-isolated:
+    needs: playwright-version
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v${{ needs.playwright-version.outputs.version }}-noble
+    # Steps in a container default to sh (dash), which has no pipefail.
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.14'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: 10.16.1
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/app/pnpm-lock.yaml
+
+      - name: Generate docs snippets and examples
+        working-directory: frontend/app
+        run: pnpm run docs:gen
+
+      - name: Install frontend deps
+        working-directory: frontend/app
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
+
+      - name: Start frontend
+        working-directory: frontend/app
+        run: |
+          set -euo pipefail
+          pnpm run dev -- --host localhost --port 5173 > vite.log 2>&1 &
+          bash ../../hack/ci/wait-for-http.sh http://localhost:5173 120
+
+      - name: Run Playwright
+        working-directory: frontend/app
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:5173
+        run: pnpm run e2e:isolated
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-isolated
+          if-no-files-found: ignore
+          retention-days: 14
+          path: frontend/app/playwright-report
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-isolated-logs
+          if-no-files-found: ignore
+          path: frontend/app/vite.log
