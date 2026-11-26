@@ -2040,6 +2040,8 @@ export interface APIToken {
   name: string;
   /** Whether the token is limited to viewer access over REST and cannot use gRPC. */
   readOnly: boolean;
+  /** The capabilities the token holds, which grant REST operations and gRPC procedures. Tokens created without capabilities hold "all", or "read-only" if they are read-only. */
+  capabilities: string[];
   /**
    * When the API token expires.
    * @format date-time
@@ -2060,6 +2062,11 @@ export interface CreateAPITokenRequest {
   name: string;
   /** Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false. */
   readOnly?: boolean;
+  /**
+   * The capabilities that decide which REST operations and gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"].
+   * @minItems 1
+   */
+  capabilities?: string[];
   /** The duration for which the token is valid. */
   expiresIn?: string;
 }
@@ -2067,6 +2074,40 @@ export interface CreateAPITokenRequest {
 export interface CreateAPITokenResponse {
   /** The API token. */
   token: string;
+}
+
+export interface TokenCapability {
+  /** The name to pass in an API token's capabilities. */
+  name: string;
+  /** A short display name for a bundle, e.g. "Read". */
+  label?: string;
+  /** What the capability lets a token do. */
+  description: string;
+  /** The section the capability is listed under. */
+  group?: string;
+  /** Whether the capability only stands for the capabilities in includes. */
+  bundle: boolean;
+  /** The listed capabilities this one grants through inheritance, for a bundle every one it stands for. */
+  includes: string[];
+}
+
+export interface TokenCapabilityList {
+  rows: TokenCapability[];
+}
+
+export interface TenantRole {
+  /** The role's name, as a tenant member's role. */
+  name: string;
+  /** A short display name, e.g. "Admin". */
+  label: string;
+  /** What a member with the role can do. */
+  description: string;
+  /** The REST operations the role allows, by operation id. */
+  operations: string[];
+}
+
+export interface TenantRoleList {
+  rows: TenantRole[];
 }
 
 /** A workflow ID. */

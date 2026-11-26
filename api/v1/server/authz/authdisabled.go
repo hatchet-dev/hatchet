@@ -3,15 +3,14 @@
 package authz
 
 import (
-	"github.com/labstack/echo/v4"
-
-	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
+	"github.com/hatchet-dev/hatchet/internal/permissions"
+	pkgauthz "github.com/hatchet-dev/hatchet/pkg/auth/authz"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
-func (a *AuthZ) authPreflight(c echo.Context, r *middleware.RouteInfo) (handled bool, err error) {
-	if err := a.authorizeTenantOperations("NOAUTH", r); err != nil {
-		return true, err
+func buildPolicies(_ *server.ServerConfig, perms pkgauthz.RolePermissions) []pkgauthz.Policy {
+	return []pkgauthz.Policy{
+		// every request is denied anything NOAUTH does not also permit, on top of the principal's own role
+		pkgauthz.CapToRole(perms, permissions.RoleNoAuth, pkgauthz.RoleInsufficient, func(pkgauthz.Principal) bool { return true }),
 	}
-
-	return true, a.validateUserTenantPermissions(c, r)
 }

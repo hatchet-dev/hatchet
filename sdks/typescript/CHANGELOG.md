@@ -5,6 +5,13 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.49.1] - 2026-11-24
+
+### Added
+
+- `capabilities` on the `APIToken` and `CreateAPITokenRequest` REST types, the capabilities that limit which REST operations and gRPC procedures an API token can call. Tokens created without it hold `all`.
+- `apiTokenCapabilityList` and `tenantRoleList` REST methods, which list the capabilities an API token can hold and the roles a tenant member can hold.
+
 ## [1.49.0] - 2026-11-23
 
 ### Added

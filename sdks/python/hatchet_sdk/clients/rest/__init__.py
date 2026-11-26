@@ -270,10 +270,16 @@ if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.models.tenant_resource_policy import (
         TenantResourcePolicy,
     )
+    from hatchet_sdk.clients.rest.models.tenant_role import TenantRole
+    from hatchet_sdk.clients.rest.models.tenant_role_list import TenantRoleList
     from hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics import (
         TenantStepRunQueueMetrics,
     )
     from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
+    from hatchet_sdk.clients.rest.models.token_capability import TokenCapability
+    from hatchet_sdk.clients.rest.models.token_capability_list import (
+        TokenCapabilityList,
+    )
     from hatchet_sdk.clients.rest.models.trigger_run_result import TriggerRunResult
     from hatchet_sdk.clients.rest.models.trigger_workflow_run_request import (
         TriggerWorkflowRunRequest,
@@ -739,8 +745,12 @@ _LAZY_IMPORTS: dict[str, str] = {
     "TenantResource": "hatchet_sdk.clients.rest.models.tenant_resource",
     "TenantResourceLimit": "hatchet_sdk.clients.rest.models.tenant_resource_limit",
     "TenantResourcePolicy": "hatchet_sdk.clients.rest.models.tenant_resource_policy",
+    "TenantRole": "hatchet_sdk.clients.rest.models.tenant_role",
+    "TenantRoleList": "hatchet_sdk.clients.rest.models.tenant_role_list",
     "TenantStepRunQueueMetrics": "hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics",
     "TenantVersion": "hatchet_sdk.clients.rest.models.tenant_version",
+    "TokenCapability": "hatchet_sdk.clients.rest.models.token_capability",
+    "TokenCapabilityList": "hatchet_sdk.clients.rest.models.token_capability_list",
     "TriggerRunResult": "hatchet_sdk.clients.rest.models.trigger_run_result",
     "TriggerWorkflowRunRequest": "hatchet_sdk.clients.rest.models.trigger_workflow_run_request",
     "UpdateCronWorkflowTriggerRequest": "hatchet_sdk.clients.rest.models.update_cron_workflow_trigger_request",

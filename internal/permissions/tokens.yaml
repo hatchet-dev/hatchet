@@ -1,0 +1,386 @@
+# Capabilities held by tenant API tokens. A token may call a REST operation or gRPC procedure if any capability it holds grants it.
+# Tokens stored without capabilities (every token created before capabilities existed) resolve to "all", or "read-only" if they are read-only.
+
+# operations no token may call, whatever its capabilities
+unavailable:
+  rest:
+    # bearer tokens cannot read, list, or write other bearer tokens
+    - ApiTokenList
+    - ApiTokenCreate
+    - ApiTokenUpdateRevoke
+    # tokens are not tied to a member role, so they cannot change Labs entitlements
+    - TenantEntitlementsUpdate
+    # these act on the calling user rather than a tenant
+    - TenantCreate
+    - TenantInviteAccept
+    - TenantInviteReject
+    - MetadataListIntegrations
+
+capabilities:
+  all:
+    bundle: true
+    label: "Read and write"
+    description: "Every REST operation and gRPC procedure an API token can call."
+    rest: ["*"]
+    grpc: ["*"]
+
+  # every read a VIEWER has; tokens stored with the read-only flag hold this and are also kept off gRPC
+  read-only:
+    bundle: true
+    label: "Read"
+    description: "Everything a tenant viewer can read."
+    inherits: [runs:read, schedules:read, workflows:read, events:read, filters:read, webhooks:read, serverless:read, workers:read, rate-limits:read, streams:read, metrics:read, tenant:read, infra:read]
+
+  # everything a worker process does, including spawning children and registering its workflows
+  worker:
+    group: "Processes"
+    description: "Run a worker: register workflows, receive tasks, trigger child runs, and publish streams"
+    inherits: [workflows:write, runs:trigger, runs:read, streams:publish, traces:export]
+    grpc:
+      - /Dispatcher/GetVersion
+      - /Dispatcher/Register
+      - /Dispatcher/Listen
+      - /Dispatcher/ListenV2
+      - /Dispatcher/Heartbeat
+      - /Dispatcher/Unsubscribe
+      - /Dispatcher/SendStepActionEvent
+      - /Dispatcher/SendBatchActionEvent
+      - /Dispatcher/SendGroupKeyActionEvent
+      - /Dispatcher/PutOverridesData
+      - /Dispatcher/RefreshTimeout
+      - /Dispatcher/ReleaseSlot
+      - /Dispatcher/RestoreEvictedTask
+      - /Dispatcher/UpsertWorkerLabels
+      - /v1.V1Dispatcher/DurableTask
+      - /v1.V1Dispatcher/RegisterDurableEvent
+      - /v1.V1Dispatcher/ListenForDurableEvent
+      - /EventsService/PutLog
+      - /EventsService/PutStreamEvent
+
+  operator:
+    group: "Processes"
+    description: "Run a serverless operator"
+    grpc:
+      - /v1.OperatorService/Register
+      - /v1.OperatorService/Listen
+      - /v1.OperatorService/SendStepActionEvent
+      - /v1.OperatorService/DurableTask
+
+  runs:read:
+    group: "Runs"
+    description: "View runs and their results"
+    rest:
+      - WorkflowRunGet
+      - WorkflowRunGetShape
+      - WorkflowRunList
+      - WorkflowRunGetInput
+      - WorkflowRunListStepRunEvents
+      - StepRunGet
+      - StepRunGetSchema
+      - StepRunListArchives
+      - StepRunListEvents
+      - V1WorkflowRunGet
+      - V1WorkflowRunGetStatus
+      - V1WorkflowRunGetTimings
+      - V1WorkflowRunList
+      - V1WorkflowRunTaskEventsList
+      - V1WorkflowRunCountGet
+      - V1WorkflowRunDisplayNamesList
+      - V1WorkflowRunExternalIdsList
+      - V1TaskGet
+      - V1TaskEventList
+      - V1DagListTasks
+      - V1DurableTaskEventLogList
+      - V1LogLineList
+      - V1TenantLogLineList
+      - V1ObservabilityGetTrace
+    grpc:
+      - /Dispatcher/SubscribeToWorkflowEvents
+      - /Dispatcher/SubscribeToWorkflowRuns
+      - /v1.AdminService/GetRunDetails
+
+  runs:trigger:
+    group: "Runs"
+    description: "Trigger runs"
+    rest:
+      - WorkflowRunCreate
+      - V1WorkflowRunCreate
+    grpc:
+      - /WorkflowService/TriggerWorkflow
+      - /WorkflowService/BulkTriggerWorkflow
+      - /v1.AdminService/TriggerWorkflowRun
+
+  runs:manage:
+    group: "Runs"
+    description: "Cancel, replay, and branch runs"
+    rest:
+      - WorkflowRunCancel
+      - WorkflowRunUpdateReplay
+      - StepRunUpdateCancel
+      - StepRunUpdateRerun
+      - V1TaskCancel
+      - V1TaskReplay
+      - V1TaskRestore
+      - V1DurableTaskBranch
+    grpc:
+      - /v1.AdminService/CancelTasks
+      - /v1.AdminService/ReplayTasks
+      - /v1.AdminService/BranchDurableTask
+
+  schedules:read:
+    group: "Runs"
+    description: "View crons and scheduled runs"
+    rest:
+      - CronWorkflowList
+      - WorkflowCronGet
+      - WorkflowScheduledList
+      - WorkflowScheduledGet
+
+  schedules:write:
+    group: "Runs"
+    description: "Create, change, trigger, and delete crons and scheduled runs"
+    rest:
+      - CronWorkflowTriggerCreate
+      - ScheduledWorkflowRunCreate
+      - WorkflowCronUpdate
+      - WorkflowCronDelete
+      - WorkflowCronTrigger
+      - WorkflowScheduledUpdate
+      - WorkflowScheduledDelete
+      - WorkflowScheduledTrigger
+      - WorkflowScheduledBulkUpdate
+      - WorkflowScheduledBulkDelete
+    grpc:
+      - /WorkflowService/ScheduleWorkflow
+
+  workflows:read:
+    group: "Workflows"
+    description: "View workflows"
+    rest:
+      - WorkflowList
+      - WorkflowGet
+      - WorkflowVersionGet
+      - WorkflowGetWorkersCount
+      - V1ConcurrencyStrategyList
+      - V1ConcurrencyKeyList
+
+  workflows:write:
+    group: "Workflows"
+    description: "Register, change, and delete workflows"
+    rest:
+      - WorkflowUpdate
+      - WorkflowDelete
+    grpc:
+      - /WorkflowService/PutWorkflow
+      - /v1.AdminService/PutWorkflow
+
+  events:read:
+    group: "Events"
+    description: "View events"
+    rest:
+      - EventList
+      - EventGet
+      - EventDataGet
+      - EventDataGetWithTenant
+      - EventKeyList
+      - V1EventList
+      - V1EventGet
+      - V1EventKeyList
+
+  events:push:
+    group: "Events"
+    description: "Push events"
+    rest:
+      - EventCreate
+      - EventCreateBulk
+    grpc:
+      - /EventsService/Push
+      - /EventsService/BulkPush
+
+  events:manage:
+    group: "Events"
+    description: "Cancel and replay events"
+    rest:
+      - EventUpdateCancel
+      - EventUpdateReplay
+    grpc:
+      - /EventsService/ReplaySingleEvent
+
+  filters:read:
+    group: "Events"
+    description: "View event filters"
+    rest:
+      - V1FilterGet
+      - V1FilterList
+      - V1CelDebug
+
+  filters:write:
+    group: "Events"
+    description: "Create and change event filters"
+    rest:
+      - V1FilterCreate
+      - V1FilterUpdate
+      - V1FilterDelete
+
+  webhooks:read:
+    group: "Events"
+    description: "View webhooks"
+    rest:
+      - V1WebhookGet
+      - V1WebhookList
+      - WebhookList
+      - WebhookRequestsList
+
+  webhooks:write:
+    group: "Events"
+    description: "Create and change webhooks"
+    rest:
+      - V1WebhookCreate
+      - V1WebhookUpdate
+      - V1WebhookDelete
+      - WebhookCreate
+      - WebhookDelete
+
+  serverless:read:
+    group: "Workers"
+    description: "View serverless endpoints"
+    rest:
+      - V1ServerlessEndpointGet
+      - V1ServerlessEndpointList
+      - V1ServerlessEndpointEventList
+
+  serverless:write:
+    group: "Workers"
+    description: "Create and change serverless endpoints"
+    rest:
+      - V1ServerlessEndpointCreate
+      - V1ServerlessEndpointUpdate
+      - V1ServerlessEndpointDelete
+
+  workers:read:
+    group: "Workers"
+    description: "View workers"
+    rest:
+      - WorkerList
+      - WorkerGet
+
+  workers:write:
+    group: "Workers"
+    description: "Update workers"
+    rest:
+      - WorkerUpdate
+
+  rate-limits:read:
+    group: "Workers"
+    description: "View rate limits"
+    rest:
+      - RateLimitList
+
+  rate-limits:write:
+    group: "Workers"
+    description: "Create, pause, and delete rate limits"
+    rest:
+      - RateLimitDelete
+    grpc:
+      - /WorkflowService/PutRateLimit
+      - /WorkflowService/PauseRateLimit
+
+  streams:read:
+    group: "Streams and telemetry"
+    description: "Read streams"
+    rest:
+      - V1StreamPayloadGet
+      - V1StreamTopicList
+    grpc:
+      - /v1.V1Streams/Subscribe
+      - /v1.V1Streams/GetTopicMetadata
+
+  streams:publish:
+    group: "Streams and telemetry"
+    description: "Publish to streams"
+    rest:
+      - V1StreamPayloadUpload
+    grpc:
+      - /v1.V1Streams/Publish
+      - /v1.V1Streams/PublishBatch
+
+  streams:manage:
+    group: "Streams and telemetry"
+    description: "Reset streams"
+    grpc:
+      - /v1.V1Streams/Reset
+
+  traces:export:
+    group: "Streams and telemetry"
+    description: "Export traces"
+    grpc:
+      - /opentelemetry.proto.collector.trace.v1.TraceService/Export
+
+  metrics:read:
+    group: "Streams and telemetry"
+    description: "View metrics"
+    rest:
+      - MonitoringPostRunProbe
+      - TenantGetPrometheusMetrics
+      - TenantGetQueueMetrics
+      - TenantGetStepRunQueueMetrics
+      - TenantGetTaskStats
+      - WorkflowGetMetrics
+      - WorkflowRunGetMetrics
+      - V1TaskGetPointMetrics
+      - V1TaskListStatusMetrics
+      - V1TenantLogLineGetPointMetrics
+
+  # granted the extension's read operations at startup (cloud infrastructure); empty in OSS, so never listed there
+  infra:read:
+    group: "Infrastructure"
+    description: "View managed compute, sandbox providers, and autoscaling, with their logs and metrics"
+
+  # granted the extension's write operations at startup (cloud infrastructure); empty in OSS, so never listed there
+  infra:write:
+    group: "Infrastructure"
+    description: "Deploy and change managed compute, sandbox providers, and autoscaling"
+
+  tenant:read:
+    group: "Tenant"
+    description: "View tenant settings and alerting"
+    rest:
+      - TenantGet
+      - TenantRoleList
+      - ApiTokenCapabilityList
+      - TenantEntitlementsGet
+      - TenantResourcePolicyGet
+      - TenantFeatureFlagEvaluate
+      - TenantAlertingSettingsGet
+      - AlertEmailGroupList
+      - SnsList
+      - SlackWebhookList
+
+  tenant:write:
+    group: "Tenant"
+    description: "Change tenant settings and alerting"
+    rest:
+      - TenantUpdate
+      - AlertEmailGroupCreate
+      - AlertEmailGroupUpdate
+      - AlertEmailGroupDelete
+      - SnsCreate
+      - SnsDelete
+      - SlackWebhookDelete
+
+  members:read:
+    group: "Tenant"
+    description: "View members and invites"
+    rest:
+      - TenantMemberList
+      - TenantInviteList
+
+  members:write:
+    group: "Tenant"
+    description: "Manage members and invites"
+    rest:
+      - TenantMemberUpdate
+      - TenantMemberDelete
+      - TenantInviteCreate
+      - TenantInviteUpdate
+      - TenantInviteDelete

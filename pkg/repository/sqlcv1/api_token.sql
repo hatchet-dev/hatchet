@@ -15,7 +15,8 @@ INSERT INTO "APIToken" (
     "name",
     "expiresAt",
     "internal",
-    "readOnly"
+    "readOnly",
+    "capabilities"
 ) VALUES (
     coalesce(@id::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -24,7 +25,8 @@ INSERT INTO "APIToken" (
     sqlc.narg('name')::text,
     @expiresAt::timestamp,
     COALESCE(sqlc.narg('internal')::boolean, FALSE),
-    @readOnly::boolean
+    @readOnly::boolean,
+    sqlc.narg('capabilities')::text[]
 ) RETURNING *;
 
 

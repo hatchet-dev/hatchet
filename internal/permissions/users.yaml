@@ -1,9 +1,21 @@
+# Roles for users; API tokens are authorized by their capabilities in tokens.yaml.
 roles:
+  # users who have not verified their email are capped to these operations on top of their own role
+  UNVERIFIED_EMAIL:
+    permissions:
+      - UserGetCurrent
+      - UserUpdateLogout
   OWNER:
+    assignable: true
+    label: "Owner"
+    description: "Everything an admin can do, and invite or promote other owners."
     inherits: [ADMIN]
   NOAUTH:
     inherits: [MEMBER]
   ADMIN:
+    assignable: true
+    label: "Admin"
+    description: "Everything a member can do, and manage members, invites, API tokens, and Labs features."
     inherits: [MEMBER]
     permissions:
       - TenantEntitlementsUpdate
@@ -16,6 +28,9 @@ roles:
       - TenantInviteUpdate
       - TenantInviteDelete
   MEMBER:
+    assignable: true
+    label: "Member"
+    description: "Trigger, cancel, and replay runs, and change workflows, workers, and tenant settings."
     inherits: [VIEWER]
     permissions:
       - ApiTokenList
@@ -73,7 +88,12 @@ roles:
       - V1ServerlessEndpointUpdate
       - V1ServerlessEndpointDelete
   VIEWER:
+    assignable: true
+    label: "Viewer"
+    description: "View runs, workflows, events, workers, and tenant settings."
     permissions:
+      - TenantRoleList
+      - ApiTokenCapabilityList
       - TenantAlertingSettingsGet
       - V1EventGet
       - TenantGet

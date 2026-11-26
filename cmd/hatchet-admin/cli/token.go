@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
+	authtoken "github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -20,6 +21,7 @@ var (
 	tokenTenantIdStr string
 	tokenName        string
 	expiresIn        time.Duration
+	tokenCaps        []string
 )
 
 var tokenCmd = &cobra.Command{
@@ -65,6 +67,13 @@ func init() {
 		90*24*time.Hour,
 		"Expiration duration for the API token",
 	)
+
+	tokenCreateAPICmd.PersistentFlags().StringSliceVar(
+		&tokenCaps,
+		"capabilities",
+		nil,
+		"capabilities for the token, e.g. worker,events:push; omit to grant all",
+	)
 }
 
 func runCreateAPIToken(expiresIn time.Duration) error {
@@ -72,6 +81,16 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 	if authmode.IsDisabled {
 		fmt.Println(authmode.EmbeddedToken())
 		return nil
+	}
+
+	var opts []authtoken.GenerateOption
+
+	if len(tokenCaps) > 0 {
+		if err := authtoken.ValidateCapabilities(tokenCaps); err != nil {
+			return err
+		}
+
+		opts = append(opts, authtoken.WithCapabilities(tokenCaps))
 	}
 
 	// read in the local config
@@ -100,7 +119,7 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 		return err
 	}
 
-	defaultTok, err := srv.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, false, &expiresAt)
+	defaultTok, err := srv.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, false, &expiresAt, opts...)
 
 	if err != nil {
 		return err

@@ -7,10 +7,10 @@ import {
 } from '@/hooks/use-subscription-upgrade';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { useTenantEntitlements } from '@/hooks/use-tenant-entitlements';
+import { useTenantRoles } from '@/hooks/use-tenant-roles';
 import api, {
   queries,
   TenantEntitlements,
-  TenantMemberRole,
   UpdateTenantEntitlementsRequest,
 } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
@@ -22,8 +22,8 @@ import { useState } from 'react';
 
 export default function LabsSettings() {
   const { tenantId } = useCurrentTenantId();
-  const { membership, billing, organizationId, isUserUniverseLoaded } =
-    useTenantDetails();
+  const { billing, organizationId, isUserUniverseLoaded } = useTenantDetails();
+  const { can, isLoading: rolesLoading } = useTenantRoles();
   const { canBill, isControlPlaneEnabled } = useControlPlane();
   const {
     entitlements,
@@ -80,7 +80,7 @@ export default function LabsSettings() {
     },
   });
 
-  if (!isUserUniverseLoaded || isLoading || billingPending) {
+  if (!isUserUniverseLoaded || isLoading || billingPending || rolesLoading) {
     return <LabsPreview status="loading" />;
   }
 
@@ -114,10 +114,7 @@ export default function LabsSettings() {
     );
   }
 
-  if (
-    membership !== TenantMemberRole.OWNER &&
-    membership !== TenantMemberRole.ADMIN
-  ) {
+  if (!can('TenantEntitlementsUpdate')) {
     return <LabsPreview status="gated" />;
   }
 

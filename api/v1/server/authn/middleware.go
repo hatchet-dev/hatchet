@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/auth/authz"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -222,6 +223,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 
 	ctx = context.WithValue(ctx, analytics.UserIDKey, userIdUUID)
 	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceUI)
+	ctx = authz.WithPrincipal(ctx, authz.UserPrincipal{UserID: user.ID, EmailVerified: user.EmailVerified, Via: authz.ViaCookie})
 
 	span := trace.SpanFromContext(ctx)
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "user.id", Value: userIdUUID})
@@ -310,6 +312,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 		ctx = context.WithValue(ctx, analytics.UserIDKey, *userId)
 		ctx = context.WithValue(ctx, analytics.TenantIDKey, *tenantId)
 		ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceAPI)
+		ctx = authz.WithPrincipal(ctx, authz.UserPrincipal{UserID: user.ID, EmailVerified: user.EmailVerified, Via: authz.ViaExchangeToken})
 
 		span := trace.SpanFromContext(ctx)
 		telemetry.WithAttributes(span,
@@ -351,11 +354,31 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 		return forbidden
 	}
 
+	// ValidateTenantToken already read this row, so this is served from the token cache.
+	dbToken, err := a.config.V1.APIToken().GetAPITokenById(ctx, tokenUUID)
+
+	if errors.As(err, &limitErr) {
+		return err
+	}
+
+	if err != nil {
+		a.l.Debug().Ctx(ctx).Err(err).Msg("error getting api token")
+
+		return forbidden
+	}
+
 	c.Set(string(analytics.APITokenIDKey), tokenUUID)
 
 	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
 	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceAPI)
+	ctx = authz.WithPrincipal(ctx, authz.TokenPrincipal{
+		TokenID:      tokenUUID,
+		Kind:         authz.TenantAPIToken,
+		TenantID:     &tenantId,
+		ReadOnly:     dbToken.ReadOnly,
+		Capabilities: authz.TokenCapabilities(dbToken.Capabilities, dbToken.ReadOnly),
+	})
 
 	span := trace.SpanFromContext(ctx)
 	telemetry.WithAttributes(span,
@@ -372,7 +395,16 @@ func (a *AuthN) handleCustomAuth(c echo.Context, r *middleware.RouteInfo) error 
 		return fmt.Errorf("custom auth handler is not set")
 	}
 
-	return a.config.Auth.CustomAuthenticator.Authenticate(c, r)
+	if err := a.config.Auth.CustomAuthenticator.Authenticate(c, r); err != nil {
+		return err
+	}
+
+	// The only custom authenticator today validates management tokens; it may set a richer principal itself.
+	if authz.PrincipalFrom(c.Request().Context()) == nil {
+		c.SetRequest(c.Request().WithContext(authz.WithPrincipal(c.Request().Context(), authz.TokenPrincipal{Kind: authz.ManagementToken})))
+	}
+
+	return nil
 }
 
 const exchangeTokenHeader = "X-Exchange-Token"

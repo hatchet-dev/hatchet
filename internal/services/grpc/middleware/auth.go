@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	pkgauthz "github.com/hatchet-dev/hatchet/pkg/auth/authz"
 	authtoken "github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
@@ -56,10 +57,6 @@ func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context
 	if err != nil {
 		return nil, forbidden
 	}
-	if dbToken.ReadOnly {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("read-only tokens cannot use gRPC"))
-	}
-
 	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
 
@@ -79,6 +76,14 @@ func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context
 		a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting tenant by id: %s", err)
 		return nil, forbidden
 	}
+
+	ctx = pkgauthz.WithPrincipal(ctx, pkgauthz.TokenPrincipal{
+		TokenID:      tokenUUID,
+		Kind:         pkgauthz.TenantAPIToken,
+		TenantID:     &tenantId,
+		ReadOnly:     dbToken.ReadOnly,
+		Capabilities: pkgauthz.TokenCapabilities(dbToken.Capabilities, dbToken.ReadOnly),
+	})
 
 	return context.WithValue(ctx, "tenant", queriedTenant), nil
 }

@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/tink-crypto/tink-go/jwt"
 
+	"github.com/hatchet-dev/hatchet/internal/permissions"
+	"github.com/hatchet-dev/hatchet/pkg/auth/authz"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
@@ -17,7 +19,7 @@ import (
 var ErrCouldNotReadTokenFromDatabase = errors.New("could not read token from database")
 
 type JWTManager interface {
-	GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, readOnly bool, expires *time.Time) (*Token, error)
+	GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, readOnly bool, expires *time.Time, opts ...GenerateOption) (*Token, error)
 	ValidateTenantToken(ctx context.Context, token string) (uuid.UUID, uuid.UUID, error)
 }
 
@@ -48,6 +50,42 @@ func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APIT
 		tokenRepo:  tokenRepo,
 		verifier:   verifier,
 	}, nil
+}
+
+type generateOpts struct {
+	capabilities    []string
+	hasCapabilities bool
+}
+
+// GenerateOption is variadic so callers in other repos keep compiling when options are added.
+type GenerateOption func(*generateOpts)
+
+func WithCapabilities(capabilities []string) GenerateOption {
+	return func(o *generateOpts) {
+		o.capabilities = capabilities
+		o.hasCapabilities = true
+	}
+}
+
+var ErrInvalidCapabilities = errors.New("invalid capabilities")
+
+func ValidateCapabilities(capabilities []string) error {
+	if len(capabilities) == 0 {
+		return fmt.Errorf("%w: capabilities cannot be empty; omit them to grant all", ErrInvalidCapabilities)
+	}
+
+	for _, c := range capabilities {
+		ok, err := permissions.TokenCapabilityExists(c)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			return fmt.Errorf("%w: unknown capability %q", ErrInvalidCapabilities, c)
+		}
+	}
+
+	return nil
 }
 
 type Token struct {
@@ -85,7 +123,25 @@ func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId uuid.UUID, na
 	}, nil
 }
 
-func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, readOnly bool, expires *time.Time) (*Token, error) {
+func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, readOnly bool, expires *time.Time, opts ...GenerateOption) (*Token, error) {
+	var o generateOpts
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	switch {
+	// An explicit empty list is a caller mistake, not a request for every capability.
+	case o.hasCapabilities:
+		if err := ValidateCapabilities(o.capabilities); err != nil {
+			return nil, err
+		}
+	// The read-only flag only narrows gRPC, so storing "all" beside it would open every REST operation.
+	case readOnly:
+		o.capabilities = []string{authz.ReadOnlyCapability}
+	default:
+		o.capabilities = []string{authz.AllCapabilities}
+	}
+
 	token, err := j.createToken(ctx, tenantId, name, nil, expires)
 	if err != nil {
 		return nil, err
@@ -93,12 +149,13 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.
 
 	// write the token to the database
 	_, err = j.tokenRepo.CreateAPIToken(ctx, &v1.CreateAPITokenOpts{
-		ID:        token.TokenId,
-		ExpiresAt: token.ExpiresAt,
-		TenantId:  &tenantId,
-		Name:      &name,
-		Internal:  internal,
-		ReadOnly:  readOnly,
+		ID:           token.TokenId,
+		ExpiresAt:    token.ExpiresAt,
+		TenantId:     &tenantId,
+		Name:         &name,
+		Internal:     internal,
+		ReadOnly:     readOnly,
+		Capabilities: o.capabilities,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to write token to database: %v", err)

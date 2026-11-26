@@ -146,6 +146,16 @@ export const queries = createQueryKeyStore({
       queryKey: ['api-token:list', tenant],
       queryFn: async () => (await api.apiTokenList(tenant)).data,
     }),
+    capabilities: (tenant: string) => ({
+      queryKey: ['api-token:capability-list', tenant],
+      queryFn: async () => (await api.apiTokenCapabilityList(tenant)).data,
+    }),
+  },
+  roles: {
+    list: (tenant: string) => ({
+      queryKey: ['tenant:role-list', tenant],
+      queryFn: async () => (await api.tenantRoleList(tenant)).data,
+    }),
   },
   emailGroups: {
     list: (tenant: string) => ({

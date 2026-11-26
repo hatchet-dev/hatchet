@@ -1,10 +1,9 @@
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { useTenantDetails } from '@/hooks/use-tenant';
+import { useTenantRoles } from '@/hooks/use-tenant-roles';
 import { APIToken } from '@/lib/api';
-import {
-  API_TOKEN_MANAGE_DISABLED_REASON,
-  canManageApiTokens,
-} from '@/lib/api-token-permissions';
+
+export const API_TOKEN_MANAGE_DISABLED_REASON =
+  'Your role in this tenant does not allow creating or revoking API tokens.';
 
 export function TokenActions({
   token,
@@ -13,7 +12,7 @@ export function TokenActions({
   token: APIToken;
   onRevokeClick: (token: APIToken) => void;
 }) {
-  const { membership } = useTenantDetails();
+  const { can } = useTenantRoles();
 
   return (
     <TableRowActions
@@ -22,7 +21,7 @@ export function TokenActions({
         {
           label: 'Revoke',
           onClick: () => onRevokeClick(token),
-          disabled: canManageApiTokens(membership)
+          disabled: can('ApiTokenUpdateRevoke')
             ? false
             : API_TOKEN_MANAGE_DISABLED_REASON,
         },

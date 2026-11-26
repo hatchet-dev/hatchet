@@ -37,3 +37,18 @@ func TestAPITokenReadOnlyPersistence(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, loaded.ReadOnly)
 }
+
+func TestAPITokenCapabilitiesPersistence(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+	ctx := context.Background()
+	repo := newAPITokenRepository(&sharedRepository{pool: fairpool.Ungated(pool), queries: sqlcv1.New(), v: validator.NewDefaultValidator()}, time.Minute)
+	for _, caps := range [][]string{nil, {"worker", "events:push"}} {
+		row, err := repo.CreateAPIToken(ctx, &CreateAPITokenOpts{ID: uuid.New(), ExpiresAt: time.Now().Add(time.Hour), Capabilities: caps})
+		require.NoError(t, err)
+		require.Equal(t, caps, row.Capabilities)
+		loaded, err := repo.GetAPITokenById(ctx, row.ID)
+		require.NoError(t, err)
+		require.Equal(t, caps, loaded.Capabilities, "nil must stay NULL so the token keeps every capability")
+	}
+}

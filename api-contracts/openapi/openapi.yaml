@@ -171,6 +171,10 @@ paths:
     $ref: "./paths/tenant/tenant.yaml#/inviteScoped"
   /api/v1/tenants/{tenant}/api-tokens:
     $ref: "./paths/api-tokens/api_tokens.yaml#/withTenant"
+  /api/v1/tenants/{tenant}/api-tokens/capabilities:
+    $ref: "./paths/api-tokens/api_tokens.yaml#/capabilities"
+  /api/v1/tenants/{tenant}/roles:
+    $ref: "./paths/api-tokens/api_tokens.yaml#/roles"
   /api/v1/api-tokens/{api-token}:
     $ref: "./paths/api-tokens/api_tokens.yaml#/revoke"
   /api/v1/tenants/{tenant}/queue-metrics:

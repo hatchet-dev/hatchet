@@ -76,16 +76,13 @@ end
 
 api_instance = HatchetSdkRest::APITokenApi.new
 tenant = '38400000-8cf0-11bd-b23e-10b96e4ef00d' # String | The tenant id
-opts = {
-  create_api_token_request: HatchetSdkRest::CreateAPITokenRequest.new({name: 'name_example'}) # CreateAPITokenRequest |
-}
 
 begin
-  #Create API Token
-  result = api_instance.api_token_create(tenant, opts)
+  #List API token capabilities
+  result = api_instance.api_token_capability_list(tenant)
   p result
 rescue HatchetSdkRest::ApiError => e
-  puts "Exception when calling APITokenApi->api_token_create: #{e}"
+  puts "Exception when calling APITokenApi->api_token_capability_list: #{e}"
 end
 
 ```
@@ -96,6 +93,7 @@ All URIs are relative to *http://localhost*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
+*HatchetSdkRest::APITokenApi* | [**api_token_capability_list**](docs/APITokenApi.md#api_token_capability_list) | **GET** /api/v1/tenants/{tenant}/api-tokens/capabilities | List API token capabilities
 *HatchetSdkRest::APITokenApi* | [**api_token_create**](docs/APITokenApi.md#api_token_create) | **POST** /api/v1/tenants/{tenant}/api-tokens | Create API Token
 *HatchetSdkRest::APITokenApi* | [**api_token_list**](docs/APITokenApi.md#api_token_list) | **GET** /api/v1/tenants/{tenant}/api-tokens | List API Tokens
 *HatchetSdkRest::APITokenApi* | [**api_token_update_revoke**](docs/APITokenApi.md#api_token_update_revoke) | **POST** /api/v1/api-tokens/{api-token} | Revoke API Token
@@ -190,6 +188,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::TenantApi* | [**tenant_member_list**](docs/TenantApi.md#tenant_member_list) | **GET** /api/v1/tenants/{tenant}/members | List tenant members
 *HatchetSdkRest::TenantApi* | [**tenant_member_update**](docs/TenantApi.md#tenant_member_update) | **PATCH** /api/v1/tenants/{tenant}/members/{member} | Update a tenant member
 *HatchetSdkRest::TenantApi* | [**tenant_resource_policy_get**](docs/TenantApi.md#tenant_resource_policy_get) | **GET** /api/v1/tenants/{tenant}/resource-policy | Create tenant alert email group
+*HatchetSdkRest::TenantApi* | [**tenant_role_list**](docs/TenantApi.md#tenant_role_list) | **GET** /api/v1/tenants/{tenant}/roles | List tenant roles
 *HatchetSdkRest::TenantApi* | [**tenant_update**](docs/TenantApi.md#tenant_update) | **PATCH** /api/v1/tenants/{tenant} | Update tenant
 *HatchetSdkRest::TenantApi* | [**user_list_tenant_invites**](docs/TenantApi.md#user_list_tenant_invites) | **GET** /api/v1/users/invites | List tenant invites
 *HatchetSdkRest::UserApi* | [**tenant_memberships_list**](docs/UserApi.md#tenant_memberships_list) | **GET** /api/v1/users/memberships | List tenant memberships
@@ -376,8 +375,12 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::TenantResource](docs/TenantResource.md)
  - [HatchetSdkRest::TenantResourceLimit](docs/TenantResourceLimit.md)
  - [HatchetSdkRest::TenantResourcePolicy](docs/TenantResourcePolicy.md)
+ - [HatchetSdkRest::TenantRole](docs/TenantRole.md)
+ - [HatchetSdkRest::TenantRoleList](docs/TenantRoleList.md)
  - [HatchetSdkRest::TenantStepRunQueueMetrics](docs/TenantStepRunQueueMetrics.md)
  - [HatchetSdkRest::TenantVersion](docs/TenantVersion.md)
+ - [HatchetSdkRest::TokenCapability](docs/TokenCapability.md)
+ - [HatchetSdkRest::TokenCapabilityList](docs/TokenCapabilityList.md)
  - [HatchetSdkRest::TriggerRunResult](docs/TriggerRunResult.md)
  - [HatchetSdkRest::TriggerWorkflowRunRequest](docs/TriggerWorkflowRunRequest.md)
  - [HatchetSdkRest::UpdateCronWorkflowTriggerRequest](docs/UpdateCronWorkflowTriggerRequest.md)

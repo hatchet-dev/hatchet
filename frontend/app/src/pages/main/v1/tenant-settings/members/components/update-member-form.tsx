@@ -1,3 +1,4 @@
+import { RoleSelectItems } from '@/components/v1/molecules/role-select-items';
 import { Button } from '@/components/v1/ui/button';
 import { Checkbox } from '@/components/v1/ui/checkbox';
 import {
@@ -12,7 +13,6 @@ import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
@@ -116,12 +116,11 @@ export function UpdateMemberForm({
                         <SelectValue id="role" placeholder="Role..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {(!isControlPlaneEnabled || props.canSetOwnerRole) && (
-                          <SelectItem value="OWNER">Owner</SelectItem>
-                        )}
-                        <SelectItem value="ADMIN">Admin</SelectItem>
-                        <SelectItem value="MEMBER">Member</SelectItem>
-                        <SelectItem value="VIEWER">Viewer</SelectItem>
+                        <RoleSelectItems
+                          allowOwner={
+                            !isControlPlaneEnabled || !!props.canSetOwnerRole
+                          }
+                        />
                       </SelectContent>
                     </Select>
                   );

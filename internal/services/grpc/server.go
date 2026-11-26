@@ -322,9 +322,14 @@ func (s *Server) handlerOptions() ([]connect.HandlerOption, error) {
 		maxMsgSize = defaultMaxMsgSize
 	}
 
+	authz, err := middleware.NewAuthZ(s.l)
+	if err != nil {
+		return nil, fmt.Errorf("could not load gRPC permissions: %w", err)
+	}
+
 	return []connect.HandlerOption{
-		// authentication and rate limits run on the request headers, before any body is read
-		connect.WithRequestGate(middleware.NewRequestGate(middleware.NewAuthN(s.config), limiter, s.l)),
+		// authentication, authorization and rate limits run on the request headers, before any body is read
+		connect.WithRequestGate(middleware.NewRequestGate(middleware.NewAuthN(s.config), authz, limiter, s.l)),
 		connect.WithInterceptors(interceptors...),
 		connect.WithReadMaxBytes(maxMsgSize),
 		connect.WithSendMaxBytes(maxMsgSize),

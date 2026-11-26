@@ -26,6 +26,9 @@ type CreateAPITokenOpts struct {
 
 	Internal bool
 	ReadOnly bool
+
+	// (optional) capabilities limiting REST and gRPC access; nil stores NULL, which resolves to all (or read-only)
+	Capabilities []string
 }
 
 type APITokenGenerator func(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (string, error)
@@ -69,10 +72,11 @@ func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPI
 	}
 
 	createParams := sqlcv1.CreateAPITokenParams{
-		ID:        opts.ID,
-		Expiresat: sqlchelpers.TimestampFromTime(opts.ExpiresAt),
-		Internal:  sqlchelpers.BoolFromBoolean(opts.Internal),
-		Readonly:  opts.ReadOnly,
+		ID:           opts.ID,
+		Expiresat:    sqlchelpers.TimestampFromTime(opts.ExpiresAt),
+		Internal:     sqlchelpers.BoolFromBoolean(opts.Internal),
+		Readonly:     opts.ReadOnly,
+		Capabilities: opts.Capabilities,
 	}
 
 	if opts.TenantId != nil {

@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+
+	"github.com/hatchet-dev/hatchet/pkg/auth/authz"
 )
 
 func (a *AuthN) authPreflight(c echo.Context) (handled bool, err error) {
@@ -21,6 +23,7 @@ func (a *AuthN) authPreflight(c echo.Context) (handled bool, err error) {
 
 	c.Set("user", user)
 	c.Set("auth_strategy", "authdisabled")
+	c.SetRequest(c.Request().WithContext(authz.WithPrincipal(ctx, authz.UserPrincipal{UserID: user.ID, EmailVerified: user.EmailVerified, Via: authz.ViaCookie})))
 
 	return true, nil
 }
