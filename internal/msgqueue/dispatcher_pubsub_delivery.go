@@ -22,7 +22,14 @@ type dispatcherPubSubDeliveryQueue struct {
 // NewDispatcherPubSubDeliveryQueue loses the durable queue's dead-letter path: a message for a dispatcher
 // that is gone is dropped instead of being failed back to the scheduler. Unacknowledged assignments
 // are recovered by the dispatcher's database pull and by ReassignUnackedTasks instead.
-func NewDispatcherPubSubDeliveryQueue(mq MessageQueue, pubsub PubSub, dropPercent int) MessageQueue {
+func NewDispatcherPubSubDeliveryQueue(mq MessageQueue, pubsub PubSub) MessageQueue {
+	return newDispatcherPubSubDeliveryQueue(mq, pubsub, 0)
+}
+
+// newDispatcherPubSubDeliveryQueue takes a drop percent only from tests, which use it to exercise the
+// recovery paths; it is kept out of the engine's configuration so production can't lose messages on
+// purpose.
+func newDispatcherPubSubDeliveryQueue(mq MessageQueue, pubsub PubSub, dropPercent int) MessageQueue {
 	return &dispatcherPubSubDeliveryQueue{
 		MessageQueue: mq,
 		pubsub:       pubsub,
@@ -37,7 +44,7 @@ func (q *dispatcherPubSubDeliveryQueue) Clone() (func() error, MessageQueue, err
 		return nil, nil, err
 	}
 
-	return cleanup, NewDispatcherPubSubDeliveryQueue(cloned, q.pubsub, q.dropPercent), nil
+	return cleanup, newDispatcherPubSubDeliveryQueue(cloned, q.pubsub, q.dropPercent), nil
 }
 
 // pubSubDeliverable lists the dispatcher messages whose loss something else recovers: the dispatcher pulls

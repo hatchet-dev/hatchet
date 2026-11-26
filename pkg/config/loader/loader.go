@@ -575,6 +575,11 @@ func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...Serve
 }
 
 func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, version string) (cleanup func() error, res *server.ServerConfig, err error) {
+	// checked before anything connects, so a bad value fails fast with nothing to clean up
+	if err := validateDeliveryIntervals(&cf.Runtime); err != nil {
+		return nil, nil, err
+	}
+
 	l := logger.NewStdErr(&cf.Logger, "server")
 	queueLogger := logger.NewStdErr(&cf.AdditionalLoggers.Queue, "queue")
 
@@ -668,7 +673,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				return nil, nil, fmt.Errorf("SERVER_DISPATCHER_PUBSUB_DELIVERY_ENABLED requires SERVER_REASSIGN_UNACKED_TASKS")
 			}
 
-			mqv1 = msgqueue.NewDispatcherPubSubDeliveryQueue(mqv1, pubsubv1, cf.Runtime.DispatcherPubSubDeliveryDropPercent)
+			mqv1 = msgqueue.NewDispatcherPubSubDeliveryQueue(mqv1, pubsubv1)
 		}
 
 		ing, err = ingestor.NewIngestor(
@@ -1585,6 +1590,37 @@ func firstNWords(s string, n int) string {
 		end += next + 1
 	}
 	return strings.ToUpper(strings.TrimSpace(s[:end]))
+}
+
+// validateDeliveryIntervals rejects values that would only fail later: the intervals feed
+// time.NewTicker in background goroutines, which panics on a non-positive duration. They are checked
+// whether or not the features are switched on, since every engine that applies internal events drains
+// the outbox and any dispatcher may start the pull once another engine sends it pub/sub messages.
+func validateDeliveryIntervals(rt *server.ConfigFileRuntime) error {
+	// a floor rather than just > 0: the outbox polls each shard and the pull queries every connected
+	// worker's runtimes, so a tiny interval turns either into a busy loop against the database
+	const minInterval = 100 * time.Millisecond
+
+	if rt.InternalEventOutboxPollInterval < minInterval {
+		return fmt.Errorf("SERVER_INTERNAL_EVENT_OUTBOX_POLL_INTERVAL must be at least %s, got %s", minInterval, rt.InternalEventOutboxPollInterval)
+	}
+
+	if rt.DispatcherPullInterval < minInterval {
+		return fmt.Errorf("SERVER_DISPATCHER_PULL_INTERVAL must be at least %s, got %s", minInterval, rt.DispatcherPullInterval)
+	}
+
+	if rt.DispatcherPullGrace < 0 {
+		return fmt.Errorf("SERVER_DISPATCHER_PULL_GRACE must not be negative, got %s", rt.DispatcherPullGrace)
+	}
+
+	// ReassignUnackedTasks takes assignments unacked for a minute (tasks.sql ReassignUnackedTasks), so a
+	// pull that only looks that late would never recover anything before reassign does, at the cost
+	// of a retry
+	if rt.TaskOperationLimits.ReassignUnackedTasks && rt.DispatcherPullGrace+rt.DispatcherPullInterval >= time.Minute {
+		return fmt.Errorf("SERVER_DISPATCHER_PULL_GRACE plus SERVER_DISPATCHER_PULL_INTERVAL must be under the 1m reassign cutoff, got %s", rt.DispatcherPullGrace+rt.DispatcherPullInterval)
+	}
+
+	return nil
 }
 
 // newInternalEventOutbox gives the internal event outbox its own small pool. Processing a batch holds a

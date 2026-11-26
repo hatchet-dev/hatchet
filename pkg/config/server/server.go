@@ -292,9 +292,6 @@ type ConfigFileRuntime struct {
 	// pub/sub message that is still on its way
 	DispatcherPullGrace time.Duration `mapstructure:"dispatcherPullGrace" json:"dispatcherPullGrace,omitempty" default:"2s"`
 
-	// Test only: the percentage of dispatcher pub/sub messages to drop, to exercise the database pull
-	DispatcherPubSubDeliveryDropPercent int `mapstructure:"dispatcherPubSubDeliveryDropPercent" json:"dispatcherPubSubDeliveryDropPercent,omitempty" default:"0"`
-
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
 
@@ -1264,7 +1261,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.dispatcherPubSubDeliveryEnabled", "SERVER_DISPATCHER_PUBSUB_DELIVERY_ENABLED")
 	_ = v.BindEnv("runtime.dispatcherPullInterval", "SERVER_DISPATCHER_PULL_INTERVAL")
 	_ = v.BindEnv("runtime.dispatcherPullGrace", "SERVER_DISPATCHER_PULL_GRACE")
-	_ = v.BindEnv("runtime.dispatcherPubSubDeliveryDropPercent", "SERVER_DISPATCHER_PUBSUB_DELIVERY_DROP_PERCENT")
 
 	// internal client options
 	_ = v.BindEnv("internalClient.base.tlsStrategy", "SERVER_INTERNAL_CLIENT_BASE_STRATEGY")

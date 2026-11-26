@@ -17,7 +17,7 @@ func TestDispatcherPubSubDeliveryRoutesOnlyDispatcherQueues(t *testing.T) {
 	}}
 	ps := &recordingPubSub{}
 
-	q := NewDispatcherPubSubDeliveryQueue(mq, ps, 0)
+	q := NewDispatcherPubSubDeliveryQueue(mq, ps)
 	dispatcherId := uuid.New()
 	msg := &Message{ID: MsgIDTaskAssignedBulk}
 
@@ -30,7 +30,7 @@ func TestDispatcherPubSubDeliveryRoutesOnlyDispatcherQueues(t *testing.T) {
 
 func TestDispatcherPubSubDeliveryDropsEverythingAtFullDropPercent(t *testing.T) {
 	ps := &recordingPubSub{}
-	q := NewDispatcherPubSubDeliveryQueue(&mockMessageQueue{}, ps, 100)
+	q := newDispatcherPubSubDeliveryQueue(&mockMessageQueue{}, ps, 100)
 
 	require.NoError(t, q.SendMessage(context.Background(), QueueTypeFromDispatcherID(uuid.New()), &Message{ID: MsgIDTaskAssignedBulk}))
 	assert.Empty(t, ps.pubs)
@@ -38,7 +38,7 @@ func TestDispatcherPubSubDeliveryDropsEverythingAtFullDropPercent(t *testing.T) 
 
 func TestDispatcherPubSubDeliveryClonePreservesRouting(t *testing.T) {
 	ps := &recordingPubSub{}
-	_, cloned, err := NewDispatcherPubSubDeliveryQueue(&mockMessageQueue{}, ps, 0).Clone()
+	_, cloned, err := NewDispatcherPubSubDeliveryQueue(&mockMessageQueue{}, ps).Clone()
 	require.NoError(t, err)
 
 	require.NoError(t, cloned.SendMessage(context.Background(), QueueTypeFromDispatcherID(uuid.New()), &Message{ID: MsgIDDurableCallbackCompleted}))
@@ -52,7 +52,7 @@ func TestDispatcherPubSubDeliveryKeepsUnrecoverableMessagesDurable(t *testing.T)
 		return nil
 	}}
 	ps := &recordingPubSub{}
-	q := NewDispatcherPubSubDeliveryQueue(mq, ps, 100)
+	q := newDispatcherPubSubDeliveryQueue(mq, ps, 100)
 
 	for _, id := range []string{MsgIDTaskCancelled, MsgIDBatchStart} {
 		require.NoError(t, q.SendMessage(context.Background(), QueueTypeFromDispatcherID(uuid.New()), &Message{ID: id}))
