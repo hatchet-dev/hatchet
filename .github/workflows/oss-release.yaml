@@ -1,95 +1,282 @@
+name: OSS Release
+
+# Dispatch with a pushed tag to build the CLI, update the Homebrew
+# tap, and open a draft GitHub release. Publishing the draft promotes the GHCR images
+# to latest and publishes the CLI to npm.
 on:
-  release:
-    types:
-      - released
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to use for the release"
+        description: "Release tag to build (e.g. v0.89.0)"
         required: true
-name: Release
+        type: string
+  release:
+    types:
+      - released
+
 permissions:
-  contents: read
+  contents: write
   packages: write
   id-token: write
+
 jobs:
   verify:
-      runs-on: ubuntu-24.04
-      timeout-minutes: 20
-      outputs:
-        tag: ${{ steps.tag_name.outputs.tag }}
-        should_publish: ${{ steps.skip.outputs.should_publish }}
-      steps:
-        - id: tag_name
-          run: |
-            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-              echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
-            else
-              echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
-            fi
-
-        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-          with:
-            ref: ${{ steps.tag_name.outputs.tag }}
-
-        # A tag without a CHANGELOG.md section is a CLI-only release: no latest images, no load tests.
-        - id: skip
-          run: |
-            tag="${{ steps.tag_name.outputs.tag }}"
-            if echo "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' && [ -n "$(./hack/ci/release-notes-cli.sh "$tag")" ]; then
-              echo "should_publish=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "should_publish=false" >> "$GITHUB_OUTPUT"
-            fi
-
-  load:
-    runs-on: ubicloud-standard-8
-    needs: [verify]
-    if: needs.verify.outputs.should_publish == 'true'
-    timeout-minutes: 30
-    strategy:
-      matrix:
-        migrate-strategy: ["latest"]
-        rabbitmq-enabled: ["true", "false"]
-        pg-version: ["15-alpine", "16-alpine", "17-alpine"]
-        optimistic-scheduling: ["true", "false"]
-
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      tag: ${{ steps.tag_name.outputs.tag }}
+      should_publish: ${{ steps.skip.outputs.should_publish }}
+      prev_tag: ${{ steps.prev.outputs.prev_tag }}
     steps:
+      - id: tag_name
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.verify.outputs.tag }}
+          ref: ${{ steps.tag_name.outputs.tag }}
+
+      # A tag without a CHANGELOG.md section is a CLI-only release: no latest images.
+      - id: skip
+        run: |
+          tag="${{ steps.tag_name.outputs.tag }}"
+          if echo "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' && [ -n "$(./hack/ci/release-notes-cli.sh "$tag")" ]; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine previous release tag
+        id: prev
+        run: |
+          PREV_TAG=$(gh release view --json tagName --jq .tagName)
+          echo "Previous release tag: $PREV_TAG"
+          echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  generate-changelog:
+    name: Generate release_notes.md artifact
+    runs-on: ubuntu-latest
+    needs: [verify]
+    if: github.event_name == 'workflow_dispatch'
+    env:
+      GITHUB_TAG: ${{ needs.verify.outputs.tag }}
+      PREV_TAG: ${{ needs.verify.outputs.prev_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
           fetch-depth: 0
 
-      - name: Install Task
-        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Fetch the tag object
+        run: git fetch --force origin tag "$GITHUB_TAG"
 
-      - name: Setup Go
+      - name: Generate release section
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        with:
+          config: cliff.toml
+          args: ${{ env.PREV_TAG }}..${{ env.GITHUB_TAG }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUTPUT: /tmp/CHANGES.md
+
+      - name: Generate release notes
+        run: |
+          ./hack/ci/release-notes-cli.sh "$GITHUB_TAG" > release_notes.md
+          echo "" >> release_notes.md
+          cat /tmp/CHANGES.md >> release_notes.md
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-notes
+          path: release_notes.md
+          overwrite: true
+          retention-days: 1
+
+  release-cli:
+    name: Build CLI and open draft release
+    runs-on: ubuntu-latest
+    needs: [verify, generate-changelog]
+    if: github.event_name == 'workflow_dispatch'
+    env:
+      GITHUB_TAG: ${{ needs.verify.outputs.tag }}
+    steps:
+      - name: Update CA certificates
+        # Runner images predate Ubuntu's ca-certificates fix for the compromised eMudhra CAs (USN-8944-1); drop this step once they ship 20260816ubuntu0.* or later.
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y --only-upgrade ca-certificates
+          v=$(dpkg-query -W -f='${Version}' ca-certificates)
+          dpkg --compare-versions "$v" ge 20260816 || { echo "::error::ca-certificates $v predates USN-8944-1"; exit 1; }
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all tags
+        run: git fetch --force --tags
+
+      - name: Checkout the release tag
+        run: git checkout "$GITHUB_TAG"
+
+      - name: Download release notes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}
+
+      - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: true
 
-      - name: Setup pnpm
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          check-latest: true
+          node-version: "24"
+
+      - name: Set up pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.34.9
-          run_install: false
 
-      - name: Go deps
-        run: go mod download
+      - name: Set up Python (docs snippet generation for the embedded UI)
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
 
-      - name: Test
+      - name: Install quill (for macOS code signing)
         run: |
-          go test -tags load ./... -p 5 -race -failfast -timeout 20m
+          curl -sSfL https://raw.githubusercontent.com/anchore/quill/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Install syft (for SBOM generation)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --release-notes=${{ runner.temp }}/release_notes.md --clean --draft
+          workdir: cmd/hatchet-cli
         env:
-          TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
-          TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
-          TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_PREVIOUS_TAG: ${{ needs.verify.outputs.prev_tag }}
+          # Homebrew tap token
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          # macOS signing and notarization secrets
+          # These should be set as repository secrets in GitHub
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          # Named per tag so the npm job can find it from the publish run.
+          name: dist-${{ env.GITHUB_TAG }}
+          # GoReleaser runs with workdir cmd/hatchet-cli, so dist is not at the repo root.
+          path: cmd/hatchet-cli/dist/
+          retention-days: 30
+
+  npm-publish:
+    name: Publish CLI to npm
+    runs-on: ubuntu-latest
+    needs: [verify]
+    if: github.event_name == 'release'
+    # Name must match the trusted publisher environment on each @hatchet-dev/cli* package.
+    environment: npm
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      GITHUB_TAG: ${{ needs.verify.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          check-latest: true
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Drop the setup-node auth token
+        # An empty _authToken makes npm try token auth and skip trusted publishing.
+        run: |
+          npmrc="${HOME}/.npmrc"
+          if [ -f "$npmrc" ]; then
+            grep -v '_authToken' "$npmrc" > "${npmrc}.tmp" || true
+            mv "${npmrc}.tmp" "$npmrc"
+          fi
+
+      - name: Download release artifacts from the draft run
+        run: |
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=dist-${GITHUB_TAG}" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | .workflow_run.id')
+          if [ -z "$run_id" ] || [ "$run_id" = "null" ]; then
+            echo "::error::no dist-${GITHUB_TAG} artifact found, re-dispatch this workflow for the tag"
+            exit 1
+          fi
+          gh run download "$run_id" -n "dist-${GITHUB_TAG}" -D cli-dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Assemble npm packages
+        run: node cmd/hatchet-cli/npm/build.mjs "${GITHUB_TAG#v}" cli-dist cmd/hatchet-cli/npm/npm-out
+
+      - name: Publish npm packages
+        run: |
+          unset NODE_AUTH_TOKEN
+          VERSION="${GITHUB_TAG#v}"
+          if [[ "$VERSION" == *-* ]]; then
+            DIST_TAG=next
+          else
+            DIST_TAG=latest
+          fi
+
+          publish() {
+            local dir="$1"
+            local name
+            name="$(node -p "require('./${dir}/package.json').name")"
+            if npm view "${name}@${VERSION}" version >/dev/null 2>&1; then
+              echo "${name}@${VERSION} is already published; skipping"
+              return
+            fi
+            npm publish --access public --provenance --tag "$DIST_TAG" "$dir"
+          }
+
+          shopt -s nullglob
+          platform_dirs=(cmd/hatchet-cli/npm/npm-out/cli-*)
+          if [ "${#platform_dirs[@]}" -eq 0 ]; then
+            echo "no platform packages to publish" >&2
+            exit 1
+          fi
+          for dir in "${platform_dirs[@]}"; do
+            publish "$dir"
+          done
+          publish cmd/hatchet-cli/npm/npm-out/cli
+
   push-hatchet-server:
     name: Push latest
     needs: [verify]
-    if: needs.verify.outputs.should_publish == 'true'
+    if: github.event_name == 'release' && needs.verify.outputs.should_publish == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -237,7 +424,7 @@ jobs:
   push-hatchet-server-fips:
     name: Push latest fips
     needs: [verify]
-    if: needs.verify.outputs.should_publish == 'true'
+    if: github.event_name == 'release' && needs.verify.outputs.should_publish == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
