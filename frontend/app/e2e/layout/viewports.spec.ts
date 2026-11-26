@@ -34,11 +34,12 @@ async function expectTopAndBottomReachable(page: Page, title: string) {
   await expect(authTitle).toContainText(title);
 
   // The legal text sits at the bottom of the auth route's scroll container.
+  // toBeVisible() ignores clipping by that container, so check the viewport.
   const legal = page.getByTestId('auth-legal');
   await legal.scrollIntoViewIfNeeded();
-  await expect(legal).toBeVisible();
+  await expect(legal).toBeInViewport();
   await authTitle.scrollIntoViewIfNeeded();
-  await expect(authTitle).toBeVisible();
+  await expect(authTitle).toBeInViewport();
 }
 
 test.describe('layout: viewports', () => {
@@ -95,17 +96,17 @@ test.describe('layout: viewports', () => {
 
         await expect(page.getByTestId('v1-sidebar')).toBeVisible();
         const footer = page.getByTestId('v1-sidebar-footer');
-        await expect(footer).toBeVisible();
+        await expect(footer).toBeInViewport();
 
         // Only meaningful when the nav list overflows at this viewport.
         const scroll = page.getByTestId('v1-sidebar-scroll');
         if (await isVerticallyScrollable(scroll)) {
           await scrollTo(scroll, 'bottom');
-          await expect(footer).toBeVisible();
+          await expect(footer).toBeInViewport();
           await scrollTo(scroll, 'top');
           await expect(
             page.locator('h2', { hasText: 'Activity' }).first(),
-          ).toBeVisible();
+          ).toBeInViewport();
         }
 
         if (vp.width >= 768) {
@@ -126,7 +127,7 @@ test.describe('layout: viewports', () => {
             // Help is in the fixed footer and should remain reachable/visible.
             await expect(
               page.locator('button[aria-label="Help Menu"]'),
-            ).toBeVisible();
+            ).toBeInViewport();
           }
         }
       });

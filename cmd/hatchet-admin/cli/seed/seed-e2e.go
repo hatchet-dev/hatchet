@@ -38,6 +38,10 @@ const (
 	tenant2Slug = "tenant2"
 )
 
+// SeedDatabaseForE2E creates the users, tenants and memberships the frontend
+// e2e suite logs in with, and writes the users' credentials to
+// frontend/app/e2e/support/seeded-users.generated.json. Reruns are safe:
+// existing rows are reused, and memberships outside the fixture are removed.
 func SeedDatabaseForE2E(dc *database.Layer) error {
 	ctx := context.Background()
 	logger := log.New(os.Stdout, "seed-e2e: ", log.LstdFlags)
