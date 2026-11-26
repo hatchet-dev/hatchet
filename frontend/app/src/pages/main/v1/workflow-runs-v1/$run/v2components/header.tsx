@@ -112,8 +112,8 @@ const V1RunSummary = () => {
     );
   } else if (workflowRun.status === V1TaskStatus.RUNNING) {
     timings.push(
-      <div key="running" className="text-sm text-muted-foreground">
-        Running
+      <div key="queued" className="text-sm text-muted-foreground">
+        Queued
       </div>,
     );
   }

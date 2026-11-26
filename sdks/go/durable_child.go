@@ -54,9 +54,14 @@ func runDurableChildWorkflowIfSupported(
 		invocationCount = 1
 	}
 
+	triggerCtx := runOpts.TriggerContext
+	if triggerCtx == nil {
+		triggerCtx = hCtx.GetContext()
+	}
+
 	listener := runtime.DurableTaskListener()
 	entries, err := listener.SendTriggerRunsRequest(
-		hCtx.GetContext(),
+		triggerCtx,
 		hCtx.StepRunId(),
 		invocationCount,
 		[]*v1.TriggerWorkflowRequest{trigger},
@@ -108,11 +113,15 @@ func runManyDurableChildWorkflows(
 		invocationCount = 1
 	}
 
+	var triggerCtx context.Context
 	triggers := make([]*v1.TriggerWorkflowRequest, len(inputs))
 	for i, input := range inputs {
 		runOpts := &runOpts{}
 		for _, opt := range input.Opts {
 			opt(runOpts)
+		}
+		if triggerCtx == nil && runOpts.TriggerContext != nil {
+			triggerCtx = runOpts.TriggerContext
 		}
 		runOpts.AdditionalMetadata = injectTraceparentToMap(otelCtx, runOpts.AdditionalMetadata)
 
@@ -128,9 +137,13 @@ func runManyDurableChildWorkflows(
 		triggers[i] = trigger
 	}
 
+	if triggerCtx == nil {
+		triggerCtx = hCtx.GetContext()
+	}
+
 	listener := runtime.DurableTaskListener()
 	entries, err := listener.SendTriggerRunsRequest(
-		hCtx.GetContext(),
+		triggerCtx,
 		hCtx.StepRunId(),
 		invocationCount,
 		triggers,

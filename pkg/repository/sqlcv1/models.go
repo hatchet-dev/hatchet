@@ -2535,12 +2535,13 @@ type ControllerPartition struct {
 }
 
 type Dispatcher struct {
-	ID              uuid.UUID        `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
-	IsActive        bool             `json:"isActive"`
+	ID                uuid.UUID          `json:"id"`
+	CreatedAt         pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt         pgtype.Timestamp   `json:"updatedAt"`
+	DeletedAt         pgtype.Timestamp   `json:"deletedAt"`
+	LastHeartbeatAt   pgtype.Timestamp   `json:"lastHeartbeatAt"`
+	IsActive          bool               `json:"isActive"`
+	HeartbeatingSince pgtype.Timestamptz `json:"heartbeatingSince"`
 }
 
 type Event struct {
@@ -3751,14 +3752,6 @@ type V1PayloadsOlap struct {
 	InlineContent       []byte                `json:"inline_content"`
 	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
 	UpdatedAt           pgtype.Timestamptz    `json:"updated_at"`
-}
-
-type V1PayloadsOlapCutoverJobOffset struct {
-	Key            pgtype.Date        `json:"key"`
-	IsCompleted    bool               `json:"is_completed"`
-	LeaseProcessID uuid.UUID          `json:"lease_process_id"`
-	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
-	LastExternalID uuid.UUID          `json:"last_external_id"`
 }
 
 type V1PayloadsOlapOffloadedBlockIndex struct {

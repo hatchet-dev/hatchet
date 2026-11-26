@@ -2,6 +2,7 @@ package sqlcv1
 
 import (
 	"context"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -351,7 +352,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 	return items, nil
 }
 
-const createTaskEvents = `-- name: CreateTaskEvents :many
+const createTaskEvents = `-- name: CreateTaskEvents :exec
 -- We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
 -- tables for each task
 WITH locked_tasks AS (
@@ -376,68 +377,86 @@ WITH locked_tasks AS (
 		UNNEST($7::JSONB[]) AS data,
 		UNNEST($8::UUID[]) as external_id,
 		UNNEST($9::UUID[]) as child_external_id,
-		UNNEST($10::UUID[]) as payload_reference_id
+		UNNEST($10::UUID[]) as payload_reference_id,
+		UNNEST($11::JSONB[]) AS payload_inline_content
+), inserted_events AS (
+    INSERT INTO v1_task_event (
+        tenant_id,
+        task_id,
+        task_inserted_at,
+        retry_count,
+        event_type,
+        event_key,
+        data,
+        external_id,
+        child_external_id,
+        payload_reference_id
+    )
+    SELECT
+        $1::uuid,
+        i.task_id,
+        i.task_inserted_at,
+        i.retry_count,
+        i.event_type,
+        i.event_key,
+        i.data,
+        i.external_id,
+        NULLIF(i.child_external_id, '00000000-0000-0000-0000-000000000000'::UUID) AS child_external_id,
+        NULLIF(i.payload_reference_id, '00000000-0000-0000-0000-000000000000'::UUID) AS payload_reference_id
+    FROM
+        input i
+    ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING
+    RETURNING
+        v1_task_event.id,
+        v1_task_event.inserted_at,
+        v1_task_event.tenant_id,
+		v1_task_event.task_id,
+		v1_task_event.task_inserted_at,
+		v1_task_event.retry_count,
+		v1_task_event.event_type,
+		v1_task_event.event_key,
+		v1_task_event.created_at,
+		v1_task_event.data,
+		v1_task_event.external_id,
+		v1_task_event.child_external_id,
+		v1_task_event.payload_reference_id
 )
-INSERT INTO v1_task_event (
-    tenant_id,
-    task_id,
-	task_inserted_at,
-    retry_count,
-    event_type,
-    event_key,
-    data,
-	external_id,
-	child_external_id,
-	payload_reference_id
+SELECT write_payloads(
+    ARRAY_AGG(e.tenant_id),
+    ARRAY_AGG(e.id),
+    ARRAY_AGG(e.inserted_at),
+    ARRAY_AGG(e.external_id),
+    ARRAY_AGG('TASK_EVENT_DATA'::v1_payload_type),
+    ARRAY_AGG(i.payload_inline_content),
+    ARRAY_AGG(i.payload_reference_id),
+    FALSE
 )
-SELECT
-    $1::uuid,
-    i.task_id,
-	i.task_inserted_at,
-    i.retry_count,
-    i.event_type,
-    i.event_key,
-    i.data,
-	i.external_id,
-	NULLIF(i.child_external_id, '00000000-0000-0000-0000-000000000000'::UUID) AS child_external_id,
-	NULLIF(i.payload_reference_id, '00000000-0000-0000-0000-000000000000'::UUID) AS payload_reference_id
 FROM
-    input i
-ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING
-RETURNING
-    v1_task_event.id,
-	v1_task_event.inserted_at,
-	v1_task_event.tenant_id,
-	v1_task_event.task_id,
-	v1_task_event.task_inserted_at,
-	v1_task_event.retry_count,
-	v1_task_event.event_type,
-	v1_task_event.event_key,
-	v1_task_event.created_at,
-	v1_task_event.data,
-	v1_task_event.external_id,
-	v1_task_event.child_external_id,
-	v1_task_event.payload_reference_id
-;
+    inserted_events e
+JOIN
+    input i ON i.external_id = e.external_id
+WHERE
+    i.payload_inline_content IS NOT NULL
 `
 
 type CreateTaskEventsParams struct {
-	Tenantid            uuid.UUID            `json:"tenantid"`
-	Taskids             []int64              `json:"taskids"`
-	Taskinsertedats     []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts         []int32              `json:"retrycounts"`
-	Eventtypes          []string             `json:"eventtypes"`
-	Eventkeys           []pgtype.Text        `json:"eventkeys"`
-	Datas               [][]byte             `json:"datas"`
-	Externalids         []uuid.UUID          `json:"externalids"`
-	Childexternalids    []uuid.UUID          `json:"childexternalids"`
-	Payloadreferenceids []uuid.UUID          `json:"payloadreferenceids"`
+	Tenantid              uuid.UUID            `json:"tenantid"`
+	Taskids               []int64              `json:"taskids"`
+	Taskinsertedats       []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts           []int32              `json:"retrycounts"`
+	Eventtypes            []string             `json:"eventtypes"`
+	Eventkeys             []pgtype.Text        `json:"eventkeys"`
+	Datas                 [][]byte             `json:"datas"`
+	Externalids           []uuid.UUID          `json:"externalids"`
+	Childexternalids      []uuid.UUID          `json:"childexternalids"`
+	Payloadreferenceids   []uuid.UUID          `json:"payloadreferenceids"`
+	Payloadinlinecontents [][]byte             `json:"payloadinlinecontents"`
 }
 
-// We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
-// tables for each task
-func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskEventsParams) ([]*V1TaskEvent, error) {
-	rows, err := db.Query(ctx, createTaskEvents,
+func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskEventsParams) error {
+	_, err := db.Exec(
+		ctx,
+		createTaskEvents,
 		arg.Tenantid,
 		arg.Taskids,
 		arg.Taskinsertedats,
@@ -448,42 +467,10 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 		arg.Externalids,
 		arg.Childexternalids,
 		arg.Payloadreferenceids,
+		arg.Payloadinlinecontents,
 	)
 
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
-	var items []*V1TaskEvent
-	for rows.Next() {
-		var i V1TaskEvent
-		if err := rows.Scan(
-			&i.ID,
-			&i.InsertedAt,
-			&i.TenantID,
-			&i.TaskID,
-			&i.TaskInsertedAt,
-			&i.RetryCount,
-			&i.EventType,
-			&i.EventKey,
-			&i.CreatedAt,
-			&i.Data,
-			&i.ExternalID,
-			&i.ChildExternalID,
-			&i.PayloadReferenceID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return items, nil
+	return err
 }
 
 const replayTasks = `-- name: ReplayTasks :many
@@ -950,18 +937,69 @@ type ReleaseTasksRow struct {
 
 func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
 	batch := &pgx.Batch{}
-	vals := []interface{}{
+
+	releasedTasks := queueReleaseTasksFirstStatements(batch, arg)
+
+	for _, statement := range releaseTasksRemainingStatements(true) {
+		batch.Queue(statement, releaseTasksStatementArgs(arg)...)
+	}
+
+	if err := db.SendBatch(ctx, batch).Close(); err != nil {
+		return nil, err
+	}
+
+	return *releasedTasks, nil
+}
+
+func (q *Queries) BeginAndReleaseTasksFirstStatements(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
+	batch := &pgx.Batch{}
+
+	batch.Queue("begin")
+
+	releasedTasks := queueReleaseTasksFirstStatements(batch, arg)
+
+	if err := db.SendBatch(ctx, batch).Close(); err != nil {
+		return nil, err
+	}
+
+	return *releasedTasks, nil
+}
+
+func (q *Queries) ReleaseTasksRemainingStatements(ctx context.Context, db DBTX, arg ReleaseTasksParams, releasedTasks []*ReleaseTasksRow) error {
+	anyTaskHasConcurrencyStrategy := slices.ContainsFunc(releasedTasks, func(task *ReleaseTasksRow) bool {
+		return len(task.ConcurrencyStrategyIds) > 0
+	})
+
+	for _, statement := range releaseTasksRemainingStatements(anyTaskHasConcurrencyStrategy) {
+		if _, err := db.Exec(ctx, statement, releaseTasksStatementArgs(arg)...); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func releaseTasksRemainingStatements(includeConcurrencyStatements bool) []string {
+	if !includeConcurrencyStatements {
+		return []string{releaseRateLimitedQueueItems, releasePausedWorkflowQueueItems}
+	}
+
+	return []string{lockParentConcurrencySlots, releaseConcurrencySlots, releaseRateLimitedQueueItems, releasePausedWorkflowQueueItems}
+}
+
+func releaseTasksStatementArgs(arg ReleaseTasksParams) []interface{} {
+	return []interface{}{
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Retrycounts,
 	}
+}
 
-	rowsCh := make(chan *ReleaseTasksRow, len(arg.Taskids))
-	errCh := make(chan error, 1)
+// The returned slice is filled once the batch results are closed.
+func queueReleaseTasksFirstStatements(batch *pgx.Batch, arg ReleaseTasksParams) *[]*ReleaseTasksRow {
+	releasedTasks := make([]*ReleaseTasksRow, 0, len(arg.Taskids))
 
-	res := batch.Queue(releaseTasks, arg.Taskids, arg.Taskinsertedats, arg.Retrycounts, arg.Mintaskinsertedat, arg.Maxtaskinsertedat)
-
-	res.Query(func(rows pgx.Rows) error {
+	batch.Queue(releaseTasks, arg.Taskids, arg.Taskinsertedats, arg.Retrycounts, arg.Mintaskinsertedat, arg.Maxtaskinsertedat).Query(func(rows pgx.Rows) error {
 		for rows.Next() {
 			var i ReleaseTasksRow
 			if err := rows.Scan(
@@ -983,45 +1021,24 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 				&i.ParentTaskID,
 				&i.ParentTaskInsertedAt,
 			); err != nil {
-				errCh <- err
-				close(rowsCh)
-				close(errCh)
 				return err
 			}
-			rowsCh <- &i
+			releasedTasks = append(releasedTasks, &i)
 		}
-		errCh <- rows.Err()
-		close(rowsCh)
-		close(errCh)
-		return nil
+
+		return rows.Err()
 	})
 
-	batch.Queue(releaseRetryQueueItems, vals...)
-	batch.Queue(releaseQueueItems, vals...)
-	batch.Queue(releaseBatchedQueueItems, vals...)
-	batch.Queue(lockParentConcurrencySlots, vals...)
-	batch.Queue(releaseConcurrencySlots, vals...)
-	batch.Queue(releaseRateLimitedQueueItems, vals...)
-	batch.Queue(releasePausedWorkflowQueueItems, vals...)
+	anyAttemptIsARetry := slices.ContainsFunc(arg.Retrycounts, func(retryCount int32) bool { return retryCount != 0 })
 
-	br := db.SendBatch(ctx, batch)
-	err := br.Close()
-
-	if err != nil {
-		return nil, err
+	if anyAttemptIsARetry {
+		batch.Queue(releaseRetryQueueItems, releaseTasksStatementArgs(arg)...)
 	}
 
-	var items []*ReleaseTasksRow
+	batch.Queue(releaseQueueItems, releaseTasksStatementArgs(arg)...)
+	batch.Queue(releaseBatchedQueueItems, releaseTasksStatementArgs(arg)...)
 
-	for r := range rowsCh {
-		items = append(items, r)
-	}
-
-	if err := <-errCh; err != nil {
-		return nil, err
-	}
-
-	return items, nil
+	return &releasedTasks
 }
 
 const restoreEvictedTasks = `-- name: RestoreEvictedTasks :many

@@ -24,9 +24,8 @@
     "postcss.config.js",
     "src/**/*.tsx",
     "src/**/*.ts",
-    "cypress/**/*.ts",
-    "cypress/**/*.tsx",
-    "cypress.config.ts",
+    "e2e/**/*.ts",
+    "playwright.config.ts",
     ".storybook/**/*.ts",
     ".storybook/**/*.tsx"
   ],

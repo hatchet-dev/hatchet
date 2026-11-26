@@ -25,6 +25,8 @@ What differs is what sits underneath.
 - [E2B](#e2b) starts them from templates and saves the filesystem when it takes a snapshot.
 - [Archil](#archil) starts them from any OCI image and takes a snapshot by forking the whole machine.
 - [Freestyle](#freestyle) includes memory in its snapshots, so a resumed sandbox continues where it stopped.
+- [Modal](#modal) starts them from any registry image and saves the filesystem as a Modal image when it takes a snapshot.
+- [Vercel](#vercel) starts them from a Vercel image or snapshot and keeps the sandbox across sessions.
 
 ## Templates and settings
 
@@ -61,3 +63,15 @@ A template is an OCI image, for example `node:24-bookworm`. A snapshot is a stop
 A template is a [Freestyle snapshot](https://docs.freestyle.sh) ID or slug. Snapshots include memory, so a sandbox resumed from one continues where it stopped.
 
 The working directory defaults to `/workspace`. Set **Default template** to the snapshot new sandboxes should start from. Without it, Freestyle's default image is used.
+
+## Modal
+
+A template is a registry image such as `debian:bookworm-slim`, or a snapshot image ID starting with `im-`. Snapshots Hatchet takes are [Modal filesystem snapshots](https://modal.com/docs/guide/sandbox-snapshots) and never expire until you delete them. A sandbox that Modal stops for idling cannot be started again, so connect to it before its idle TTL runs out or start a new one from a snapshot.
+
+Modal API tokens have two parts, and the form asks for both. **Token secret** starts with `as-` and **Token ID** starts with `ak-`. **App** is the Modal app the sandboxes run under, defaults to `hatchet-sandboxes` and is created if missing. **Environment** picks a Modal environment other than the token's default. The working directory defaults to `/workspace`. Set **Default template** to the image new sandboxes should start from. Without it, `debian:bookworm-slim` is used. Disk size cannot be set on Modal, so a `diskMib` resource request is rejected.
+
+## Vercel
+
+A template is a [Vercel Sandbox image](https://vercel.com/docs/sandbox/concepts/images), for example `vercel/sandbox/universal`. Snapshots Hatchet takes are [Vercel snapshots](https://vercel.com/docs/sandbox/concepts/snapshots) that never expire until you delete them. Taking one stops the running session, and the next command resumes the sandbox from it.
+
+A Vercel access token only works together with a team and a project, so **Team ID** and **Project** are required. The project is given by ID or name. The working directory defaults to `/vercel/sandbox`. Set **Default template** to the image new sandboxes should start from. Without it, Vercel's universal image is used. Vercel sizes sandboxes by vCPU only and gives each vCPU 2048 MB of memory, so a resource request may set `vcpu` but not `memoryMib` or `diskMib`. The idle TTL becomes the session timeout, which your Vercel plan caps at 45 minutes on Hobby and 24 hours on Pro and Enterprise. Vercel allows at most 5 tags per sandbox, so sandbox metadata is not forwarded as Vercel tags. Only the Hatchet tenant and sandbox IDs are.

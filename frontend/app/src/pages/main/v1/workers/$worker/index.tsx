@@ -194,7 +194,7 @@ export default function WorkerDetail() {
 
   return (
     <div className="h-full w-full flex-grow">
-      <div className="mx-auto p-4">
+      <div className="mx-auto flex h-full flex-col p-4">
         <div className="flex flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
             <ServerStackIcon className="mt-1 h-6 w-6 text-foreground" />
@@ -445,7 +445,7 @@ export default function WorkerDetail() {
 
         <Card
           variant="light"
-          className="mt-4 overflow-y-auto bg-background border-none"
+          className="mt-4 shrink-0 overflow-y-auto bg-background border-none"
         >
           <CardHeader>
             <CardTitle>Registered Workflows</CardTitle>
@@ -483,8 +483,11 @@ export default function WorkerDetail() {
           </CardContent>
         </Card>
 
-        <Card variant="light" className="mt-4 bg-primary border-none">
-          <CardContent className="flex-1 h-96 overflow-y-auto bg-background">
+        <Card
+          variant="light"
+          className="mt-4 flex min-h-[36rem] flex-1 flex-col bg-primary border-none"
+        >
+          <CardContent className="min-h-0 flex-1 bg-background">
             <RunsProvider
               tableKey={`worker-${worker.metadata.id}`}
               display={{

@@ -3,7 +3,6 @@ package worker
 import (
 	"fmt"
 
-	"github.com/hatchet-dev/hatchet/pkg/client/compute"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -64,7 +63,7 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 			}
 		}
 
-		err = s.worker.registerAction(parsedAction.Service, parsedAction.Verb, action.fn, action.compute)
+		err = s.worker.registerAction(parsedAction.Service, parsedAction.Verb, action.fn)
 
 		if err != nil {
 			return err
@@ -77,8 +76,7 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 // Deprecated: registerActionOpts is part of the legacy v0 workflow definition system.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type registerActionOpts struct {
-	name    string
-	compute *compute.Compute
+	name string
 }
 
 // Deprecated: RegisterActionOpt is part of the legacy v0 workflow definition system.
@@ -90,14 +88,6 @@ type RegisterActionOpt func(*registerActionOpts)
 func WithActionName(name string) RegisterActionOpt {
 	return func(opts *registerActionOpts) {
 		opts.name = name
-	}
-}
-
-// Deprecated: WithCompute is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-func WithCompute(compute *compute.Compute) RegisterActionOpt {
-	return func(opts *registerActionOpts) {
-		opts.compute = compute
 	}
 }
 
@@ -114,7 +104,7 @@ func (s *Service) RegisterAction(fn any, opts ...RegisterActionOpt) error {
 		fnOpts.name = getFnName(fn)
 	}
 
-	return s.worker.registerAction(s.Name, fnOpts.name, fn, fnOpts.compute)
+	return s.worker.registerAction(s.Name, fnOpts.name, fn)
 }
 
 // Deprecated: Call is part of the legacy v0 workflow definition system.

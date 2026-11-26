@@ -840,3 +840,74 @@ func TestSendTriggerRunsRequestSplitsChildrenAcrossRequests(t *testing.T) {
 		assert.Equal(t, fmt.Sprintf("child-%d", i), entry.WorkflowRunID)
 	}
 }
+
+func TestSendTriggerRunsRequestAppliesDefaultAckCeiling(t *testing.T) {
+	t.Run("caps context without deadline", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		h := newTestHarness()
+		h.listener.triggerAckTTL = 50 * time.Millisecond
+		stream := h.addHangingStream(ctx)
+		h.listener.Start(ctx)
+		defer h.listener.Stop()
+
+		require.NotNil(t, awaitRequest(t, stream).GetRegisterWorker())
+
+		entries, err := h.listener.SendTriggerRunsRequest(
+			context.WithoutCancel(ctx),
+			"task1",
+			1,
+			[]*v1.TriggerWorkflowRequest{{Name: "child-0"}},
+		)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Nil(t, entries)
+		assert.Zero(t, h.listener.PendingEventAckCount())
+	})
+
+	t.Run("preserves caller explicit deadline", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		h := newTestHarness()
+		h.listener.triggerAckTTL = 20 * time.Millisecond
+		stream := h.addHangingStream(ctx)
+		h.listener.Start(ctx)
+		defer h.listener.Stop()
+
+		require.NotNil(t, awaitRequest(t, stream).GetRegisterWorker())
+
+		go func() {
+			req := awaitRequest(t, stream)
+			tr := req.GetTriggerRuns()
+			if tr == nil {
+				return
+			}
+			time.Sleep(60 * time.Millisecond)
+			stream.recvCh <- &v1.DurableTaskResponse{
+				Message: &v1.DurableTaskResponse_TriggerRunsAck{
+					TriggerRunsAck: &v1.DurableTaskEventTriggerRunsAckResponse{
+						DurableTaskExternalId: tr.GetDurableTaskExternalId(),
+						InvocationCount:       tr.GetInvocationCount(),
+						RunEntries: []*v1.DurableTaskRunAckEntry{
+							{NodeId: 1, WorkflowRunExternalId: "child-run-1"},
+						},
+					},
+				},
+			}
+		}()
+
+		explicitCtx, cancelExplicit := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancelExplicit()
+
+		entries, err := h.listener.SendTriggerRunsRequest(
+			explicitCtx,
+			"task1",
+			1,
+			[]*v1.TriggerWorkflowRequest{{Name: "child-0"}},
+		)
+		require.NoError(t, err)
+		require.Len(t, entries, 1)
+		assert.Equal(t, "child-run-1", entries[0].WorkflowRunID)
+	})
+}

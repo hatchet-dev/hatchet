@@ -5,6 +5,18 @@
       "severity": "high",
       "scope": ["pkg/**/*.go", "internal/**/*.go"],
       "rule": "A function that already holds a database connection or an open transaction must not acquire another connection from that same pool, directly or through a helper that checks one out internally (pool.ForTenant, pool.ForShared, Pool.Acquire, Begin, BeginTx, or a repository or outbox method that opens its own connection). Pass the caller's connection into the nested query. A cache, fast path, or branch that usually skips the second acquire is still a violation: once every connection is held by a caller waiting for one more, the pool deadlocks and the process does not recover. Ignore generated files under sqlcv1/."
+    },
+    {
+      "id": "migration-version-after-latest",
+      "severity": "high",
+      "scope": ["cmd/hatchet-migrate/migrate/migrations/*.sql"],
+      "rule": "A new goose migration's version (the numeric filename prefix) must be unique and greater than the version of every migration already on the target branch, including ones merged after this branch was created. goose refuses to apply a migration older than a database's current version (\"found 1 missing migrations before current version\") and refuses duplicate versions, so either one breaks every upgrade. Compare against the newest file in cmd/hatchet-migrate/migrate/migrations on the target branch, not only the files in this diff, and ask for a rename when the new version is not the highest."
+    },
+    {
+      "id": "timestamptz-columns",
+      "severity": "medium",
+      "scope": ["cmd/hatchet-migrate/migrate/migrations/*.sql", "sql/schema/*.sql"],
+      "rule": "New timestamp columns must use TIMESTAMPTZ, not TIMESTAMP or TIMESTAMP(n) without a time zone. A TIMESTAMP column stores a wall-clock reading converted with the session's TimeZone, so comparisons with NOW() or clock_timestamp() depend on every session using the same zone. Existing TIMESTAMP(3) columns in the v0 tables are not a reason to add another one."
     }
   ]
 }

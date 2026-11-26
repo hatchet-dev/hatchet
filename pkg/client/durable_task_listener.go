@@ -25,6 +25,7 @@ const (
 	triggerRunsMaxChildrenPerRequest = 100
 	defaultCompletionBufferTTL       = 10 * time.Second
 	evictionAckTimeout               = 30 * time.Second
+	defaultTriggerRunsAckTimeout     = 60 * time.Second
 )
 
 var errDurableTaskListenerStopped = errors.New("durable task listener stopped")
@@ -128,6 +129,7 @@ type DurableTaskListener struct {
 	streamSeq                      int
 	reconnectInterval              time.Duration
 	evictionAckTTL                 time.Duration
+	triggerAckTTL                  time.Duration
 	onServerEvictMu                sync.RWMutex
 	streamMu                       sync.Mutex
 	callbackStateMu                sync.Mutex
@@ -172,6 +174,7 @@ func NewDurableTaskListener(
 		l:                              logger,
 		reconnectInterval:              defaultReconnectInterval,
 		evictionAckTTL:                 evictionAckTimeout,
+		triggerAckTTL:                  defaultTriggerRunsAckTimeout,
 		connectFn:                      connectFn,
 		pendingEventAcks:               make(map[PendingAckKey]chan EventAckResult),
 		pendingEvictionAcks:            make(map[PendingAckKey]chan error),
@@ -690,6 +693,12 @@ func (l *DurableTaskListener) sendSingleTriggerRunsRequest(
 	invocationCount int32,
 	triggerOpts []*v1.TriggerWorkflowRequest,
 ) ([]TriggerRunAckEntry, error) {
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline && l.triggerAckTTL > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, l.triggerAckTTL)
+		defer cancel()
+	}
+
 	ackKey := PendingAckKey{TaskID: taskExternalID, SignalKey: int64(invocationCount)}
 	ackCh := l.AddPendingEventAck(ackKey)
 
