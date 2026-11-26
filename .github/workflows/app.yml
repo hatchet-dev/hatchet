@@ -217,6 +217,10 @@ jobs:
     timeout-minutes: 15
     container:
       image: mcr.microsoft.com/playwright:v${{ needs.playwright-version.outputs.version }}-noble
+    # Steps in a container default to sh (dash), which has no pipefail.
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout
