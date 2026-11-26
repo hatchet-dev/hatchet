@@ -140,7 +140,7 @@ jobs:
 
       - name: Install Playwright browser
         working-directory: frontend/app
-        run: pnpm exec playwright install --with-deps chromium
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm exec playwright install --with-deps chromium
 
       - name: Start API + engine
         run: |
@@ -187,12 +187,14 @@ jobs:
   # exactly, so derive its tag from the lockfile instead of pinning it twice.
   playwright-version:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           sparse-checkout: frontend/app/pnpm-lock.yaml
           sparse-checkout-cone-mode: false
 
@@ -200,7 +202,8 @@ jobs:
         id: version
         run: |
           set -euo pipefail
-          version=$(grep -A2 "^      '@playwright/test':$" frontend/app/pnpm-lock.yaml | sed -n 's/^ *version: //p')
+          # `|| true` lets the format check below report a missing entry.
+          version=$(grep -A2 "^      '@playwright/test':$" frontend/app/pnpm-lock.yaml | sed -n 's/^ *version: //p' || true)
           version="${version%%(*}"
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Could not read the @playwright/test version from pnpm-lock.yaml (got '$version')" >&2
@@ -225,6 +228,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
