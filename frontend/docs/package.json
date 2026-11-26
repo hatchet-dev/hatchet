@@ -2,7 +2,7 @@
   "name": "hatchet-docs",
   "version": "0.0.1",
   "description": "Hatchet documentation",
-  "packageManager": "pnpm@10.16.1",
+  "packageManager": "pnpm@10.34.9",
   "scripts": {
     "taskfile-dev": "pnpm run generate-examples && pnpm run generate-llms && pnpm run test-search -- --warn && next dev",
     "dev": "pnpm run generate-llms && pnpm run test-search -- --warn && next dev",
