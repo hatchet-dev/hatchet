@@ -12,6 +12,9 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   // Only the import aliases: the app's plugins and dev proxy don't apply here.
   resolve: { alias: viteConfig.resolve?.alias },
+  // Found only once stories start rendering, which makes Vite reload the
+  // browser mid-run and drop the test files that were loading.
+  optimizeDeps: { include: ['react/jsx-dev-runtime'] },
   plugins: [storybookTest({ configDir: path.join(dirname, '.storybook') })],
   test: {
     name: 'storybook',
