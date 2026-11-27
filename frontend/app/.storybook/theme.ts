@@ -1,7 +1,14 @@
 import { create } from 'storybook/theming';
 
-// Colours from the app's tokens in src/index.css and the HatchetLogo brand
-// colours, as hex because Storybook's theme doesn't read CSS variables.
+// Copied by hand from the tokens in src/index.css and the HatchetLogo brand
+// colours, so update them here when those change.
+//
+// Ideally these would come from index.css, but Storybook's UI can't use CSS
+// variables: it derives hover and selection shades from the theme colours with
+// polished, which throws on `var(--…)`. Storybook's planned CSS-variable
+// theming (https://github.com/storybookjs/storybook/discussions/24344) would
+// remove that limit; until then, the alternative is parsing index.css in
+// main.ts and passing the values through `env`.
 const shared = {
   brandTitle: 'Hatchet',
   // Back to the Introduction page in the same tab.
