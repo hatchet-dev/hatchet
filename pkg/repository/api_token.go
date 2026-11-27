@@ -71,7 +71,7 @@ func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPI
 	createParams := sqlcv1.CreateAPITokenParams{
 		ID:        opts.ID,
 		Expiresat: sqlchelpers.TimestampFromTime(opts.ExpiresAt),
-		Internal:  sqlchelpers.BoolFromBoolean(opts.Internal),
+		Internal:  &opts.Internal,
 		Readonly:  opts.ReadOnly,
 	}
 

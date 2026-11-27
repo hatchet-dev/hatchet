@@ -31,10 +31,7 @@ func ToV1ServerlessEndpoint(endpoint *sqlcv1.V1ServerlessEndpoint) gen.V1Serverl
 
 	status := gen.V1ServerlessEndpointStatus{
 		RegisteredActions: registeredActions,
-	}
-
-	if endpoint.Healthy.Valid {
-		status.Healthy = &endpoint.Healthy.Bool
+		Healthy:           endpoint.Healthy,
 	}
 
 	if endpoint.StatusError.Valid {

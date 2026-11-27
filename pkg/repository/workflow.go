@@ -981,7 +981,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		Workflowid:                workflowId,
 		CreateWorkflowVersionOpts: optsJson,
 		InputJsonSchema:           opts.InputJsonSchema,
-		IsUsingDagOperator:        sqlchelpers.BoolFromBoolean(isUsingDagOperator),
+		IsUsingDagOperator:        &isUsingDagOperator,
 	}
 
 	if opts.Sticky != nil {
@@ -1373,8 +1373,8 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			Readableid:              stepOpts.ReadableId,
 			CustomUserData:          customUserData,
 			Retries:                 retries,
-			IsDurable:               sqlchelpers.BoolFromBoolean(stepOpts.IsDurable),
-			IsDagOrchestrator:       sqlchelpers.BoolFromBoolean(stepOpts.IsDagOrchestrator),
+			IsDurable:               &stepOpts.IsDurable,
+			IsDagOrchestrator:       &stepOpts.IsDagOrchestrator,
 			MaxReassignmentsAllowed: sqlchelpers.ToInt(stepOpts.MaxReassignmentsAllowed),
 		}
 
@@ -1509,9 +1509,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					opts.Weight = sqlchelpers.ToInt(value.Weight)
 				}
 
-				if value.Required != nil {
-					opts.Required = sqlchelpers.BoolFromBoolean(*value.Required)
-				}
+				opts.Required = value.Required
 
 				if value.Comparator != nil {
 					opts.Comparator = sqlcv1.NullWorkerLabelComparator{

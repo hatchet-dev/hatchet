@@ -24,7 +24,7 @@ func ToWorkflow(
 		TenantId: workflow.TenantId.String(),
 	}
 
-	res.IsPaused = &workflow.IsPaused.Bool
+	res.IsPaused = new(workflow.IsPaused)
 
 	res.Description = &workflow.Description.String
 
@@ -241,7 +241,7 @@ func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 		Metadata:    *toAPIMetadata(row.ID, row.CreatedAt.Time, row.UpdatedAt.Time),
 		Name:        row.Name,
 		Description: &row.Description.String,
-		IsPaused:    &row.IsPaused.Bool,
+		IsPaused:    new(row.IsPaused),
 
 		PausedWorkflowCronRunQueueBehavior:      row.PausedWorkflowCronRunQueueBehavior,
 		PausedWorkflowScheduledRunQueueBehavior: row.PausedWorkflowScheduledRunQueueBehavior,

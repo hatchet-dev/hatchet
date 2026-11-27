@@ -333,7 +333,7 @@ type FlushAssignedQueueItemsRow struct {
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount     int32              `json:"retry_count"`
 	WorkerID       *uuid.UUID         `json:"worker_id"`
-	IsDurable      pgtype.Bool        `json:"is_durable"`
+	IsDurable      *bool              `json:"is_durable"`
 }
 
 // FlushAssignedQueueItems deletes v1_queue_item entries and inserts v1_task_runtime entries
@@ -2964,7 +2964,7 @@ type UpdateTasksToAssignedRow struct {
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount     int32              `json:"retry_count"`
 	WorkerID       *uuid.UUID         `json:"worker_id"`
-	IsDurable      pgtype.Bool        `json:"is_durable"`
+	IsDurable      bool               `json:"is_durable"`
 }
 
 func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg UpdateTasksToAssignedParams) ([]*UpdateTasksToAssignedRow, error) {

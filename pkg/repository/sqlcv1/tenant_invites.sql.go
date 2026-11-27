@@ -57,7 +57,7 @@ type CreateTenantInviteParams struct {
 	Inviteeemail    string                 `json:"inviteeemail"`
 	Expires         pgtype.Timestamp       `json:"expires"`
 	Role            enums.TenantMemberRole `json:"role"`
-	CanViewPayloads pgtype.Bool            `json:"canViewPayloads"`
+	CanViewPayloads *bool                  `json:"canViewPayloads"`
 }
 
 func (q *Queries) CreateTenantInvite(ctx context.Context, db DBTX, arg CreateTenantInviteParams) (*TenantInviteLink, error) {
@@ -181,7 +181,7 @@ WHERE
 type ListInvitesByTenantIdParams struct {
 	Tenantid uuid.UUID            `json:"tenantid"`
 	Status   NullInviteLinkStatus `json:"status"`
-	Expired  pgtype.Bool          `json:"expired"`
+	Expired  *bool                `json:"expired"`
 }
 
 func (q *Queries) ListInvitesByTenantId(ctx context.Context, db DBTX, arg ListInvitesByTenantIdParams) ([]*TenantInviteLink, error) {
@@ -290,7 +290,7 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmai
 type UpdateTenantInviteParams struct {
 	Status          NullInviteLinkStatus    `json:"status"`
 	Role            *enums.TenantMemberRole `json:"role"`
-	CanViewPayloads pgtype.Bool             `json:"canViewPayloads"`
+	CanViewPayloads *bool                   `json:"canViewPayloads"`
 	ID              uuid.UUID               `json:"id"`
 }
 

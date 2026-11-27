@@ -11,7 +11,6 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,7 +29,7 @@ const eventually = 3 * time.Second
 
 func healthyRow(spec endpointSpec) *sqlcv1.V1ServerlessEndpoint {
 	spec.enabled = true
-	spec.healthy = pgtype.Bool{Bool: true, Valid: true}
+	spec.healthy = new(true)
 
 	row := newEndpointRow(spec)
 	row.RegisteredActions = append([]string{}, spec.actions...)

@@ -196,7 +196,7 @@ func budgetRows(n, a int) []*sqlcv1.V1ServerlessEndpoint {
 			SigningSecretEnc:  strings.Repeat("s", 100),
 			RegisteredActions: actions,
 			Enabled:           true,
-			Healthy:           pgtype.Bool{Bool: true, Valid: true},
+			Healthy:           new(true),
 			UpdatedAt:         pgtype.Timestamptz{Time: stamp, Valid: true},
 		}
 	}
@@ -490,7 +490,7 @@ func TestRecoveryWriteAfterOwnershipTransfer(t *testing.T) {
 
 	db := env.repo.Endpoint(row.ID)
 	require.NotNil(t, db)
-	assert.True(t, db.Healthy.Bool, "successful polls after a takeover must write the recovery")
+	assert.Equal(t, new(true), db.Healthy, "successful polls after a takeover must write the recovery")
 	assert.Len(t, env.repo.StatusWrites(), 2, "one unhealthy write by the previous owner, one recovery write")
 }
 

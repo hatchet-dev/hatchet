@@ -2589,7 +2589,7 @@ type GetGroupKeyRun struct {
 type GooseDbVersion struct {
 	ID        pgtype.Int4      `json:"id"`
 	VersionID pgtype.Int8      `json:"version_id"`
-	IsApplied pgtype.Bool      `json:"is_applied"`
+	IsApplied *bool            `json:"is_applied"`
 	Tstamp    pgtype.Timestamp `json:"tstamp"`
 }
 
@@ -3895,7 +3895,7 @@ type V1SandboxProvider struct {
 	Labels            []byte                      `json:"labels"`
 	Enabled           bool                        `json:"enabled"`
 	ProviderPartition int32                       `json:"provider_partition"`
-	Healthy           pgtype.Bool                 `json:"healthy"`
+	Healthy           *bool                       `json:"healthy"`
 	StatusError       pgtype.Text                 `json:"status_error"`
 	StatusChangedAt   pgtype.Timestamptz          `json:"status_changed_at"`
 	CreatedAt         pgtype.Timestamptz          `json:"created_at"`
@@ -3940,7 +3940,7 @@ type V1ServerlessEndpoint struct {
 	Labels                []byte                         `json:"labels"`
 	Enabled               bool                           `json:"enabled"`
 	EndpointPartition     int32                          `json:"endpoint_partition"`
-	Healthy               pgtype.Bool                    `json:"healthy"`
+	Healthy               *bool                          `json:"healthy"`
 	StatusError           pgtype.Text                    `json:"status_error"`
 	StatusChangedAt       pgtype.Timestamptz             `json:"status_changed_at"`
 	RegisteredActions     []string                       `json:"registered_actions"`
@@ -4119,7 +4119,7 @@ type V1Task struct {
 	BatchKey                     pgtype.Text        `json:"batch_key"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
-	IsDurable                    pgtype.Bool        `json:"is_durable"`
+	IsDurable                    bool               `json:"is_durable"`
 	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
 	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
 	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
@@ -4387,7 +4387,7 @@ type Workflow struct {
 	TenantId                                uuid.UUID                         `json:"tenantId"`
 	Name                                    string                            `json:"name"`
 	Description                             pgtype.Text                       `json:"description"`
-	IsPaused                                pgtype.Bool                       `json:"isPaused"`
+	IsPaused                                bool                              `json:"isPaused"`
 	PausedWorkflowCronRunQueueBehavior      *enums.WorkflowPauseQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
 	PausedWorkflowScheduledRunQueueBehavior *enums.WorkflowPauseQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
 	PausedWorkflowQueueTTL                  pgtype.Interval                   `json:"pausedWorkflowQueueTTL"`

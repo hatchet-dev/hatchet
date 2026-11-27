@@ -10,7 +10,6 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -219,9 +218,9 @@ func (t *tenantEntitlementRepository) UpdateLabsEntitlements(ctx context.Context
 	// The merge happens in SQL so concurrent patches to different flags do not overwrite each other.
 	row, err := t.queries.UpdateTenantLabsEntitlements(ctx, t.pool.ForTenant(tenantId), sqlcv1.UpdateTenantLabsEntitlementsParams{
 		Tenantid:           tenantId,
-		DurableStreams:     sqlchelpers.BoolFromMaybeBoolean(patch.DurableStreams),
-		ServerlessOperator: sqlchelpers.BoolFromMaybeBoolean(patch.ServerlessOperator),
-		SandboxOperator:    sqlchelpers.BoolFromMaybeBoolean(patch.SandboxOperator),
+		DurableStreams:     patch.DurableStreams,
+		ServerlessOperator: patch.ServerlessOperator,
+		SandboxOperator:    patch.SandboxOperator,
 	})
 
 	if err != nil {

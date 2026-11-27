@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -175,7 +174,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 			Inviteeemail:    opts.InviteeEmail,
 			Expires:         sqlchelpers.TimestampFromTime(opts.ExpiresAt),
 			Role:            enums.TenantMemberRole(opts.Role),
-			CanViewPayloads: canViewPayloadsParam(opts.CanViewPayloads),
+			CanViewPayloads: opts.CanViewPayloads,
 		},
 	)
 
@@ -228,12 +227,7 @@ func (r *tenantInviteRepository) ListTenantInvitesByTenantId(ctx context.Context
 		}
 	}
 
-	if opts.Expired != nil {
-		params.Expired = pgtype.Bool{
-			Bool:  *opts.Expired,
-			Valid: true,
-		}
-	}
+	params.Expired = opts.Expired
 
 	return r.queries.ListInvitesByTenantId(
 		ctx,
@@ -262,9 +256,7 @@ func (r *tenantInviteRepository) UpdateTenantInvite(ctx context.Context, tenantI
 		}
 	}
 
-	if opts.CanViewPayloads != nil {
-		params.CanViewPayloads = sqlchelpers.BoolFromBoolean(*opts.CanViewPayloads)
-	}
+	params.CanViewPayloads = opts.CanViewPayloads
 
 	updated, err := r.queries.UpdateTenantInvite(
 		ctx,

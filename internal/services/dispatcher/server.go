@@ -1484,7 +1484,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 	var durableInvCount int32
 
-	if task.IsDurable.Bool {
+	if task.IsDurable {
 		invocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenant.ID, []v1.IdInsertedAt{
 			{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()},
 		})
@@ -1820,7 +1820,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
-		if !task.IsDurable.Valid || !task.IsDurable.Bool {
+		if !task.IsDurable {
 			continue
 		}
 
@@ -1939,7 +1939,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
-		if !task.IsDurable.Valid || !task.IsDurable.Bool {
+		if !task.IsDurable {
 			continue
 		}
 

@@ -301,7 +301,7 @@ type UpdateWebhookExpressionParams struct {
 	EventKeyExpression           pgtype.Text `json:"eventKeyExpression"`
 	ScopeExpression              pgtype.Text `json:"scopeExpression"`
 	StaticPayload                []byte      `json:"staticPayload"`
-	ReturnEventAsResponsePayload pgtype.Bool `json:"returnEventAsResponsePayload"`
+	ReturnEventAsResponsePayload *bool       `json:"returnEventAsResponsePayload"`
 	Tenantid                     uuid.UUID   `json:"tenantid"`
 	Webhookname                  string      `json:"webhookname"`
 }

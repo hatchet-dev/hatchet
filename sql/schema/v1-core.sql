@@ -559,7 +559,7 @@ CREATE TABLE v1_task (
     batch_key TEXT,
     retry_backoff_factor DOUBLE PRECISION,
     retry_max_backoff INTEGER,
-    is_durable BOOLEAN,
+    is_durable BOOLEAN NOT NULL DEFAULT FALSE,
     desired_worker_label JSONB,
     triggering_event_external_id UUID,
     triggering_event_key TEXT,

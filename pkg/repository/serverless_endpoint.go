@@ -246,9 +246,7 @@ func (r *serverlessEndpointRepository) Update(ctx context.Context, tenantId, end
 		params.Labels = labels
 	}
 
-	if opts.Enabled != nil {
-		params.Enabled = pgtype.Bool{Bool: *opts.Enabled, Valid: true}
-	}
+	params.Enabled = opts.Enabled
 
 	return r.queries.UpdateServerlessEndpoint(ctx, r.pool.ForTenant(tenantId), params)
 }

@@ -814,7 +814,7 @@ func (w *workflowScheduleRepository) UpdateCronWorkflow(ctx context.Context, ten
 
 	if err := w.queries.UpdateCronTrigger(ctx, tx, sqlcv1.UpdateCronTriggerParams{
 		Crontriggerid: id,
-		Enabled:       sqlchelpers.BoolFromBoolean(*opts.Enabled),
+		Enabled:       opts.Enabled,
 	}); err != nil {
 		return err
 	}

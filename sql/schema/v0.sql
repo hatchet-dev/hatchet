@@ -926,7 +926,7 @@ CREATE TABLE "Workflow" (
     "tenantId" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
-    "isPaused" BOOLEAN DEFAULT false,
+    "isPaused" BOOLEAN NOT NULL DEFAULT false,
     "pausedWorkflowCronRunQueueBehavior" "WorkflowPauseQueueBehavior",
     "pausedWorkflowScheduledRunQueueBehavior" "WorkflowPauseQueueBehavior",
     "pausedWorkflowQueueTTL" INTERVAL,

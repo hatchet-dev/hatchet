@@ -163,7 +163,7 @@ func TestServerlessRepository(t *testing.T) {
 		assert.True(t, created.Enabled)
 		// endpoint_partition_count defaults to 1, so every endpoint lands on partition 0
 		assert.Equal(t, int32(0), created.EndpointPartition)
-		assert.False(t, created.Healthy.Valid)
+		assert.Nil(t, created.Healthy)
 		assert.Empty(t, created.RegisteredActions)
 
 		got, err := repo.Endpoints().Get(ctx, tenantId, created.ID)
@@ -232,8 +232,7 @@ func TestServerlessRepository(t *testing.T) {
 
 		afterStatus, err := repo.Endpoints().Get(ctx, tenantId, created.ID)
 		require.NoError(t, err)
-		assert.True(t, afterStatus.Healthy.Valid)
-		assert.False(t, afterStatus.Healthy.Bool)
+		assert.Equal(t, new(false), afterStatus.Healthy)
 		assert.Equal(t, statusError, afterStatus.StatusError.String)
 		assert.True(t, afterStatus.StatusChangedAt.Valid)
 		assert.Equal(t, afterStatus.StatusChangedAt.Time, changedAt, "the status write returns the row's status_changed_at")
@@ -243,7 +242,7 @@ func TestServerlessRepository(t *testing.T) {
 		changed, err = repo.Endpoints().ListUpdatedSince(ctx, tenantId, updated.UpdatedAt.Time, updated.ID)
 		require.NoError(t, err)
 		require.Len(t, changed, 1, "a health flip surfaces in the incremental refresh")
-		assert.False(t, changed[0].Healthy.Bool)
+		assert.Equal(t, new(false), changed[0].Healthy)
 
 		// a workflow change is recorded and does bump updated_at
 		actions := []string{"svc:run", "svc:stream"}

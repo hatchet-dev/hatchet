@@ -320,12 +320,7 @@ func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId uuid.UUI
 		params.StaticPayload = opts.StaticPayload
 	}
 
-	if opts.ReturnEventAsResponsePayload != nil {
-		params.ReturnEventAsResponsePayload = pgtype.Bool{
-			Bool:  *opts.ReturnEventAsResponsePayload,
-			Valid: true,
-		}
-	}
+	params.ReturnEventAsResponsePayload = opts.ReturnEventAsResponsePayload
 
 	return r.queries.UpdateWebhookExpression(ctx, db, params)
 }

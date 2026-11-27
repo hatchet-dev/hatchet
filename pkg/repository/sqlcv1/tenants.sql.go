@@ -229,7 +229,7 @@ type CreateTenantMemberParams struct {
 	Tenantid        uuid.UUID              `json:"tenantid"`
 	Userid          uuid.UUID              `json:"userid"`
 	Role            enums.TenantMemberRole `json:"role"`
-	CanViewPayloads pgtype.Bool            `json:"canViewPayloads"`
+	CanViewPayloads *bool                  `json:"canViewPayloads"`
 }
 
 func (q *Queries) CreateTenantMember(ctx context.Context, db DBTX, arg CreateTenantMemberParams) (*TenantMember, error) {
@@ -1536,8 +1536,8 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name,
 
 type UpdateTenantParams struct {
 	Name                pgtype.Text                     `json:"name"`
-	AnalyticsOptOut     pgtype.Bool                     `json:"analyticsOptOut"`
-	AlertMemberEmails   pgtype.Bool                     `json:"alertMemberEmails"`
+	AnalyticsOptOut     *bool                           `json:"analyticsOptOut"`
+	AlertMemberEmails   *bool                           `json:"alertMemberEmails"`
 	Version             *enums.TenantMajorEngineVersion `json:"version"`
 	DataRetentionPeriod pgtype.Text                     `json:"dataRetentionPeriod"`
 	ID                  uuid.UUID                       `json:"id"`
@@ -1646,7 +1646,7 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayl
 
 type UpdateTenantMemberParams struct {
 	Role            *enums.TenantMemberRole `json:"role"`
-	CanViewPayloads pgtype.Bool             `json:"canViewPayloads"`
+	CanViewPayloads *bool                   `json:"canViewPayloads"`
 	ID              uuid.UUID               `json:"id"`
 }
 
@@ -1691,9 +1691,9 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency",
 type UpsertTenantAlertingSettingsParams struct {
 	Tenantid                        uuid.UUID   `json:"tenantid"`
 	MaxFrequency                    pgtype.Text `json:"maxFrequency"`
-	EnableExpiringTokenAlerts       pgtype.Bool `json:"enableExpiringTokenAlerts"`
-	EnableWorkflowRunFailureAlerts  pgtype.Bool `json:"enableWorkflowRunFailureAlerts"`
-	EnableTenantResourceLimitAlerts pgtype.Bool `json:"enableTenantResourceLimitAlerts"`
+	EnableExpiringTokenAlerts       *bool       `json:"enableExpiringTokenAlerts"`
+	EnableWorkflowRunFailureAlerts  *bool       `json:"enableWorkflowRunFailureAlerts"`
+	EnableTenantResourceLimitAlerts *bool       `json:"enableTenantResourceLimitAlerts"`
 }
 
 func (q *Queries) UpsertTenantAlertingSettings(ctx context.Context, db DBTX, arg UpsertTenantAlertingSettingsParams) (*TenantAlertingSettings, error) {

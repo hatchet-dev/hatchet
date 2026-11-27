@@ -2215,10 +2215,10 @@ LIMIT $1::bigint
 `
 
 type ListTaskEventsForWorkflowRunParams struct {
-	Eventlimit                int64       `json:"eventlimit"`
-	Workflowrunid             uuid.UUID   `json:"workflowrunid"`
-	Tenantid                  uuid.UUID   `json:"tenantid"`
-	IncludeOrchestratorEvents pgtype.Bool `json:"includeOrchestratorEvents"`
+	Eventlimit                int64     `json:"eventlimit"`
+	Workflowrunid             uuid.UUID `json:"workflowrunid"`
+	Tenantid                  uuid.UUID `json:"tenantid"`
+	IncludeOrchestratorEvents *bool     `json:"includeOrchestratorEvents"`
 }
 
 type ListTaskEventsForWorkflowRunRow struct {
