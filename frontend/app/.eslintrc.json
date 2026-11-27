@@ -52,6 +52,7 @@
         "devDependencies": [
           "vite.config.ts",
           "playwright.config.ts",
+          "vitest.config.ts",
           "e2e/**/*.{ts,tsx}",
           ".storybook/**/*.{ts,tsx}",
           "src/**/*.stories.{ts,tsx}",

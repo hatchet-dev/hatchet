@@ -270,6 +270,11 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://localhost:5173
         run: pnpm run e2e:isolated
 
+      - name: Run story tests
+        if: ${{ !cancelled() }}
+        working-directory: frontend/app
+        run: pnpm run test:stories
+
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

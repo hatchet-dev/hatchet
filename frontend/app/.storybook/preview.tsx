@@ -1,3 +1,4 @@
+import { hatchetTheme } from './theme';
 import { ThemeProvider, useTheme } from '@/components/hooks/use-theme';
 import '@/index.css';
 import type { Decorator, Preview } from '@storybook/react-vite';
@@ -61,6 +62,9 @@ const preview: Preview = {
   loaders: [mswLoader()],
   parameters: {
     layout: 'fullscreen',
+    // Storybook opens on the first sidebar entry.
+    options: { storySort: { order: ['Introduction', '*'] } },
+    docs: { theme: hatchetTheme },
     controls: {
       matchers: {
         color: /(background|color)$/i,
