@@ -3,5 +3,5 @@
   "framework": null,
   "buildCommand": "npm run docs:gen && npm run storybook:build",
   "outputDirectory": "storybook-static",
-  "ignoreCommand": "git diff --quiet ${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- ."
+  "ignoreCommand": "bash vercel-ignore-build.sh"
 }
