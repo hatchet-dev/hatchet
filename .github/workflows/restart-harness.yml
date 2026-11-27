@@ -1,0 +1,338 @@
+name: restart-harness
+
+# Measures how much a hatchet-engine restart disrupts tenants, for a pull
+# request head against its merge base (see hack/ci/restartharness). Started by
+# a "/restart-harness [track]" comment on a pull request from someone with
+# write access, or by hand.
+#
+# The run job builds and runs pull request code, so it holds no secrets and a
+# read-only token, and everything it produces is untrusted. The ack and report
+# jobs hold the write token and never check out pull request code: the
+# harness, its compare step and docker-compose.yml always come from the ref
+# this workflow runs from (the default branch for comments).
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      head:
+        description: Ref or SHA to measure
+        required: true
+        type: string
+      base:
+        description: Ref or SHA to compare against (default is the merge base of head with the default branch)
+        required: false
+        type: string
+      track:
+        description: Track to run
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - single-tenant-default
+          - mt-many-equal
+          - mt-skewed
+
+permissions: {}
+
+jobs:
+  ack:
+    if: github.event_name == 'workflow_dispatch' || (github.event.issue.pull_request && startsWith(github.event.comment.body, '/restart-harness'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      # Resolving refs and the merge base (commits, compare) and reading the
+      # pull request.
+      contents: read
+      # Reacting to the command comment and commenting on the pull request.
+      issues: write
+      pull-requests: write
+    outputs:
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+      base_sha: ${{ steps.resolve.outputs.base_sha }}
+      tracks: ${{ steps.resolve.outputs.tracks }}
+      pr: ${{ steps.resolve.outputs.pr }}
+    steps:
+      - name: Validate the command and resolve the commits
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          HEAD_INPUT: ${{ inputs.head }}
+          BASE_INPUT: ${{ inputs.base }}
+          TRACK_INPUT: ${{ inputs.track }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+          # A conservative ref shape that is safe in an API path.
+          check_ref() {
+            if [[ ! "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$ || "$1" == *..* ]]; then
+              echo "::error::not a usable ref or SHA"
+              exit 1
+            fi
+          }
+          check_sha() {
+            if [[ ! "$1" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::could not resolve a commit"
+              exit 1
+            fi
+          }
+          comment() {
+            gh api "repos/$repo/issues/$pr/comments" -f body="$1" > /dev/null
+          }
+
+          pr=""
+          if [[ "$EVENT_NAME" == issue_comment ]]; then
+            re='^/restart-harness( ([a-z-]+))?$'
+            if [[ ! "$COMMENT_BODY" =~ $re ]]; then
+              echo "Not a /restart-harness command."
+              exit 0
+            fi
+            word="${BASH_REMATCH[2]}"
+            if [[ ! "$COMMENTER" =~ ^[A-Za-z0-9-]{1,39}$ ]]; then
+              echo "Unexpected commenter login."
+              exit 0
+            fi
+            # A non-collaborator gets a 404, which counts as no permission.
+            # .permission reports maintain as write.
+            permission="$(gh api "repos/$repo/collaborators/$COMMENTER/permission" --jq .permission 2>/dev/null || echo none)"
+            case "$permission" in
+              admin | write) ;;
+              *)
+                echo "Commenter lacks write access."
+                exit 0
+                ;;
+            esac
+            pr="$PR_NUMBER"
+            case "$word" in
+              "") track=all ;;
+              single-tenant-default | mt-many-equal | mt-skewed) track="$word" ;;
+              *)
+                comment "Unknown restart harness track. Use \`/restart-harness\` for all tracks, or one of \`single-tenant-default\`, \`mt-many-equal\`, \`mt-skewed\`."
+                exit 0
+                ;;
+            esac
+
+            pull="$(gh api "repos/$repo/pulls/$pr")"
+            if [[ "$(jq -r '.head.repo.full_name // ""' <<< "$pull")" != "$repo" ]]; then
+              comment "The restart harness runs only on pull requests from branches in this repository."
+              exit 0
+            fi
+            head_sha="$(jq -r '.head.sha' <<< "$pull")"
+            check_sha "$head_sha"
+            base_ref="$(jq -r '.base.ref' <<< "$pull")"
+            check_ref "$base_ref"
+            base_sha="$(gh api "repos/$repo/compare/$base_ref...$head_sha" --jq .merge_base_commit.sha)"
+            check_sha "$base_sha"
+
+            gh api -X POST "repos/$repo/issues/comments/$COMMENT_ID/reactions" -f content=eyes > /dev/null
+            comment "Restart harness started for head \`${head_sha:0:12}\` against base \`${base_sha:0:12}\`: [workflow run]($run_url)"
+          else
+            check_ref "$HEAD_INPUT"
+            head_sha="$(gh api "repos/$repo/commits/$HEAD_INPUT" --jq .sha)"
+            check_sha "$head_sha"
+            if [[ -n "$BASE_INPUT" ]]; then
+              check_ref "$BASE_INPUT"
+              base_sha="$(gh api "repos/$repo/commits/$BASE_INPUT" --jq .sha)"
+            else
+              check_ref "$DEFAULT_BRANCH"
+              base_sha="$(gh api "repos/$repo/compare/$DEFAULT_BRANCH...$head_sha" --jq .merge_base_commit.sha)"
+            fi
+            check_sha "$base_sha"
+            track="$TRACK_INPUT"
+          fi
+
+          case "$track" in
+            all) tracks='["single-tenant-default","mt-many-equal","mt-skewed"]' ;;
+            single-tenant-default | mt-many-equal | mt-skewed) tracks="[\"$track\"]" ;;
+            *)
+              echo "::error::unknown track"
+              exit 1
+              ;;
+          esac
+          echo "head $head_sha, base $base_sha, tracks $tracks"
+          {
+            echo "head_sha=$head_sha"
+            echo "base_sha=$base_sha"
+            echo "tracks=$tracks"
+            echo "pr=$pr"
+          } >> "$GITHUB_OUTPUT"
+
+  run:
+    needs: ack
+    if: needs.ack.outputs.tracks != ''
+    runs-on: ubicloud-standard-8
+    # Two harness runs of about 5 minutes each, plus builds.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        track: ${{ fromJSON(needs.ack.outputs.tracks) }}
+    # One harness per pull request and track: a newer command cancels the
+    # running one. The group lives on this job, which only starts once ack has
+    # accepted the command, so no other comment on the pull request (an
+    # unrelated one, or the command from someone without write access) can
+    # cancel a running harness.
+    concurrency:
+      group: restart-harness-${{ needs.ack.outputs.pr || github.run_id }}-${{ matrix.track }}
+      cancel-in-progress: true
+    env:
+      SERVER_SECURITY_CHECK_ENABLED: "false"
+      TRACK: ${{ matrix.track }}
+    steps:
+      # The harness and docker-compose.yml come from this workflow's ref, never
+      # from the commits being measured.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.ack.outputs.base_sha }}
+          path: base
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.ack.outputs.head_sha }}
+          path: head
+          persist-credentials: false
+
+      # No cache: a cache written by a job that builds pull request code
+      # could be restored into a trusted one.
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Build
+        run: |
+          go build -o "$RUNNER_TEMP/bin/restartharness" ./hack/ci/restartharness
+          for side in base head; do
+            mkdir -p "$RUNNER_TEMP/bin/$side"
+            (cd "$side" && go build -o "$RUNNER_TEMP/bin/$side/" ./cmd/hatchet-engine ./cmd/hatchet-migrate ./cmd/hatchet-admin)
+          done
+
+      - name: Compose
+        run: docker compose up -d --wait postgres rabbitmq
+
+      # Each run gets its own database and RabbitMQ vhost from the harness, so
+      # neither build sees what the other left behind.
+      - name: Measure base and head
+        run: |
+          for side in base head; do
+            mkdir -p "$RUNNER_TEMP/out/$side"
+            "$RUNNER_TEMP/bin/restartharness" run \
+              --engine-bin "$RUNNER_TEMP/bin/$side/hatchet-engine" \
+              --migrate-bin "$RUNNER_TEMP/bin/$side/hatchet-migrate" \
+              --admin-bin "$RUNNER_TEMP/bin/$side/hatchet-admin" \
+              --track "$TRACK" \
+              --restarts 5 \
+              --out "$RUNNER_TEMP/out/$side/$side.json"
+          done
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: restart-harness-${{ matrix.track }}
+          path: |
+            ${{ runner.temp }}/out/base/base.json
+            ${{ runner.temp }}/out/head/head.json
+          if-no-files-found: warn
+
+      # Named so the report job's restart-harness-* pattern does not fetch it.
+      - name: Upload engine logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: logs-restart-harness-${{ matrix.track }}
+          path: ${{ runner.temp }}/out/*/*.log
+          if-no-files-found: ignore
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v
+
+  report:
+    needs: [ack, run]
+    # Not on cancellation: a run superseded by a newer command reports nothing.
+    if: ${{ !cancelled() && needs.run.result != 'cancelled' && needs.ack.result == 'success' && needs.ack.outputs.tracks != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Download results
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: restart-harness-*
+          path: ${{ runner.temp }}/artifacts
+
+      # The results files are untrusted; compare (hack/ci/restartharness/
+      # sanitize.go) only ever prints constant text, its own track names and
+      # numbers it formatted.
+      - name: Compare and report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ needs.ack.outputs.head_sha }}
+          BASE_SHA: ${{ needs.ack.outputs.base_sha }}
+          PR: ${{ needs.ack.outputs.pr }}
+          TRACKS: ${{ needs.ack.outputs.tracks }}
+        run: |
+          set -euo pipefail
+          go build -o "$RUNNER_TEMP/restartharness" ./hack/ci/restartharness
+
+          # Only small regular files, in a stable order.
+          mkdir -p "$RUNNER_TEMP/artifacts"
+          collect() {
+            find "$RUNNER_TEMP/artifacts" -type f -name "$1" -size -1024k -print0 | sort -z | xargs -0 -r cat
+          }
+          collect base.json > "$RUNNER_TEMP/base.json"
+          collect head.json > "$RUNNER_TEMP/head.json"
+
+          body="$RUNNER_TEMP/comment.md"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          {
+            echo "Restart harness: head \`${HEAD_SHA:0:12}\` against base \`${BASE_SHA:0:12}\`, [workflow run]($run_url)"
+            echo
+          } > "$body"
+          # Naming the requested tracks makes one that produced no results
+          # INVALID instead of absent from the report.
+          tracks="$(jq -r 'join(",")' <<< "$TRACKS")"
+          if "$RUNNER_TEMP/restartharness" compare --tracks "$tracks" "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head.json" > "$RUNNER_TEMP/compare.md"; then
+            cat "$RUNNER_TEMP/compare.md" >> "$body"
+          else
+            echo "The restart harness failed before producing results to compare; see the workflow run." >> "$body"
+          fi
+
+          cat "$body" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n "$PR" ]]; then
+            gh pr comment "$PR" --body-file "$body"
+          fi
