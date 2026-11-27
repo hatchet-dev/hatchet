@@ -52,7 +52,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
-        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         if: matrix.package-manager == 'pnpm'
@@ -170,7 +170,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
-        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         if: matrix.package-manager == 'pnpm'
@@ -245,7 +245,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
-        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         if: matrix.package-manager == 'pnpm'
@@ -350,7 +350,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install pnpm
-        run: npm install -g pnpm@10.16.1
+        run: npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         shell: bash
@@ -406,7 +406,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install pnpm
-        run: npm install -g pnpm@10.16.1
+        run: npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         shell: bash
@@ -460,7 +460,7 @@ jobs:
           node-version: "24.x"
 
       - name: Install pnpm
-        run: npm install -g pnpm@10.16.1
+        run: npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         shell: bash
@@ -523,7 +523,7 @@ jobs:
           node-version: "24.x"
 
       - name: Install pnpm
-        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         shell: bash
@@ -633,7 +633,7 @@ jobs:
           node-version: "24.x"
 
       - name: Install pnpm
-        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         shell: bash
@@ -719,7 +719,7 @@ jobs:
           node-version: "24.x"
 
       - name: Install pnpm
-        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         shell: bash
@@ -816,7 +816,7 @@ jobs:
           node-version: "24.x"
 
       - name: Install pnpm
-        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         shell: bash
@@ -913,7 +913,7 @@ jobs:
           node-version: "24.x"
 
       - name: Install pnpm
-        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         shell: bash

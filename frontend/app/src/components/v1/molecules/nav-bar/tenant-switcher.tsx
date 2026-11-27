@@ -82,7 +82,7 @@ export function TenantSwitcher({
             id: 'new-tenant',
             label: 'New tenant',
             icon: <PlusIcon className="size-3.5" />,
-            dataCy: 'new-tenant',
+            testId: 'new-tenant',
             onSelect: () => {
               globalEmitter.emit('create-new-tenant', {});
               setOpen(false);

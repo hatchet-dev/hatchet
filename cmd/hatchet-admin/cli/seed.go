@@ -29,14 +29,14 @@ var seedCmd = &cobra.Command{
 	},
 }
 
-var seedCypressCmd = &cobra.Command{
-	Use:   "seed-cypress",
-	Short: "seed-cypress create initial data in the database for cypress.",
+var seedE2ECmd = &cobra.Command{
+	Use:   "seed-e2e",
+	Short: "seed-e2e creates the users and tenants the frontend e2e tests rely on.",
 	Run: func(cmd *cobra.Command, args []string) {
 		var err error
 
 		configLoader := loader.NewConfigLoader(configDirectory)
-		err = runSeedForCypress(configLoader)
+		err = runSeedForE2E(configLoader)
 
 		if err != nil {
 			log.Printf("Fatal: could not run seed command: %v", err)
@@ -47,7 +47,7 @@ var seedCypressCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(seedCmd)
-	rootCmd.AddCommand(seedCypressCmd)
+	rootCmd.AddCommand(seedE2ECmd)
 }
 
 func runSeed(cf *loader.ConfigLoader) error {
@@ -70,7 +70,7 @@ func runSeed(cf *loader.ConfigLoader) error {
 	return seed.SeedDatabase(dc)
 }
 
-func runSeedForCypress(cf *loader.ConfigLoader) error {
+func runSeedForE2E(cf *loader.ConfigLoader) error {
 	// load the config
 	dc, err := cf.InitDataLayer()
 
@@ -80,5 +80,5 @@ func runSeedForCypress(cf *loader.ConfigLoader) error {
 
 	defer dc.Disconnect() // nolint: errcheck
 
-	return seed.SeedDatabaseForCypress(dc)
+	return seed.SeedDatabaseForE2E(dc)
 }
