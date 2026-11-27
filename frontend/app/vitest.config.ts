@@ -14,7 +14,7 @@ export default defineConfig({
   resolve: { alias: viteConfig.resolve?.alias },
   // Found only once stories start rendering, which makes Vite reload the
   // browser mid-run and drop the test files that were loading.
-  optimizeDeps: { include: ['react/jsx-dev-runtime'] },
+  optimizeDeps: { include: ['react/jsx-dev-runtime', 'storybook/theming'] },
   plugins: [storybookTest({ configDir: path.join(dirname, '.storybook') })],
   test: {
     name: 'storybook',
