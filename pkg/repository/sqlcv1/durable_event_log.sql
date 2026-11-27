@@ -498,6 +498,42 @@ WITH inputs AS (
         UNNEST((SELECT @branchIds::BIGINT[])) AS branch_id,
         UNNEST((SELECT @durableTaskIds::BIGINT[])) AS durable_task_id,
         UNNEST((SELECT @durableTaskInsertedAts::TIMESTAMPTZ[])) AS durable_task_inserted_at
+), cancelled_durable_tasks AS MATERIALIZED (
+    -- a durable task whose current retry is cancelled must not spawn new work. Earlier retries'
+    -- events don't count, so a replayed task triggers its entries again.
+    -- MATERIALIZED runs the lookup once per task rather than once per entry.
+    SELECT
+        t.id,
+        t.inserted_at
+    FROM
+        v1_task t
+    WHERE
+        (t.id, t.inserted_at) IN (
+            SELECT durable_task_id, durable_task_inserted_at
+            FROM inputs
+        )
+        AND t.inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
+        -- a cancellation deletes the v1_task_runtime, so a task which still has one for its current
+        -- retry, running or evicted, is not cancelled. The v1_task_event lookup reads every event of
+        -- the task, one or more per child it spawned, so it only runs for tasks without a runtime.
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id
+                AND tr.task_inserted_at = t.inserted_at
+                AND tr.retry_count = t.retry_count
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM v1_task_event te
+            WHERE te.task_id = t.id
+                AND te.task_inserted_at = t.inserted_at
+                AND te.task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+                AND te.task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
+                AND te.retry_count = t.retry_count
+                AND te.event_type = 'CANCELLED'
+        )
 ), to_claim AS (
     SELECT
         e.durable_task_id,
@@ -513,6 +549,12 @@ WITH inputs AS (
             AND e.branch_id = i.branch_id
     WHERE
         e.triggered_at IS NULL
+        AND NOT EXISTS (
+            SELECT 1
+            FROM cancelled_durable_tasks c
+            WHERE c.id = e.durable_task_id
+                AND c.inserted_at = e.durable_task_inserted_at
+        )
         AND e.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
         AND e.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
     ORDER BY e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id
