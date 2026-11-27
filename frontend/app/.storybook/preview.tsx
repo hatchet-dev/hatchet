@@ -61,6 +61,8 @@ const preview: Preview = {
   loaders: [mswLoader()],
   parameters: {
     layout: 'fullscreen',
+    // Storybook opens on the first sidebar entry.
+    options: { storySort: { order: ['Introduction', '*'] } },
     controls: {
       matchers: {
         color: /(background|color)$/i,

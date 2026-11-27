@@ -1,0 +1,18 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Introduction" />
+
+# Hatchet dashboard components
+
+Components from the dashboard app, rendered on their own with mocked data. Pick one in the sidebar to browse its states, and change its props in the **Controls** panel.
+
+## Adding a story
+
+- Write `<component>.stories.tsx` next to the component.
+- Pass data through args, or mock API calls with MSW handlers in `parameters.msw`.
+- Check behaviour in a `play` function. Stories that exist only as tests take the `test-only` tag, which hides them from the sidebar; the sidebar's tag filter shows them.
+
+## Commands
+
+- `pnpm storybook` starts Storybook on port 6006.
+- `pnpm test:stories` renders every story in Chromium and runs its play function. CI runs it too.
