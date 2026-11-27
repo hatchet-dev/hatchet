@@ -271,9 +271,10 @@ func retryableLimitErrorHandler(next echo.HTTPErrorHandler) echo.HTTPErrorHandle
 		var limitErr *fairpool.LimitError
 
 		if errors.As(err, &limitErr) {
-			writeThrottled(fairpool.RetryAfter, c)
+			writeThrottled(limitErr.ClientMessage(), fairpool.RetryAfter, c)
 		} else if retryAfter, ok := proxy.ThrottleRetryAfter(err); ok {
-			writeThrottled(retryAfter, c)
+			// the engine's status does not say which bucket was full
+			writeThrottled(fairpool.ThrottledMessage, retryAfter, c)
 		} else {
 			next(err, c)
 		}
@@ -282,7 +283,7 @@ func retryableLimitErrorHandler(next echo.HTTPErrorHandler) echo.HTTPErrorHandle
 
 // writeThrottled writes the 429 response. The cause stays with the caller: the access logger
 // records the error returned by the handler chain, not what is written here.
-func writeThrottled(retryAfter time.Duration, c echo.Context) {
+func writeThrottled(message string, retryAfter time.Duration, c echo.Context) {
 	if c.Response().Committed {
 		return
 	}
@@ -294,7 +295,7 @@ func writeThrottled(retryAfter time.Duration, c echo.Context) {
 	if c.Request().Method == http.MethodHead {
 		err = c.NoContent(http.StatusTooManyRequests)
 	} else {
-		err = c.JSON(http.StatusTooManyRequests, apierrors.NewAPIErrors("too many concurrent database operations, retry shortly"))
+		err = c.JSON(http.StatusTooManyRequests, apierrors.NewAPIErrors(message))
 	}
 
 	if err != nil {

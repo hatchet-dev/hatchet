@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -80,6 +81,34 @@ func TestErrorInterceptorMapsLimitErrorToResourceExhaustedWithRetryInfo(t *testi
 	retryInfo, ok := detail.(*errdetails.RetryInfo)
 	require.True(t, ok, "detail is %T", detail)
 	assert.Equal(t, fairpool.RetryAfter, retryInfo.GetRetryDelay().AsDuration())
+}
+
+// The caller is told it was throttled, not how: the text names neither the database nor the
+// limit, and says "this tenant" only when the tenant's own bucket was full.
+func TestErrorInterceptorLimitErrorMessageNamesTheTenantOnlyForItsOwnBucket(t *testing.T) {
+	tenantId := uuid.New()
+
+	for name, tc := range map[string]struct {
+		limitErr *fairpool.LimitError
+		want     string
+	}{
+		"shared bucket": {
+			limitErr: &fairpool.LimitError{Key: "shared", Limit: 2},
+			want:     "resource exhausted: too many requests in flight, retry shortly",
+		},
+		"tenant bucket": {
+			limitErr: &fairpool.LimitError{Key: tenantId.String(), TenantID: tenantId, Limit: 2},
+			want:     "resource exhausted: too many requests in flight for this tenant, retry shortly",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err, _ := runThroughErrorInterceptor(t, fmt.Errorf("trigger: %w", tc.limitErr))
+
+			var connectErr *connect.Error
+			require.ErrorAs(t, err, &connectErr)
+			assert.Equal(t, tc.want, connectErr.Message())
+		})
+	}
 }
 
 func TestErrorInterceptorMapsCanceledWithoutAlert(t *testing.T) {
