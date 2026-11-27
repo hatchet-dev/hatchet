@@ -89,6 +89,7 @@ import { webhookWorkflow } from './webhooks/workflow';
 import {
   childIndexChild,
   childIndexParent,
+  childIndexBulkParent,
   scenarioTask,
   orchestratorTask,
 } from './child_index/workflow';
@@ -172,6 +173,7 @@ const workflows = [
   webhookWorkflow,
   childIndexChild,
   childIndexParent,
+  childIndexBulkParent,
   scenarioTask,
   orchestratorTask,
   supportAgent,

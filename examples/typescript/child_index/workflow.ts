@@ -40,6 +40,25 @@ childIndexParent.task({
   },
 });
 
+export const childIndexBulkParent = hatchet.task({
+  name: 'child-index-bulk-parent',
+  executionTimeout: '3m',
+  fn: async (input: { sizes: number[] }) => {
+    const runIds: string[] = [];
+    const tags: string[] = [];
+
+    for (const [call, size] of input.sizes.entries()) {
+      const refs = await childIndexChild.runManyNoWait(
+        Array.from({ length: size }, (_, i) => ({ input: { tag: `bulk-${call}-${i}` } }))
+      );
+      runIds.push(...(await Promise.all(refs.map((r) => r.runId))));
+      tags.push(...(await Promise.all(refs.map((r) => r.output))).map((o) => o.tag));
+    }
+
+    return { runIds, tags };
+  },
+});
+
 // Simulates recursive hierarchy of entities
 // (fund → portfolio → project) where the orchestrator walks bottom-up,
 // calling scenarioWorkflow.runNoWait() for each node and waiting for it
