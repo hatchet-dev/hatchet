@@ -98,7 +98,7 @@
     "@playwright/test": "^1.65.1",
     "@storybook/addon-a11y": "^10.6.7",
     "@storybook/addon-docs": "^10.6.7",
-    "@storybook/addon-vitest": "~10.6.7",
+    "@storybook/addon-vitest": "10.6.7",
     "@storybook/react-vite": "^10.6.7",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/dagre": "^0.7.54",
@@ -111,8 +111,8 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "@vitest/browser": "^4.1.12",
-    "@vitest/browser-playwright": "^4.1.12",
+    "@vitest/browser": "^5.1.2",
+    "@vitest/browser-playwright": "^5.1.2",
     "autoprefixer": "^10.6.2",
     "eslint": "^8.57.1",
     "eslint-config-airbnb-typescript": "^18.0.0",
@@ -137,7 +137,7 @@
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vite": "^6.4.6",
-    "vitest": "^4.1.12"
+    "vitest": "^5.1.2"
   },
   "pnpm": {
     "overrides": {
