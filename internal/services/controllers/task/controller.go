@@ -207,13 +207,31 @@ func WithPrometheusGate(gate *prometheus.Gate) TasksControllerOpt {
 	}
 }
 
-func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
+// NewMessageHandler returns the task controller's handler without its background operations, so the
+// dispatcher can apply worker events in-process. An event can then arrive twice or out of order, here
+// and through the task queue; task state stays correct because every change is keyed on (task, retry
+// count), which pkg/repository/task_event_order_test.go pins. The returned stop function stops the
+// publish buffer the handler sends through; call it once nothing can call the handler anymore.
+func NewMessageHandler(fs ...TasksControllerOpt) (msgqueue.DstFunc, func(), error) {
 	opts := defaultTasksControllerOpts()
 
 	for _, f := range fs {
 		f(opts)
 	}
 
+	t, err := newTasksController(opts)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return t.handleBufferedMsgs, t.pubBuffer.Stop, nil
+}
+
+// newTasksController builds the parts of the controller that its message handlers use. The
+// scheduler, partition and tenant operation pools are added by New, since only Start uses them
+// and the operation pools poll the tenant list as soon as they are created.
+func newTasksController(opts *TasksControllerOpts) (*TasksControllerImpl, error) {
 	if opts.mq == nil {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
@@ -223,21 +241,11 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	}
 
 	if opts.repov1 == nil {
-		return nil, fmt.Errorf("v2 repository is required. use WithV2Repository")
-	}
-
-	if opts.p == nil {
-		return nil, errors.New("partition is required. use WithPartition")
+		return nil, fmt.Errorf("v1 repository is required. use WithV1Repository")
 	}
 
 	newLogger := opts.l.With().Str("service", "tasks-controller").Logger()
 	opts.l = &newLogger
-
-	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create scheduler: %w", err)
-	}
 
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "tasks-controller"})
@@ -247,7 +255,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	signaler := signal.NewOLAPSignaler(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.promGate)
 	tw := trigger.NewTriggerWriter(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, 0, opts.promGate)
 
-	t := &TasksControllerImpl{
+	return &TasksControllerImpl{
 		mq:                  opts.mq,
 		pubsub:              opts.pubsub,
 		pubBuffer:           pubBuffer,
@@ -256,9 +264,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		pgxStatsLogger:      opts.pgxStatsLogger,
 		repov1:              opts.repov1,
 		dv:                  opts.dv,
-		s:                   s,
 		a:                   a,
-		p:                   opts.p,
 		celParser:           cel.NewCELParser(),
 		opsPoolJitter:       opts.opsPoolJitter,
 		opsPoolPollInterval: opts.opsPoolPollInterval,
@@ -268,7 +274,34 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		signaler:            signaler,
 		tw:                  tw,
 		promGate:            opts.promGate,
+	}, nil
+}
+
+func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
+	opts := defaultTasksControllerOpts()
+
+	for _, f := range fs {
+		f(opts)
 	}
+
+	if opts.p == nil {
+		return nil, errors.New("partition is required. use WithPartition")
+	}
+
+	t, err := newTasksController(opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create scheduler: %w", err)
+	}
+
+	t.s = s
+	t.p = opts.p
 
 	jitter := t.opsPoolJitter
 	timeout := time.Second * 30

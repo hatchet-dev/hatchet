@@ -367,6 +367,9 @@ jobs:
           SERVER_AUTH_SET_EMAIL_VERIFIED=true
 
           SERVER_TASKQUEUE_KIND=postgres
+          # Worker task events go over the task queue only, so the path that SERVER_DIRECT_TASK_WRITE_SLOTS=0
+          # rolls back to stays covered; the rabbitmq e2e job runs with direct writes on by default.
+          SERVER_DIRECT_TASK_WRITE_SLOTS=0
           SERVER_MSGQUEUE_KIND=rabbitmq
           SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
           SERVER_GRPC_INSECURE=true

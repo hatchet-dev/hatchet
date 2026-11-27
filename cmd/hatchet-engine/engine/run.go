@@ -26,6 +26,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/directwrite"
 	streamssvc "github.com/hatchet-dev/hatchet/internal/services/streams"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
@@ -325,25 +326,16 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
-		retention, err := corePartitionRetention(sc)
+		opts, err := taskControllerOpts(sc)
 
 		if err != nil {
 			return err
 		}
 
-		tasks, err := task.New(
-			task.WithAlerter(sc.Alerter),
-			task.WithMessageQueue(sc.MessageQueueV1),
-			task.WithPubSub(sc.PubSubV1),
-			task.WithV1Repository(sc.V1),
-			task.WithLogger(sc.Logger),
+		tasks, err := task.New(append(opts,
 			task.WithPartition(p),
-			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
-			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
-			task.WithMaxRetryAfter(retention),
 			task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
-			task.WithPrometheusGate(sc.PrometheusGate),
-		)
+		)...)
 
 		if err != nil {
 			return fmt.Errorf("could not create tasks controller: %w", err)
@@ -803,27 +795,17 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		)
 
 		if isControllerActive(sc.PausedControllers, TaskController) {
-			retention, err := corePartitionRetention(sc)
+			opts, err := taskControllerOpts(sc)
 
 			if err != nil {
 				return err
 			}
 
-			tasks, err := task.New(
-				task.WithAlerter(sc.Alerter),
-				task.WithMessageQueue(sc.MessageQueueV1),
-				task.WithPubSub(sc.PubSubV1),
-				task.WithV1Repository(sc.V1),
-				task.WithLogger(sc.Logger),
+			tasks, err := task.New(append(opts,
 				task.WithPartition(p),
-				task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
-				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 				task.WithOpsPoolJitter(sc.Operations),
-				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
-				task.WithMaxRetryAfter(retention),
 				task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
-				task.WithPrometheusGate(sc.PrometheusGate),
-			)
+			)...)
 
 			if err != nil {
 				return fmt.Errorf("could not create tasks controller: %w", err)
@@ -963,6 +945,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	if sc.HasService("all") || sc.HasService("grpc-api") {
 		cacheInstance := cache.New(10 * time.Second)
 
+		directTaskWriter, err := newDirectTaskWriter(sc)
+
+		if err != nil {
+			return err
+		}
+
 		// create the dispatcher
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
@@ -978,6 +966,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
+			dispatcher.WithDirectTaskWriter(directTaskWriter),
 		)
 
 		if err != nil {
@@ -1143,6 +1132,21 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		grpcApiCleanup := func() error {
+			// Deferred so it runs once the gRPC server has stopped and no new worker events arrive, and
+			// also when an earlier step fails: the writes still in flight (acks run in the background)
+			// then finish while the queue and the database are up for them and for the monitoring events
+			// they publish. It shares the gRPC drain budget, since both wait on the same in-flight events.
+			if directTaskWriter != nil {
+				defer func() {
+					drainCtx, cancel := context.WithTimeout(context.Background(), directTaskWriterDrainTimeout(sc))
+					defer cancel()
+
+					if err := directTaskWriter.Close(drainCtx); err != nil {
+						l.Error().Err(err).Msg("direct task writes were still in flight at shutdown")
+					}
+				}()
+			}
+
 			// flag this dispatcher as leaving first, so other dispatchers start claiming its
 			// operators now rather than after the drain, and it claims nothing more itself
 			if err := d.MarkDraining(context.Background()); err != nil {
@@ -1254,6 +1258,108 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 	}
 
 	return false
+}
+
+// taskControllerOpts are the settings that decide how the task controller's handlers apply a message.
+// Every task controller and the direct task writer's handler start from them, so a worker event is
+// applied the same way whichever process handles it. In split deployments that still relies on the
+// gRPC pods having the same config (replay, retention) as the controller pods.
+func taskControllerOpts(sc *server.ServerConfig) ([]task.TasksControllerOpt, error) {
+	retention, err := corePartitionRetention(sc)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return []task.TasksControllerOpt{
+		task.WithAlerter(sc.Alerter),
+		task.WithMessageQueue(sc.MessageQueueV1),
+		task.WithPubSub(sc.PubSubV1),
+		task.WithV1Repository(sc.V1),
+		task.WithLogger(sc.Logger),
+		task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+		task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+		task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
+		task.WithMaxRetryAfter(retention),
+		task.WithPrometheusGate(sc.PrometheusGate),
+	}, nil
+}
+
+// newDirectTaskWriter returns nil when DirectTaskWriteSlots is 0, so every worker event goes over the
+// task queue and no second task controller is built. It also returns nil when the task controller is
+// paused: the handler is the controller's own, and pausing the controller is how an operator stops
+// worker events from being applied, so they have to wait on the task queue as they did before. The
+// pause is read per process, so in split deployments the gRPC pods need it set too.
+func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
+	if sc.Runtime.DirectTaskWriteSlots == 0 {
+		return nil, nil
+	}
+
+	// logged so operators can confirm on each gRPC pod that the pause reached it
+	if !isControllerActive(sc.PausedControllers, TaskController) {
+		sc.Logger.Info().Msg("task controller is paused, so worker task events go over the task queue instead of direct writes")
+		return nil, nil
+	}
+
+	warnOnDirectTaskWriteSlots(sc)
+
+	opts, err := taskControllerOpts(sc)
+
+	if err != nil {
+		return nil, err
+	}
+
+	handler, stopHandler, err := task.NewMessageHandler(opts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create task message handler: %w", err)
+	}
+
+	w, err := directwrite.New(handler, sc.MessageQueueV1, sc.Logger, directwrite.Opts{
+		Slots:     sc.Runtime.DirectTaskWriteSlots,
+		OnDrained: stopHandler,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create direct task writer: %w", err)
+	}
+
+	return w, nil
+}
+
+// directTaskWriterDrainTimeout shares the gRPC drain budget, since both wait on the same in-flight
+// worker events. The gRPC server ignores a non-positive timeout and keeps its own default, so this
+// does the same rather than giving the writer no time at all.
+func directTaskWriterDrainTimeout(sc *server.ServerConfig) time.Duration {
+	if sc.Runtime.GRPCShutdownTimeout > 0 {
+		return sc.Runtime.GRPCShutdownTimeout
+	}
+
+	return 10 * time.Second
+}
+
+// warnOnDirectTaskWriteSlots flags slot counts that let direct writes take most of the engine pool.
+// Heartbeats and assignment share that pool, and a worker whose heartbeat waits more than about a
+// second stops being assignable. It warns instead of clamping, since an operator may have sized the
+// pool for it on purpose.
+func warnOnDirectTaskWriteSlots(sc *server.ServerConfig) {
+	slots := sc.Runtime.DirectTaskWriteSlots
+
+	if slots < 0 {
+		sc.Logger.Warn().Msg("SERVER_DIRECT_TASK_WRITE_SLOTS is negative, so direct task writes are uncapped and can take the whole database pool")
+		return
+	}
+
+	if sc.Layer == nil || sc.Pool == nil {
+		return
+	}
+
+	if maxConns := sc.Pool.Config().MaxConns; int64(slots) > int64(maxConns)/2 {
+		sc.Logger.Warn().
+			Int("slots", slots).
+			Int32("max_conns", maxConns).
+			Msg("SERVER_DIRECT_TASK_WRITE_SLOTS is more than half of DATABASE_MAX_CONNS, so worker task events can starve heartbeats")
+	}
 }
 
 // corePartitionRetention caps task-requested retry delays, since a task's rows are dropped once its partition ages out.

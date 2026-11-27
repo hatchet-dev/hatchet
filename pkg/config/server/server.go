@@ -261,6 +261,13 @@ type ConfigFileRuntime struct {
 	// The number of slots for gRPC writes
 	GRPCTriggerWriteSlots int `mapstructure:"grpcTriggerWriteSlots" json:"grpcTriggerWriteSlots,omitempty" default:"5"`
 
+	// The number of worker task events (completed, failed, started) the gRPC process applies
+	// itself at once, through the task controller's handlers. Events beyond it, and events whose direct
+	// write fails, go over the durable task queue. Each slot can hold a pool connection for a full
+	// completion transaction, and heartbeats share that pool, so the default stays well below
+	// DATABASE_MAX_CONNS. 0 sends every event over the queue; a negative value removes the cap.
+	DirectTaskWriteSlots int `mapstructure:"directTaskWriteSlots" json:"directTaskWriteSlots,omitempty" default:"10"`
+
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
 
@@ -1224,6 +1231,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.optimisticSchedulingSlots", "SERVER_OPTIMISTIC_SCHEDULING_SLOTS")
 	_ = v.BindEnv("runtime.grpcTriggerWritesEnabled", "SERVER_GRPC_TRIGGER_WRITES_ENABLED")
 	_ = v.BindEnv("runtime.grpcTriggerWriteSlots", "SERVER_GRPC_TRIGGER_WRITE_SLOTS")
+	_ = v.BindEnv("runtime.directTaskWriteSlots", "SERVER_DIRECT_TASK_WRITE_SLOTS")
 
 	// internal client options
 	_ = v.BindEnv("internalClient.base.tlsStrategy", "SERVER_INTERNAL_CLIENT_BASE_STRATEGY")

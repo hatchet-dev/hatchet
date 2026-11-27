@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	telemetry_codes "go.opentelemetry.io/otel/codes"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
@@ -1517,6 +1518,63 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid task external run id %s", request.TaskRunExternalId))
 }
 
+// sendTaskMessage hands a worker task event to the task controller's handlers: in-process through the
+// direct task writer, or over the durable task queue when direct writes are turned off.
+func (s *DispatcherImpl) sendTaskMessage(ctx context.Context, msg *msgqueue.Message) error {
+	if s.directTaskWriter == nil {
+		return s.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	}
+
+	return s.directTaskWriter.Write(ctx, msg)
+}
+
+// sendTaskMessages sends messages for disjoint sets of tasks at once. Each direct write waits for its
+// own flush, so sending them one after the other would make the caller wait for the sum.
+func (s *DispatcherImpl) sendTaskMessages(ctx context.Context, msgs ...*msgqueue.Message) error {
+	var sends errgroup.Group
+
+	for _, msg := range msgs {
+		sends.Go(func() error { return s.sendTaskMessage(ctx, msg) })
+	}
+
+	return sends.Wait()
+}
+
+// sendTenantTaskMessage is sendTaskMessage for events that the tenant's workflow-run streams also
+// consume.
+func (s *DispatcherImpl) sendTenantTaskMessage(ctx context.Context, msg *msgqueue.Message) error {
+	if s.directTaskWriter == nil {
+		return msgqueue.PubTenantMessage(ctx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	}
+
+	if err := s.directTaskWriter.Write(ctx, msg); err != nil {
+		return err
+	}
+
+	// The event is already applied, so a failed stream publish is logged rather than returned, the same
+	// way it is when the event goes over the task queue. The publish is detached from the RPC: the worker
+	// may have gone while the event was applied, and the stream should still hear about it.
+	pubCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), msgqueue.PUB_TIMEOUT)
+	defer cancel()
+
+	if err := msgqueue.PubTenantMessage(pubCtx, s.l, s.mqv1, s.pubsub, nil, msg); err != nil {
+		s.l.Warn().Ctx(ctx).Err(err).Str("message_id", msg.ID).Msg("could not publish message to tenant stream")
+	}
+
+	return nil
+}
+
+// sendAckedTaskMessage sends a task-acked event without waiting for it to be applied, since the worker's
+// STARTED event doesn't wait on it either way. Acks the direct writer has no slot for go through the
+// publish buffer, which batches them and pushes back on the caller when the queue falls behind.
+func (s *DispatcherImpl) sendAckedTaskMessage(ctx context.Context, msg *msgqueue.Message) error {
+	if s.directTaskWriter != nil && s.directTaskWriter.TryWriteAsync(ctx, msg) {
+		return nil
+	}
+
+	return s.pubBuffer.Pub(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg, false)
+}
+
 // handleTaskCancelledEvent processes a worker/operator-reported cancellation for a single
 // task by publishing the same MsgIDCancelTasks message the batch path
 // (handleBatchTaskCancelled) publishes, so the task cancellation state machine (owned by the
@@ -1545,6 +1603,8 @@ func (s *DispatcherImpl) handleTaskCancelledEvent(inputCtx context.Context, task
 		return nil, err
 	}
 
+	// The cancel handler does no database work, it only publishes MsgIDTaskCancelled to the task
+	// queue, so a direct write would hold a slot just to publish there anyway.
 	if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
 		return nil, err
 	}
@@ -1565,9 +1625,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 		return nil, err
 	}
 
-	err = s.pubBuffer.Pub(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, ackedMsg, false)
-
-	if err != nil {
+	if err := s.sendAckedTaskMessage(inputCtx, ackedMsg); err != nil {
 		return nil, fmt.Errorf("could not publish acked message for task %d: %w", task.ID, err)
 	}
 
@@ -1635,7 +1693,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		return nil, err
 	}
 
-	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = s.sendTenantTaskMessage(inputCtx, msg)
 
 	if err != nil {
 		return nil, err
@@ -1697,7 +1755,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		return nil, err
 	}
 
-	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = s.sendTenantTaskMessage(inputCtx, msg)
 
 	if err != nil {
 		return nil, err
@@ -1896,7 +1954,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 		return nil, err
 	}
 
-	if err := s.pubBuffer.Pub(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, ackedMsg, false); err != nil {
+	if err := s.sendAckedTaskMessage(inputCtx, ackedMsg); err != nil {
 		return nil, fmt.Errorf("could not publish acked message for batch tasks: %w", err)
 	}
 
@@ -2031,6 +2089,8 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 		})
 	}
 
+	var parts []*msgqueue.Message
+
 	if len(completedPayloads) > 0 {
 		msg, err := msgqueue.NewTenantMessage(
 			tenantId,
@@ -2044,9 +2104,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			return nil, err
 		}
 
-		if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
-			return nil, err
-		}
+		parts = append(parts, msg)
 	}
 
 	if len(failedPayloads) > 0 {
@@ -2062,9 +2120,11 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			return nil, err
 		}
 
-		if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
-			return nil, err
-		}
+		parts = append(parts, msg)
+	}
+
+	if err := s.sendTaskMessages(inputCtx, parts...); err != nil {
+		return nil, err
 	}
 
 	if len(olapPayloads) > 0 {
@@ -2080,8 +2140,10 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			return nil, err
 		}
 
+		// The task writes are already applied, and failing the RPC would make the worker resend them and
+		// write a second COMPLETED event, so a lost monitoring event is only logged, as handleTaskCompleted does.
 		if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
-			return nil, err
+			s.l.Error().Ctx(inputCtx).Err(err).Msg("could not publish monitoring event message")
 		}
 	}
 
@@ -2150,7 +2212,7 @@ func (s *DispatcherImpl) handleBatchTaskFailed(
 		return nil, err
 	}
 
-	if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+	if err := s.sendTaskMessage(inputCtx, msg); err != nil {
 		return nil, err
 	}
 
@@ -2196,6 +2258,8 @@ func (s *DispatcherImpl) handleBatchTaskCancelled(
 		return nil, err
 	}
 
+	// The cancel handler does no database work, it only publishes MsgIDTaskCancelled to the task
+	// queue, so a direct write would hold a slot just to publish there anyway.
 	if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
 		return nil, err
 	}

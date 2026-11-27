@@ -24,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts/contractsconnect"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/directwrite"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -76,6 +77,10 @@ type DispatcherImpl struct {
 	dispatcherId                        uuid.UUID
 	refreshTimeoutGroup                 singleflight.Group
 	refreshTimeoutBuf                   *refreshTimeoutBuffer
+
+	// directTaskWriter is nil when direct task writes are turned off (zero slots) or the task controller
+	// is paused; every worker task event then goes over the durable task queue.
+	directTaskWriter *directwrite.Writer
 }
 
 // CancelStreamSessions hangs up all registered long-lived subscriber streams. It is
@@ -179,6 +184,7 @@ type DispatcherOpts struct {
 	streamEventBufferTimeout            time.Duration
 	dispatcherId                        uuid.UUID
 	promGate                            *prometheus.Gate
+	directTaskWriter                    *directwrite.Writer
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -288,6 +294,14 @@ func WithPrometheusGate(gate *prometheus.Gate) DispatcherOpt {
 	}
 }
 
+// WithDirectTaskWriter makes the dispatcher apply worker task events with w instead of sending them
+// over the durable task queue. Without it, or with a nil w, every event goes over the queue.
+func WithDirectTaskWriter(w *directwrite.Writer) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.directTaskWriter = w
+	}
+}
+
 func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	opts := defaultDispatcherOpts()
 
@@ -349,6 +363,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
 		refreshTimeoutBuf:                   newRefreshTimeoutBuffer(),
+		directTaskWriter:                    opts.directTaskWriter,
 		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, a, opts.promGate, opts.payloadSizeThreshold),
 	}, nil
 }
