@@ -10,8 +10,8 @@
     "test:unit": "node --import tsx --test \"src/**/*.test.ts\"",
     "lint:check": "npm run eslint:check && npm run prettier:check",
     "lint:fix": "npm run eslint:fix && npm run prettier:fix",
-    "eslint:check": "eslint \"{src,apps,libs,test,e2e,.storybook}/**/*.{ts,tsx,js}\" playwright.config.ts",
-    "eslint:fix": "eslint \"{src,apps,libs,test,e2e,.storybook}/**/*.{ts,tsx,js}\" playwright.config.ts --fix",
+    "eslint:check": "eslint \"{src,apps,libs,test,e2e,.storybook}/**/*.{ts,tsx,js}\" playwright.config.ts vitest.config.ts",
+    "eslint:fix": "eslint \"{src,apps,libs,test,e2e,.storybook}/**/*.{ts,tsx,js}\" playwright.config.ts vitest.config.ts --fix",
     "prettier:check": "prettier \"src/**/*.{ts,tsx}\" --list-different",
     "prettier:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
     "preview": "vite preview",
@@ -19,7 +19,6 @@
     "e2e:run": "playwright test",
     "e2e:seeded": "playwright test --project=seeded",
     "e2e:isolated": "playwright test --project=isolated",
-    "e2e:storybook": "playwright test --project=storybook",
     "e2e:report": "playwright show-report",
     "typecheck": "tsc -p tsconfig.json",
     "typecheck:build": "tsc -p tsconfig.build.json",
@@ -28,7 +27,7 @@
     "knip": "knip --no-config-hints",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
-    "storybook:serve": "vite preview --outDir storybook-static --port 6006 --strictPort"
+    "test:stories": "vitest run"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -99,6 +98,7 @@
     "@playwright/test": "^1.65.1",
     "@storybook/addon-a11y": "^10.6.7",
     "@storybook/addon-docs": "^10.6.7",
+    "@storybook/addon-vitest": "~10.6.7",
     "@storybook/react-vite": "^10.6.7",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/dagre": "^0.7.54",
@@ -111,6 +111,8 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/browser": "^4.1.12",
+    "@vitest/browser-playwright": "^4.1.12",
     "autoprefixer": "^10.6.2",
     "eslint": "^8.57.1",
     "eslint-config-airbnb-typescript": "^18.0.0",
@@ -126,6 +128,7 @@
     "knip": "^6.45.1",
     "msw": "3.0.7",
     "msw-storybook-addon": "3.0.3",
+    "playwright": "1.65.1",
     "postcss": "^8.5.33",
     "prettier": "^3.10.1",
     "prettier-plugin-tailwindcss": "^0.8.1",
@@ -133,7 +136,8 @@
     "tailwindcss": "^3.4.19",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
-    "vite": "^6.4.6"
+    "vite": "^6.4.6",
+    "vitest": "^4.1.12"
   },
   "pnpm": {
     "overrides": {

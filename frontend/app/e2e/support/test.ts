@@ -8,12 +8,9 @@ export { expect };
 //   Tests share that database, so the project runs them one at a time.
 // - isolated: only a frontend server. Every API call must be mocked with
 //   `page.route`, so these tests run in parallel and need no backend.
-// - storybook: a Storybook server. Tests open a single story, whose args and
-//   MSW handlers provide the data, so they also run in parallel.
 export const TAGS = {
   seeded: '@seeded',
   isolated: '@isolated',
-  storybook: '@storybook',
 } as const;
 
 const CATEGORY_TAGS: string[] = Object.values(TAGS);
@@ -64,10 +61,9 @@ export const test = base.extend<{ testCategory: string }>({
     });
 
     // Registered before the test body runs, so the test's own `page.route`
-    // mocks take precedence and only unmocked calls reach this handler. MSW
-    // answers stories' requests in a service worker, before page routing.
+    // mocks take precedence and only unmocked calls reach this handler.
     const unmockedApiCalls: string[] = [];
-    if (testCategory !== TAGS.seeded) {
+    if (testCategory === TAGS.isolated) {
       // Matched on the pathname: a `**/api/**` glob also catches the dev
       // server's source modules under /src/lib/api/.
       await page.route(

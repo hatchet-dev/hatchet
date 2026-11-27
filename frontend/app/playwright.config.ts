@@ -38,12 +38,5 @@ export default defineConfig({
       grep: /@isolated(?=\s|$)/,
       fullyParallel: true,
     },
-    {
-      name: 'storybook',
-      grep: /@storybook(?=\s|$)/,
-      fullyParallel: true,
-      // `pnpm storybook` locally; CI serves the static build.
-      use: { baseURL: process.env.STORYBOOK_URL || 'http://localhost:6006' },
-    },
   ],
 });
