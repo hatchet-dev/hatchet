@@ -1077,7 +1077,17 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	internalEventsOutboxed := false
 
 	if r.internalEventOutbox.writesEnabled() && len(internalEvents) > 0 {
-		if err := r.internalEventOutbox.enqueue(ctx, tx, tenantId, internalEvents); err != nil {
+		// pgoutbox inserts with COPY, which a write batch can't carry, so the writes queued so far go
+		// out first and the insert joins the transaction they opened; this extra round trip only
+		// happens while outbox writes are switched on
+		if err := pendingWrites.send(ctx, conn); err != nil {
+			err = fmt.Errorf("failed to write task events before the outbox: %w", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to write task events before the outbox")
+			return nil, err
+		}
+
+		if err := r.internalEventOutbox.enqueue(ctx, openBatchedTx{conn: conn}, tenantId, internalEvents); err != nil {
 			err = fmt.Errorf("failed to write internal events to the outbox: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "failed to write internal events to the outbox")

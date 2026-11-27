@@ -91,6 +91,63 @@ func (q *writeBatch) sendWithCommit(ctx context.Context, db sqlcv1.DBTX) error {
 	return nil
 }
 
+// openBatchedTx hands a transaction opened by a queued "begin" (acquireConnForBatchedTransaction)
+// to code that takes a pgx.Tx. It only runs statements: the caller still ends the transaction with
+// writeBatch.sendWithCommit or the rollback acquireConnForBatchedTransaction returns, so ending or
+// nesting it here is refused.
+type openBatchedTx struct {
+	conn *fairpool.Conn
+}
+
+var _ pgx.Tx = openBatchedTx{}
+
+var errOpenBatchedTxOwnedByCaller = errors.New("a batched transaction is ended by its caller")
+
+func (t openBatchedTx) Begin(context.Context) (pgx.Tx, error) {
+	return nil, errOpenBatchedTxOwnedByCaller
+}
+
+func (t openBatchedTx) Commit(context.Context) error {
+	return errOpenBatchedTxOwnedByCaller
+}
+
+func (t openBatchedTx) Rollback(context.Context) error {
+	return errOpenBatchedTxOwnedByCaller
+}
+
+func (t openBatchedTx) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	return t.conn.CopyFrom(ctx, tableName, columnNames, rowSrc)
+}
+
+func (t openBatchedTx) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
+	return t.conn.SendBatch(ctx, b)
+}
+
+// LargeObjects is only reachable through a real pgx.Tx, and nothing given this type uses them.
+func (t openBatchedTx) LargeObjects() pgx.LargeObjects {
+	return pgx.LargeObjects{}
+}
+
+func (t openBatchedTx) Prepare(ctx context.Context, name, sql string) (*pgconn.StatementDescription, error) {
+	return t.conn.Conn().Prepare(ctx, name, sql)
+}
+
+func (t openBatchedTx) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
+	return t.conn.Exec(ctx, sql, arguments...)
+}
+
+func (t openBatchedTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	return t.conn.Query(ctx, sql, args...)
+}
+
+func (t openBatchedTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return t.conn.QueryRow(ctx, sql, args...)
+}
+
+func (t openBatchedTx) Conn() *pgx.Conn {
+	return t.conn.Conn()
+}
+
 type failedRow struct {
 	err error
 }
