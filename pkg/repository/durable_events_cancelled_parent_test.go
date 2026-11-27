@@ -14,6 +14,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+// TestTriggerPendingRunEntriesCancelledParent checks that a pending child run is not created while
+// its parent's current retry is cancelled, and is created for a running, evicted, replayed or
+// completed parent.
 func TestTriggerPendingRunEntriesCancelledParent(t *testing.T) {
 	ctx := context.Background()
 
@@ -51,6 +54,14 @@ func TestTriggerPendingRunEntriesCancelledParent(t *testing.T) {
 		}
 
 		reinvokeDurableTask(t, ctx, repos, internalTenantId, task)
+
+		// a parent which spawns children is assigned to a worker, so it has a runtime on its current retry
+		_, err = repos.shared.pool.ForShared().Exec(ctx,
+			`INSERT INTO v1_task_runtime (task_id, task_inserted_at, retry_count, worker_id, tenant_id, timeout_at)
+			 VALUES ($1, $2, 0, $3, $4, $5)`,
+			parent.ID, parent.InsertedAt, uuid.New(), internalTenantId, time.Now().Add(time.Hour),
+		)
+		require.NoError(t, err)
 
 		parentInsertedAt := parent.InsertedAt.Time
 		childIndex := int64(0)
@@ -145,13 +156,6 @@ func TestTriggerPendingRunEntriesCancelledParent(t *testing.T) {
 
 	t.Run("materializes child of an evicted parent", func(t *testing.T) {
 		parent, pending := newPendingParent(t)
-
-		_, err := repos.shared.pool.ForShared().Exec(ctx,
-			`INSERT INTO v1_task_runtime (task_id, task_inserted_at, retry_count, worker_id, tenant_id, timeout_at)
-			 VALUES ($1, $2, 0, $3, $4, $5)`,
-			parent.ID, parent.InsertedAt, uuid.New(), internalTenantId, time.Now().Add(time.Hour),
-		)
-		require.NoError(t, err)
 
 		evicted, err := tasks.EvictTask(ctx, internalTenantId, TaskIdInsertedAtRetryCount{
 			Id:         parent.ID,
