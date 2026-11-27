@@ -203,21 +203,7 @@ func (d *DispatcherImpl) pullOnce(ctx context.Context) error {
 		return err
 	}
 
-	byTenant := make(map[uuid.UUID]*tasktypesv1.TaskAssignedBulkTaskPayload)
-
-	for _, row := range rows {
-		if d.pubSubDelivery.seen(assignmentKey{taskId: row.TaskID, retryCount: row.RetryCount}, row.AssignedAt) {
-			continue
-		}
-
-		if byTenant[row.TenantID] == nil {
-			byTenant[row.TenantID] = &tasktypesv1.TaskAssignedBulkTaskPayload{}
-		}
-
-		byTenant[row.TenantID].Add(row.WorkerID, row.TaskID, row.RetryCount)
-	}
-
-	for tenantId, payload := range byTenant {
+	for tenantId, payload := range d.pubSubDelivery.unsent(rows) {
 		count := 0
 
 		for _, taskIds := range payload.WorkerIdToTaskIds {
@@ -239,6 +225,26 @@ func (d *DispatcherImpl) pullOnce(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// unsent groups the pulled assignments this dispatcher hasn't sent yet into one bulk-assign payload
+// per tenant, the shape the pub/sub path delivers, so a resend goes through the same handler.
+func (b *pubSubDelivery) unsent(rows []v1.UnackedAssignment) map[uuid.UUID]*tasktypesv1.TaskAssignedBulkTaskPayload {
+	byTenant := make(map[uuid.UUID]*tasktypesv1.TaskAssignedBulkTaskPayload)
+
+	for _, row := range rows {
+		if b.seen(assignmentKey{taskId: row.TaskID, retryCount: row.RetryCount}, row.AssignedAt) {
+			continue
+		}
+
+		if byTenant[row.TenantID] == nil {
+			byTenant[row.TenantID] = &tasktypesv1.TaskAssignedBulkTaskPayload{}
+		}
+
+		byTenant[row.TenantID].Add(row.WorkerID, row.TaskID, row.RetryCount)
+	}
+
+	return byTenant
 }
 
 func connectedWorkerIds(w *workers) []uuid.UUID {

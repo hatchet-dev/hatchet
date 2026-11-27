@@ -4,8 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -116,4 +118,27 @@ func TestPubSubDeliveryPullWaitsForTheFirstPubSubMessage(t *testing.T) {
 	default:
 		t.Fatal("pull not released by the first pub/sub message")
 	}
+}
+
+// The pull resends only what pub/sub didn't already deliver for the same assignment; a newer
+// assignment of the same retry (a restored durable task) is resent even though its key was seen.
+func TestPubSubDeliveryPullResendsOnlyUnsentAssignments(t *testing.T) {
+	b := newPubSubDelivery(PubSubDeliveryOpts{Pull: true})
+	tenantA, tenantB, worker := uuid.New(), uuid.New(), uuid.New()
+	at := time.Now()
+
+	assert.True(t, b.claim(assignmentKey{taskId: 1}, at))
+	assert.True(t, b.claim(assignmentKey{taskId: 2}, at))
+
+	got := b.unsent([]v1.UnackedAssignment{
+		{TenantID: tenantA, WorkerID: worker, TaskID: 1, AssignedAt: at},
+		{TenantID: tenantA, WorkerID: worker, TaskID: 2, AssignedAt: at.Add(time.Second)},
+		{TenantID: tenantA, WorkerID: worker, TaskID: 3, AssignedAt: at},
+		{TenantID: tenantB, WorkerID: worker, TaskID: 4, RetryCount: 1, AssignedAt: at},
+	})
+
+	require.Len(t, got, 2)
+	assert.Equal(t, []int64{2, 3}, got[tenantA].WorkerIdToTaskIds[worker])
+	assert.Equal(t, []int64{4}, got[tenantB].WorkerIdToTaskIds[worker])
+	assert.Equal(t, map[int64]int32{4: 1}, got[tenantB].WorkerIdToTaskRetryCounts[worker])
 }
