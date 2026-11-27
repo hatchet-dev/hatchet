@@ -233,42 +233,45 @@ export const FlatList: Story = {
 
 const isMac = detectPlatform() === 'mac';
 
-export const EnterReturnsToRecentTenant: Story = {
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByRole('combobox')).toHaveFocus();
-    await userEvent.keyboard('{Enter}');
-    await expect(args.onSelectTenant).toHaveBeenCalledTimes(1);
-    await expect(args.onSelectTenant).toHaveBeenCalledWith(
-      expect.objectContaining({ slug: 'production' }),
-    );
-  },
-};
+// Behaviour checks rather than states to browse: hidden from the sidebar by
+// default (see .storybook/main.ts) but still run by `pnpm test:stories`.
+const TEST_ONLY = ['test-only'];
 
-export const EnterPicksFirstMatch: Story = {
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.type(canvas.getByRole('combobox'), 'prod eu');
-    await expect(canvas.getByText('2 matches')).toBeInTheDocument();
-    await userEvent.keyboard('{Enter}');
-    await expect(args.onSelectTenant).toHaveBeenCalledTimes(1);
-    await expect(args.onSelectTenant).toHaveBeenCalledWith(
-      expect.objectContaining({ slug: 'prod-eu' }),
-    );
+export const Keyboard: Story = {
+  tags: TEST_ONLY,
+  beforeEach: () => {
+    const open = spyOn(window, 'open').mockReturnValue(null);
+    return () => open.mockRestore();
   },
-};
-
-export const ArrowKeysWalkOrganizationTree: Story = {
-  play: async ({ canvasElement, step }) => {
+  play: async ({ args, canvasElement, step }) => {
     const canvas = within(canvasElement);
+    const combobox = canvas.getByRole('combobox');
     const currentOrg = canvas.getByRole('option', { name: /^Current org/ });
 
-    await step('↓ past the three recent tenants', async () => {
-      await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
-      await expect(currentOrg).toHaveAttribute('aria-selected', 'true');
+    await step('Enter goes back to the most recent tenant', async () => {
+      await expect(combobox).toHaveFocus();
+      await userEvent.keyboard('{Enter}');
+      await expect(args.onSelectTenant).toHaveBeenCalledTimes(1);
+      await expect(args.onSelectTenant).toHaveBeenLastCalledWith(
+        expect.objectContaining({ slug: 'production' }),
+      );
     });
 
-    await step('← collapses and → expands the organization', async () => {
+    await step('Cmd/Ctrl+Enter opens it in a new tab instead', async () => {
+      const modifier = isMac ? 'Meta' : 'Control';
+      await userEvent.keyboard(`{${modifier}>}{Enter}{/${modifier}}`);
+      await expect(window.open).toHaveBeenCalledWith(
+        '/tenants/tenant-production/runs',
+        '_blank',
+        'noopener',
+      );
+      await expect(args.onSelectTenant).toHaveBeenCalledTimes(1);
+    });
+
+    await step('← and → collapse and expand an organization', async () => {
+      // Past the three recent tenants.
+      await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
+      await expect(currentOrg).toHaveAttribute('aria-selected', 'true');
       await userEvent.keyboard('{ArrowLeft}');
       await expect(currentOrg).toHaveAttribute('aria-expanded', 'false');
       await userEvent.keyboard('{ArrowRight}');
@@ -283,29 +286,69 @@ export const ArrowKeysWalkOrganizationTree: Story = {
       await userEvent.keyboard('{ArrowLeft}');
       await expect(currentOrg).toHaveAttribute('aria-selected', 'true');
     });
+
+    await step('Enter while searching picks the first match', async () => {
+      await userEvent.type(combobox, 'prod eu');
+      await expect(canvas.getByText('2 matches')).toBeInTheDocument();
+      await userEvent.keyboard('{Enter}');
+      await expect(args.onSelectTenant).toHaveBeenCalledTimes(2);
+      await expect(args.onSelectTenant).toHaveBeenLastCalledWith(
+        expect.objectContaining({ slug: 'prod-eu' }),
+      );
+    });
   },
 };
 
-export const ModEnterOpensNewTab: Story = {
-  name: 'Cmd/Ctrl+Enter opens a new tab',
+// The menu is portalled out of the panel, so it's queried from the document.
+async function openRowMenu(canvasElement: HTMLElement, tenantName: string) {
+  await userEvent.click(
+    within(canvasElement).getByRole('button', {
+      name: `More actions for ${tenantName}`,
+    }),
+  );
+  return within(canvasElement.ownerDocument.body);
+}
+
+export const RowMenu: Story = {
+  tags: TEST_ONLY,
   beforeEach: () => {
-    const open = spyOn(window, 'open').mockReturnValue(null);
-    return () => open.mockRestore();
+    const writeText = spyOn(
+      navigator.clipboard,
+      'writeText',
+    ).mockResolvedValue();
+    return () => writeText.mockRestore();
   },
-  play: async ({ args }) => {
-    const modifier = isMac ? 'Meta' : 'Control';
-    await userEvent.keyboard(`{${modifier}>}{Enter}{/${modifier}}`);
-    await expect(window.open).toHaveBeenCalledTimes(1);
-    await expect(window.open).toHaveBeenCalledWith(
-      '/tenants/tenant-production/runs',
-      '_blank',
-      'noopener',
-    );
-    await expect(args.onSelectTenant).not.toHaveBeenCalled();
+  play: async ({ args, canvasElement, step }) => {
+    await step('Tenant settings, without selecting the tenant', async () => {
+      const menu = await openRowMenu(canvasElement, 'development');
+      await userEvent.click(
+        await menu.findByRole('menuitem', { name: 'Tenant settings' }),
+      );
+      await expect(args.onTenantSettings).toHaveBeenCalledTimes(1);
+      await expect(args.onTenantSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ slug: 'development' }),
+      );
+      await expect(args.onSelectTenant).not.toHaveBeenCalled();
+      // Focus goes back to the search so keyboard navigation can continue.
+      await waitFor(() =>
+        expect(within(canvasElement).getByRole('combobox')).toHaveFocus(),
+      );
+    });
+
+    await step('Copy tenant ID', async () => {
+      const menu = await openRowMenu(canvasElement, 'development');
+      await userEvent.click(
+        await menu.findByRole('menuitem', { name: 'Copy tenant ID' }),
+      );
+      await expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        'tenant-development',
+      );
+    });
   },
 };
 
 export const ShowMore: Story = {
+  tags: TEST_ONLY,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const rows = () => canvas.queryAllByTestId(/^tenant-switcher-item-/);
@@ -317,53 +360,5 @@ export const ShowMore: Story = {
     await expect(
       canvas.getByTestId('tenant-switcher-item-sdk-ci-ts'),
     ).toBeInTheDocument();
-  },
-};
-
-// The menu is portalled out of the panel, so it's queried from the document.
-async function openRowMenu(canvasElement: HTMLElement, tenantName: string) {
-  const canvas = within(canvasElement);
-  await userEvent.click(
-    canvas.getByRole('button', { name: `More actions for ${tenantName}` }),
-  );
-  return within(canvasElement.ownerDocument.body);
-}
-
-export const RowMenuOpensSettings: Story = {
-  play: async ({ args, canvasElement }) => {
-    const menu = await openRowMenu(canvasElement, 'development');
-    await userEvent.click(
-      await menu.findByRole('menuitem', { name: 'Tenant settings' }),
-    );
-
-    await expect(args.onTenantSettings).toHaveBeenCalledTimes(1);
-    await expect(args.onTenantSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ slug: 'development' }),
-    );
-    await expect(args.onSelectTenant).not.toHaveBeenCalled();
-    // Focus goes back to the search so keyboard navigation can continue.
-    await waitFor(() =>
-      expect(within(canvasElement).getByRole('combobox')).toHaveFocus(),
-    );
-  },
-};
-
-export const RowMenuCopiesTenantId: Story = {
-  beforeEach: () => {
-    const writeText = spyOn(
-      navigator.clipboard,
-      'writeText',
-    ).mockResolvedValue();
-    return () => writeText.mockRestore();
-  },
-  play: async ({ canvasElement }) => {
-    const menu = await openRowMenu(canvasElement, 'development');
-    await userEvent.click(
-      await menu.findByRole('menuitem', { name: 'Copy tenant ID' }),
-    );
-    await expect(navigator.clipboard.writeText).toHaveBeenCalledTimes(1);
-    await expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      'tenant-development',
-    );
   },
 };

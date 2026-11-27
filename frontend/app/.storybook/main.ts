@@ -7,6 +7,9 @@ const isExcluded = (name: string) =>
 
 const config: StorybookConfig = {
   stories: ['../src/**/*.stories.@(ts|tsx)'],
+  // Test-only stories still run in `pnpm test:stories`; the sidebar's tag
+  // filter shows them when debugging.
+  tags: { 'test-only': { defaultFilterSelection: 'exclude' } },
   addons: [
     '@storybook/addon-docs',
     '@storybook/addon-a11y',
