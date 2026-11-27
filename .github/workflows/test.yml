@@ -370,6 +370,12 @@ jobs:
           # Worker task events go over the task queue only, so the path that SERVER_DIRECT_TASK_WRITE_SLOTS=0
           # rolls back to stays covered; the rabbitmq e2e job runs with direct writes on by default.
           SERVER_DIRECT_TASK_WRITE_SLOTS=0
+          # The opt-in delivery paths run here so they get end-to-end coverage without another runner, over
+          # Postgres pub/sub only; pub/sub delivery needs reassign on, since the pull and reassign are what
+          # recover a lost message.
+          SERVER_INTERNAL_EVENT_OUTBOX_ENABLED=true
+          SERVER_DISPATCHER_PUBSUB_DELIVERY_ENABLED=true
+          SERVER_REASSIGN_UNACKED_TASKS=true
           SERVER_MSGQUEUE_KIND=rabbitmq
           SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
           SERVER_GRPC_INSECURE=true

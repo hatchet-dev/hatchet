@@ -239,6 +239,10 @@ type FinalizedTaskResponse struct {
 
 	InternalEvents []InternalTaskEvent
 
+	// InternalEventsOutboxed is true when InternalEvents were written to the internal event outbox
+	// in the same transaction, so the caller must not send them again.
+	InternalEventsOutboxed bool
+
 	// Durable RUN entries of DAG orchestrators whose step children were finalized here. Operator
 	// step children satisfy their entries directly instead of through internal event matches.
 	SatisfiedDurableEventLogEntries []SatisfiedEntry
@@ -1070,6 +1074,29 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 		return nil, err
 	}
 
+	internalEventsOutboxed := false
+
+	if r.internalEventOutbox.writesEnabled() && len(internalEvents) > 0 {
+		// pgoutbox inserts with COPY, which a write batch can't carry, so the writes queued so far go
+		// out first and the insert joins the transaction they opened; this extra round trip only
+		// happens while outbox writes are switched on
+		if err := pendingWrites.send(ctx, conn); err != nil {
+			err = fmt.Errorf("failed to write task events before the outbox: %w", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to write task events before the outbox")
+			return nil, err
+		}
+
+		if err := r.internalEventOutbox.enqueue(ctx, openBatchedTx{conn: conn}, tenantId, internalEvents); err != nil {
+			err = fmt.Errorf("failed to write internal events to the outbox: %w", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to write internal events to the outbox")
+			return nil, err
+		}
+
+		internalEventsOutboxed = true
+	}
+
 	// commit the transaction
 	if err := pendingWrites.sendWithCommit(ctx, conn); err != nil {
 		err = fmt.Errorf("failed to commit transaction: %w", err)
@@ -1079,6 +1106,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	}
 
 	return &FinalizedTaskResponse{
+		InternalEventsOutboxed:          internalEventsOutboxed,
 		ReleasedTasks:                   releasedTasks,
 		InternalEvents:                  internalEvents,
 		SatisfiedDurableEventLogEntries: satisfiedEntries,

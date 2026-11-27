@@ -273,7 +273,7 @@ WITH assign_input AS (
         acked_at = NULL
     WHERE v1_task_runtime.evicted_at IS NOT NULL
     -- only return the task ids that were successfully assigned
-    RETURNING task_id, task_inserted_at, retry_count, worker_id
+    RETURNING task_id, task_inserted_at, retry_count, worker_id, assigned_at
 ), assigned_slots AS (
     INSERT INTO v1_task_runtime_slot (
         tenant_id,
@@ -305,7 +305,8 @@ SELECT
     d.task_inserted_at,
     d.retry_count,
     a.worker_id,
-    ta.is_durable
+    ta.is_durable,
+    a.assigned_at
 FROM
     deleted d
 LEFT JOIN
@@ -334,6 +335,7 @@ type FlushAssignedQueueItemsRow struct {
 	RetryCount     int32              `json:"retry_count"`
 	WorkerID       *uuid.UUID         `json:"worker_id"`
 	IsDurable      pgtype.Bool        `json:"is_durable"`
+	AssignedAt     pgtype.Timestamptz `json:"assigned_at"`
 }
 
 // FlushAssignedQueueItems deletes v1_queue_item entries and inserts v1_task_runtime entries
@@ -372,6 +374,7 @@ func (q *Queries) FlushAssignedQueueItems(ctx context.Context, db DBTX, arg Flus
 			&i.RetryCount,
 			&i.WorkerID,
 			&i.IsDurable,
+			&i.AssignedAt,
 		); err != nil {
 			return nil, err
 		}

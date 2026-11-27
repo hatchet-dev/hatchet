@@ -268,6 +268,30 @@ type ConfigFileRuntime struct {
 	// DATABASE_MAX_CONNS. 0 sends every event over the queue; a negative value removes the cap.
 	DirectTaskWriteSlots int `mapstructure:"directTaskWriteSlots" json:"directTaskWriteSlots,omitempty" default:"10"`
 
+	// Whether completing a task writes its internal events (the triggers for the next DAG step) to a
+	// transactional outbox in the same database transaction, instead of sending them over the durable
+	// task queue after the commit. Only the writes are switched: every engine drains the outbox, so
+	// turning this off, or a rollout where only some engines write, leaves nothing behind.
+	InternalEventOutboxEnabled bool `mapstructure:"internalEventOutboxEnabled" json:"internalEventOutboxEnabled,omitempty" default:"false"`
+
+	// How often every engine drains each internal event topic, which bounds how long a batch written by an
+	// engine that crashed before processing it waits
+	InternalEventOutboxPollInterval time.Duration `mapstructure:"internalEventOutboxPollInterval" json:"internalEventOutboxPollInterval,omitempty" default:"1s"`
+
+	// Whether this engine sends task assignments and durable callbacks for a dispatcher over best-effort
+	// pub/sub instead of the dispatcher's durable queue. Cancellations and batch starts stay on the queue,
+	// since nothing recovers them yet. Only the sending is switched: every dispatcher subscribes to its
+	// topic, and pulls the assignments it never received from the database whenever ReassignUnackedTasks
+	// is on, so a rollout where only some engines send works. This requires ReassignUnackedTasks.
+	DispatcherPubSubDeliveryEnabled bool `mapstructure:"dispatcherPubSubDeliveryEnabled" json:"dispatcherPubSubDeliveryEnabled,omitempty" default:"false"`
+
+	// How often a dispatcher looks in the database for assignments to its workers that it never received
+	DispatcherPullInterval time.Duration `mapstructure:"dispatcherPullInterval" json:"dispatcherPullInterval,omitempty" default:"2s"`
+
+	// How old an unacknowledged assignment must be before the pull sends it, so it doesn't race the
+	// pub/sub message that is still on its way
+	DispatcherPullGrace time.Duration `mapstructure:"dispatcherPullGrace" json:"dispatcherPullGrace,omitempty" default:"2s"`
+
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
 
@@ -1232,6 +1256,11 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcTriggerWritesEnabled", "SERVER_GRPC_TRIGGER_WRITES_ENABLED")
 	_ = v.BindEnv("runtime.grpcTriggerWriteSlots", "SERVER_GRPC_TRIGGER_WRITE_SLOTS")
 	_ = v.BindEnv("runtime.directTaskWriteSlots", "SERVER_DIRECT_TASK_WRITE_SLOTS")
+	_ = v.BindEnv("runtime.internalEventOutboxEnabled", "SERVER_INTERNAL_EVENT_OUTBOX_ENABLED")
+	_ = v.BindEnv("runtime.internalEventOutboxPollInterval", "SERVER_INTERNAL_EVENT_OUTBOX_POLL_INTERVAL")
+	_ = v.BindEnv("runtime.dispatcherPubSubDeliveryEnabled", "SERVER_DISPATCHER_PUBSUB_DELIVERY_ENABLED")
+	_ = v.BindEnv("runtime.dispatcherPullInterval", "SERVER_DISPATCHER_PULL_INTERVAL")
+	_ = v.BindEnv("runtime.dispatcherPullGrace", "SERVER_DISPATCHER_PULL_GRACE")
 
 	// internal client options
 	_ = v.BindEnv("internalClient.base.tlsStrategy", "SERVER_INTERNAL_CLIENT_BASE_STRATEGY")

@@ -435,6 +435,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
+			dispatcher.WithPubSubDelivery(newDispatcherPubSubDelivery(sc)),
 		)
 
 		if err != nil {
@@ -966,6 +967,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
+			dispatcher.WithPubSubDelivery(newDispatcherPubSubDelivery(sc)),
 			dispatcher.WithDirectTaskWriter(directTaskWriter),
 		)
 
@@ -1260,6 +1262,17 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 	return false
 }
 
+// newDispatcherPubSubDelivery doesn't look at DispatcherPubSubDeliveryEnabled: that only switches
+// sending, and a dispatcher has to receive from engines that send whatever its own setting is.
+func newDispatcherPubSubDelivery(sc *server.ServerConfig) *dispatcher.PubSubDeliveryOpts {
+	return &dispatcher.PubSubDeliveryOpts{
+		// assigned_at, which the pull finds assignments by, is only written when unacked tasks are reassigned
+		Pull:         sc.Runtime.TaskOperationLimits.ReassignUnackedTasks,
+		PullInterval: sc.Runtime.DispatcherPullInterval,
+		PullGrace:    sc.Runtime.DispatcherPullGrace,
+	}
+}
+
 // taskControllerOpts are the settings that decide how the task controller's handlers apply a message.
 // Every task controller and the direct task writer's handler start from them, so a worker event is
 // applied the same way whichever process handles it. In split deployments that still relies on the
@@ -1321,6 +1334,7 @@ func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
 	})
 
 	if err != nil {
+		stopHandler()
 		return nil, fmt.Errorf("could not create direct task writer: %w", err)
 	}
 

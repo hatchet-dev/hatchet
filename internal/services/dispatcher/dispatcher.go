@@ -81,6 +81,10 @@ type DispatcherImpl struct {
 	// directTaskWriter is nil when direct task writes are turned off (zero slots) or the task controller
 	// is paused; every worker task event then goes over the durable task queue.
 	directTaskWriter *directwrite.Writer
+
+	// pubSubDelivery is nil only when the dispatcher is built without WithPubSubDelivery (tests); engines
+	// always receive over pub/sub, since whether to send over it is each sender's setting.
+	pubSubDelivery *pubSubDelivery
 }
 
 // CancelStreamSessions hangs up all registered long-lived subscriber streams. It is
@@ -185,6 +189,7 @@ type DispatcherOpts struct {
 	dispatcherId                        uuid.UUID
 	promGate                            *prometheus.Gate
 	directTaskWriter                    *directwrite.Writer
+	pubSubDelivery                      *PubSubDeliveryOpts
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -294,6 +299,14 @@ func WithPrometheusGate(gate *prometheus.Gate) DispatcherOpt {
 	}
 }
 
+// WithPubSubDelivery makes the dispatcher also receive its messages over pub/sub. With nil opts it only
+// receives over its durable queue.
+func WithPubSubDelivery(opts *PubSubDeliveryOpts) DispatcherOpt {
+	return func(o *DispatcherOpts) {
+		o.pubSubDelivery = opts
+	}
+}
+
 // WithDirectTaskWriter makes the dispatcher apply worker task events with w instead of sending them
 // over the durable task queue. Without it, or with a nil w, every event goes over the queue.
 func WithDirectTaskWriter(w *directwrite.Writer) DispatcherOpt {
@@ -364,6 +377,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		version:                             opts.version,
 		refreshTimeoutBuf:                   newRefreshTimeoutBuffer(),
 		directTaskWriter:                    opts.directTaskWriter,
+		pubSubDelivery:                      newPubSubDeliveryFromOpts(opts.pubSubDelivery),
 		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, a, opts.promGate, opts.payloadSizeThreshold),
 	}, nil
 }
@@ -423,12 +437,27 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		return nil, err
 	}
 
+	cleanupPubSubDelivery := func() error { return nil }
+
+	if d.pubSubDelivery != nil {
+		cleanupPubSubDelivery, err = d.startPubSubDelivery(ctx, dispatcherId, fv1)
+
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+	}
+
 	cleanup := func() error {
 		d.l.Debug().Ctx(ctx).Msgf("dispatcher is shutting down...")
 		cancel()
 
 		if cleanupErr := cleanupQueueV1(); cleanupErr != nil {
 			return fmt.Errorf("could not cleanup queue (v1): %w", cleanupErr)
+		}
+
+		if cleanupErr := cleanupPubSubDelivery(); cleanupErr != nil {
+			return fmt.Errorf("could not cleanup dispatcher topic: %w", cleanupErr)
 		}
 
 		wg.Wait()
@@ -600,7 +629,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			continue
 		}
 
-		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, onlyAssignedAttempts(dispatchData, attempts))
+		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, d.pubSubDelivery.claimDispatch(onlyAssignedAttempts(dispatchData, attempts)))
 
 		if err != nil {
 			// we've already handled the requeue in populateTaskData, and we've logged the error, so we just continue
@@ -665,6 +694,23 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 		toRetryMu.Lock()
 		toRetry = append(toRetry, task)
 		toRetryMu.Unlock()
+	}
+
+	// optimistic scheduling skips the queue, so the pull would otherwise see these assignments as never
+	// sent and send them again once the worker's ack is past the grace period
+	tasks = enumerables.Filter(tasks, func(assigned *schedulingv1.AssignedItemWithTask) bool {
+		at := assigned.AssignedItem.AssignedAt
+
+		// without assigned_at the pull never finds the row, so there is nothing to tell it apart from
+		if !at.Valid {
+			return true
+		}
+
+		return d.pubSubDelivery.claim(assignmentKey{taskId: assigned.Task.ID, retryCount: assigned.Task.RetryCount}, at.Time)
+	})
+
+	if len(tasks) == 0 {
+		return nil
 	}
 
 	// we already have payloads; no lookups necessary. we can just send them to the worker
