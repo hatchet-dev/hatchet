@@ -171,6 +171,20 @@ func syncEventKeyWorkflows(sc *server.ServerConfig, cleanup *cleanup.Cleanup) er
 	return nil
 }
 
+// startTenantBacklogHolds keeps this process's snapshot of the tenant backlog holds current. The
+// admin services read it to refuse new runs of held tenants, so only processes that serve them
+// start it.
+func startTenantBacklogHolds(sc *server.ServerConfig, cleanup *cleanup.Cleanup) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go sc.V1.TenantBacklogHolds().RefreshLoop(ctx)
+
+	cleanup.Add(func() error {
+		cancel()
+		return nil
+	}, "tenant backlog holds")
+}
+
 // startO11yUsage returns a func, for the caller to defer, that registers the final flush after
 // every cleanup the caller registers, since the services stopped by those still add bytes.
 func startO11yUsage(sc *server.ServerConfig, cleanup *cleanup.Cleanup) (*o11yusage.Aggregator, func()) {
@@ -281,6 +295,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
 			schedulerv1.WithPrometheusGate(sc.PrometheusGate),
+			schedulerv1.WithTenantBacklogLimit(sc.Runtime.TenantBacklogLimit),
 		)
 
 		if err != nil {
@@ -473,6 +488,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		if err != nil {
 			return fmt.Errorf("could not create ingestor: %w", err)
 		}
+
+		startTenantBacklogHolds(sc, cleanup)
 
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepositoryV1(sc.V1),
@@ -940,6 +957,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
 			schedulerv1.WithPrometheusGate(sc.PrometheusGate),
+			schedulerv1.WithTenantBacklogLimit(sc.Runtime.TenantBacklogLimit),
 		)
 
 		if err != nil {
@@ -1009,6 +1027,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		if err != nil {
 			return fmt.Errorf("could not create ingestor: %w", err)
 		}
+
+		startTenantBacklogHolds(sc, cleanup)
 
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepositoryV1(sc.V1),

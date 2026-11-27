@@ -57,6 +57,7 @@ type Repository interface {
 	TenantInvite() TenantInviteRepository
 	TenantLimit() TenantLimitRepository
 	TenantEntitlement() TenantEntitlementRepository
+	TenantBacklogHolds() TenantBacklogHoldRepository
 	TenantAlertingSettings() TenantAlertingRepository
 	Tenant() TenantRepository
 	User() UserRepository
@@ -97,6 +98,7 @@ type repositoryImpl struct {
 	tenantInvite        TenantInviteRepository
 	tenantLimit         TenantLimitRepository
 	tenantEntitlement   TenantEntitlementRepository
+	tenantBacklogHolds  TenantBacklogHoldRepository
 	tenantAlerting      TenantAlertingRepository
 	tenant              TenantRepository
 	user                UserRepository
@@ -161,6 +163,7 @@ func NewRepository(
 		tenantInvite:        newTenantInviteRepository(shared),
 		tenantLimit:         shared.m,
 		tenantEntitlement:   shared.entitlements,
+		tenantBacklogHolds:  newTenantBacklogHoldRepository(shared),
 		tenantAlerting:      newTenantAlertingRepository(shared, cacheDuration),
 		tenant:              newTenantRepository(shared, cacheDuration),
 		user:                newUserRepository(shared),
@@ -322,6 +325,10 @@ func (r *repositoryImpl) TenantLimit() TenantLimitRepository {
 
 func (r *repositoryImpl) TenantEntitlement() TenantEntitlementRepository {
 	return r.tenantEntitlement
+}
+
+func (r *repositoryImpl) TenantBacklogHolds() TenantBacklogHoldRepository {
+	return r.tenantBacklogHolds
 }
 
 func (r *repositoryImpl) TenantAlertingSettings() TenantAlertingRepository {

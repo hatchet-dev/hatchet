@@ -4261,6 +4261,14 @@ type V1TasksOlap struct {
 	PayloadReferenceID   *uuid.UUID                 `json:"payload_reference_id"`
 }
 
+type V1TenantBacklogHold struct {
+	TenantID     uuid.UUID          `json:"tenant_id"`
+	Backlog      int64              `json:"backlog"`
+	BacklogLimit int64              `json:"backlog_limit"`
+	LargestState string             `json:"largest_state"`
+	HeldUntil    pgtype.Timestamptz `json:"held_until"`
+}
+
 type V1TenantConcurrency struct {
 	ID                int64                       `json:"id"`
 	TenantID          uuid.UUID                   `json:"tenant_id"`

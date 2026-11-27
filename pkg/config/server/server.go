@@ -240,6 +240,11 @@ type ConfigFileRuntime struct {
 	// EnforceLimits controls whether the server enforces tenant limits
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
 
+	// TenantBacklogLimit is the backlog at which a tenant's new runs are refused: while a tenant
+	// has at least this many tasks waiting to start, the trigger API refuses its new runs. It
+	// applies to every tenant on the shard; 0 turns it off.
+	TenantBacklogLimit int64 `mapstructure:"tenantBacklogLimit" json:"tenantBacklogLimit,omitempty" default:"0"`
+
 	// Default limit values
 	Limits limits.LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
 
@@ -1043,6 +1048,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
 	_ = v.BindEnv("enableWorkerRetention", "SERVER_ENABLE_WORKER_RETENTION")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
+	_ = v.BindEnv("runtime.tenantBacklogLimit", "SERVER_TENANT_BACKLOG_LIMIT")
 	_ = v.BindEnv("runtime.allowSignup", "SERVER_ALLOW_SIGNUP")
 	_ = v.BindEnv("runtime.allowInvites", "SERVER_ALLOW_INVITES")
 	_ = v.BindEnv("runtime.allowCreateTenant", "SERVER_ALLOW_CREATE_TENANT")

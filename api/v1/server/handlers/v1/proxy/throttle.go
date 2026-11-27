@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"errors"
 	"time"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -8,23 +9,30 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// ThrottleRetryAfter reports whether err is a gRPC ResourceExhausted status that carries a
-// google.rpc.RetryInfo detail, and if so how long the caller should wait before retrying.
+// Throttle reports whether err is, or wraps, a gRPC ResourceExhausted status that carries a
+// google.rpc.RetryInfo detail, and if so how long the caller should wait before retrying and the
+// status's own message.
 //
 // The engine attaches RetryInfo only to transient throttling. A ResourceExhausted status without
 // it is a tenant quota the caller cannot resolve by retrying, so the two must not be conflated.
-func ThrottleRetryAfter(err error) (time.Duration, bool) {
-	st, ok := status.FromError(err)
+func Throttle(err error) (retryAfter time.Duration, message string, ok bool) {
+	var withStatus interface{ GRPCStatus() *status.Status }
 
-	if !ok || st.Code() != codes.ResourceExhausted {
-		return 0, false
+	if !errors.As(err, &withStatus) {
+		return 0, "", false
+	}
+
+	st := withStatus.GRPCStatus()
+
+	if st.Code() != codes.ResourceExhausted {
+		return 0, "", false
 	}
 
 	for _, detail := range st.Details() {
-		if info, ok := detail.(*errdetails.RetryInfo); ok {
-			return info.GetRetryDelay().AsDuration(), true
+		if info, isRetryInfo := detail.(*errdetails.RetryInfo); isRetryInfo {
+			return info.GetRetryDelay().AsDuration(), st.Message(), true
 		}
 	}
 
-	return 0, false
+	return 0, "", false
 }

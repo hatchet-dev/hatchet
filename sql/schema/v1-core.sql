@@ -3771,3 +3771,14 @@ AFTER INSERT ON "WorkflowRunTriggeredBy"
 FOR EACH ROW
 WHEN (NEW."scheduledId" IS NOT NULL)
 EXECUTE FUNCTION tenant_allocated_resource_count_on_schedule_fire();
+
+-- v1_tenant_backlog_hold holds the tenants whose new runs are refused because their backlog is at
+-- or over SERVER_TENANT_BACKLOG_LIMIT. Schedulers write it after each backlog measurement; a row
+-- whose held_until has passed no longer refuses anything, and the tenant's next hold overwrites it.
+CREATE TABLE v1_tenant_backlog_hold (
+    tenant_id UUID PRIMARY KEY,
+    backlog BIGINT NOT NULL,
+    backlog_limit BIGINT NOT NULL,
+    largest_state TEXT NOT NULL,
+    held_until TIMESTAMPTZ NOT NULL
+);

@@ -53,6 +53,8 @@ type SchedulerOpts struct {
 	queueLogger *zerolog.Logger
 	pool        scheduling.Pool
 	promGate    *prometheus.Gate
+
+	tenantBacklogLimit int64
 }
 
 func defaultSchedulerOpts() *SchedulerOpts {
@@ -127,6 +129,14 @@ func WithSchedulerPool(s scheduling.Pool) SchedulerOpt {
 func WithPrometheusGate(gate *prometheus.Gate) SchedulerOpt {
 	return func(opts *SchedulerOpts) {
 		opts.promGate = gate
+	}
+}
+
+// WithTenantBacklogLimit sets the backlog at or over which a tenant's new runs are refused;
+// 0 means off.
+func WithTenantBacklogLimit(limit int64) SchedulerOpt {
+	return func(opts *SchedulerOpts) {
+		opts.tenantBacklogLimit = limit
 	}
 }
 
@@ -223,7 +233,7 @@ func New(
 		signaler:               signaler,
 		promGate:               opts.promGate,
 		queueMetrics:           newQueueMetricsPoller(opts.repov1.Tasks(), opts.l),
-		tenantBacklogs:         newTenantBacklogPoller(opts.repov1.Tasks(), opts.l),
+		tenantBacklogs:         newTenantBacklogPoller(opts.repov1.Tasks(), opts.repov1.TenantBacklogHolds(), opts.tenantBacklogLimit, opts.l),
 	}
 
 	return q, nil

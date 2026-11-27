@@ -2252,21 +2252,22 @@ type TenantBacklog struct {
 }
 
 // TenantBacklogState is one part of a TenantBacklog. State is the name the part is reported
-// under: queued, concurrency, rate_limited, batched, paused or retry.
+// and stored under; Description says what holds its tasks, for people.
 type TenantBacklogState struct {
-	State string
-	Count int64
+	State       string
+	Description string
+	Count       int64
 }
 
-// States lists the parts of the backlog in a fixed order.
+// States lists the parts of the backlog in a fixed order. It is the one list of states.
 func (b TenantBacklog) States() []TenantBacklogState {
 	return []TenantBacklogState{
-		{State: "queued", Count: b.Queued},
-		{State: "concurrency", Count: b.Concurrency},
-		{State: "rate_limited", Count: b.RateLimited},
-		{State: "batched", Count: b.Batched},
-		{State: "paused", Count: b.Paused},
-		{State: "retry", Count: b.Retry},
+		{State: "queued", Description: "queued for a worker", Count: b.Queued},
+		{State: "concurrency", Description: "waiting on a concurrency limit", Count: b.Concurrency},
+		{State: "rate_limited", Description: "waiting on a rate limit", Count: b.RateLimited},
+		{State: "batched", Description: "waiting for a batch", Count: b.Batched},
+		{State: "paused", Description: "held by a paused workflow", Count: b.Paused},
+		{State: "retry", Description: "awaiting retry", Count: b.Retry},
 	}
 }
 

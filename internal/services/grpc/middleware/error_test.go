@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5"
@@ -18,6 +19,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
@@ -80,6 +82,28 @@ func TestErrorInterceptorMapsLimitErrorToResourceExhaustedWithRetryInfo(t *testi
 	retryInfo, ok := detail.(*errdetails.RetryInfo)
 	require.True(t, ok, "detail is %T", detail)
 	assert.Equal(t, fairpool.RetryAfter, retryInfo.GetRetryDelay().AsDuration())
+	assert.Equal(t, "resource exhausted: too many concurrent database operations for this tenant, retry shortly", connectErr.Message())
+}
+
+func TestErrorInterceptorMapsTenantBacklogOverLimitToResourceExhaustedWithRetryInfo(t *testing.T) {
+	refusal := &repository.TenantBacklogOverLimitError{Backlog: 123_456, Limit: 100_000, LargestState: "paused"}
+	err, alerter := runThroughErrorInterceptor(t, refusal)
+
+	require.Error(t, err)
+	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err))
+	assert.Equal(t, 0, alerter.n)
+
+	var connectErr *connect.Error
+	require.ErrorAs(t, err, &connectErr)
+	assert.Equal(t, "tenant has 123456 tasks accepted but not yet running, at or over the limit of 100000; new runs are refused until fewer are waiting. The largest share is held by a paused workflow", connectErr.Message())
+	require.Len(t, connectErr.Details(), 1)
+
+	detail, valueErr := connectErr.Details()[0].Value()
+	require.NoError(t, valueErr)
+
+	retryInfo, ok := detail.(*errdetails.RetryInfo)
+	require.True(t, ok, "detail is %T", detail)
+	assert.Equal(t, 5*time.Second, retryInfo.GetRetryDelay().AsDuration())
 }
 
 func TestErrorInterceptorMapsCanceledWithoutAlert(t *testing.T) {
