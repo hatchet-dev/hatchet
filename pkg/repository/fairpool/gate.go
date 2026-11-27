@@ -113,19 +113,34 @@ func newGate(limit int64, maxWait time.Duration, poolName string, l *zerolog.Log
 	}
 }
 
-// pin reserves a slot for key (waiting up to MaxWait), then calls open to check
-// out the connection. The slot is held until the returned hold is released.
+// pin checks out a connection with open, then takes a slot for key. The slot is held until the
+// returned hold is released.
 //
-// The cap bounds checkouts in flight, so the slot is taken before open on purpose.
-// A waiter therefore never holds a pool connection, and an over-cap bucket cannot
-// fill the pool with parked checkouts that other buckets need.
-func (g *gate) pin(ctx context.Context, key string, tenantID uuid.UUID, open func() error) (*slotHold, error) {
+// The connection comes first so that a slot is only ever held by a checkout that has a
+// connection. Otherwise, when the underlying pool is exhausted, a bucket's slots fill with
+// checkouts waiting on the pool and its next caller is rejected at MaxWait, blaming the bucket
+// for a pool-wide shortage (this happens on every scheduler restart on shards with many tenants).
+//
+// A caller over the cap still never parks a connection: it gives the connection back with
+// giveBack and waits for a slot holding nothing, so the cap cannot fill the pool. It keeps the
+// slot it waited for and checks out again, so each call costs at most one extra checkout.
+func (g *gate) pin(ctx context.Context, key string, tenantID uuid.UUID, open func() error, giveBack func()) (*slotHold, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
 	slots := g.borrow(key)
 	defer g.releaseBorrow(key, slots)
+
+	if err := open(); err != nil {
+		return nil, err
+	}
+
+	if slots.sem.TryAcquire(1) {
+		return g.take(key, slots), nil
+	}
+
+	giveBack()
 
 	waited, err := g.reserve(ctx, key, slots, tenantID)
 	if err != nil {
