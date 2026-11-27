@@ -357,6 +357,12 @@ type TaskRepository interface {
 
 	GetQueueCounts(ctx context.Context, tenantId uuid.UUID) (map[string]interface{}, error)
 
+	// GetTenantBacklogs returns, for every given tenant, how many of its accepted tasks are
+	// not running, by where they wait, measured in one statement per chunk of tenants. Each
+	// count stops at ceiling, so a count equal to ceiling means at least ceiling; a tenant
+	// with nothing waiting maps to all zeroes.
+	GetTenantBacklogs(ctx context.Context, tenantIds []uuid.UUID, ceiling int64) (map[uuid.UUID]TenantBacklog, error)
+
 	GetQueueSizes(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.GetQueueSizesRow, error)
 
 	GetQueueSizesByMetadata(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.GetQueueSizesByMetadataRow, error)
@@ -2233,6 +2239,105 @@ func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId uuid.U
 	}
 
 	return res, nil
+}
+
+// TenantBacklog is a tenant's accepted tasks that are not running, by where they wait.
+type TenantBacklog struct {
+	Queued      int64
+	Concurrency int64
+	RateLimited int64
+	Batched     int64
+	Paused      int64
+	Retry       int64
+}
+
+// TenantBacklogState is one part of a TenantBacklog. State is the name the part is reported
+// under: queued, concurrency, rate_limited, batched, paused or retry.
+type TenantBacklogState struct {
+	State string
+	Count int64
+}
+
+// States lists the parts of the backlog in a fixed order.
+func (b TenantBacklog) States() []TenantBacklogState {
+	return []TenantBacklogState{
+		{State: "queued", Count: b.Queued},
+		{State: "concurrency", Count: b.Concurrency},
+		{State: "rate_limited", Count: b.RateLimited},
+		{State: "batched", Count: b.Batched},
+		{State: "paused", Count: b.Paused},
+		{State: "retry", Count: b.Retry},
+	}
+}
+
+// Total is the tenant's backlog across all states. Each state's count stops at the
+// measurement ceiling, so the total is a lower bound once any state has reached it.
+func (b TenantBacklog) Total() int64 {
+	return b.Queued + b.Concurrency + b.RateLimited + b.Batched + b.Paused + b.Retry
+}
+
+// tenantBacklogsChunkSize bounds how many tenants one GetTenantBacklogs statement measures.
+// An idle tenant costs six index probes, so a chunk of idle tenants is cheap; the bound
+// keeps a chunk of large backlogs from holding one statement for long.
+const tenantBacklogsChunkSize = 1000
+
+func (r *TaskRepositoryImpl) GetTenantBacklogs(ctx context.Context, tenantIds []uuid.UUID, ceiling int64) (map[uuid.UUID]TenantBacklog, error) {
+	res := make(map[uuid.UUID]TenantBacklog, len(tenantIds))
+
+	for chunk := range slices.Chunk(tenantIds, tenantBacklogsChunkSize) {
+		rows, err := r.getTenantBacklogsChunk(ctx, chunk, ceiling)
+
+		if err != nil {
+			return nil, err
+		}
+
+		for _, row := range rows {
+			res[row.TenantID] = TenantBacklog{
+				Queued:      row.Queued,
+				Concurrency: row.Concurrency,
+				RateLimited: row.RateLimited,
+				Batched:     row.Batched,
+				Paused:      row.Paused,
+				Retry:       row.Retry,
+			}
+		}
+	}
+
+	return res, nil
+}
+
+// tenantBacklogsPlannerSettings disables sequential and bitmap scans for GetTenantBacklogs. The
+// planner sees one generic tenant, so when a table holds few tenants it estimates a large share
+// per tenant and prefers a sequential scan, which reads the whole table for an idle tenant, or a
+// bitmap scan, which reads every index entry of a large backlog before the limit applies. A
+// plain or index-only scan on a tenant_id-leading index stops at the ceiling. The same estimate
+// inflates the plan's cost past the JIT thresholds, and compiling costs far more than the index
+// probes, so JIT is off too.
+const tenantBacklogsPlannerSettings = "SET LOCAL enable_seqscan = off; SET LOCAL enable_bitmapscan = off; SET LOCAL jit = off"
+
+func (r *TaskRepositoryImpl) getTenantBacklogsChunk(ctx context.Context, tenantIds []uuid.UUID, ceiling int64) ([]*sqlcv1.GetTenantBacklogsRow, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	if _, err := tx.Exec(ctx, tenantBacklogsPlannerSettings); err != nil {
+		return nil, err
+	}
+
+	rows, err := r.queries.GetTenantBacklogs(ctx, tx, sqlcv1.GetTenantBacklogsParams{
+		Tenantids: tenantIds,
+		Ceiling:   ceiling,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return rows, commit(ctx)
 }
 
 func (r *TaskRepositoryImpl) GetQueueSizes(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.GetQueueSizesRow, error) {

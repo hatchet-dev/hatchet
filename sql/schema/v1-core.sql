@@ -1024,6 +1024,9 @@ CREATE INDEX v1_paused_workflow_queue_item_rate_limit_idx
     ON v1_paused_workflow_queue_item (tenant_id, rate_limit_paused_until)
     WHERE rate_limit_paused_until IS NOT NULL;
 
+CREATE INDEX v1_paused_workflow_queue_item_tenant_idx
+    ON v1_paused_workflow_queue_item (tenant_id);
+
 ALTER TABLE v1_paused_workflow_queue_item SET (
     autovacuum_vacuum_scale_factor = '0.1',
     autovacuum_analyze_scale_factor = '0.05',
