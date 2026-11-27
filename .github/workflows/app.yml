@@ -270,7 +270,6 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://localhost:5173
         run: pnpm run e2e:isolated
 
-      # Renders every story in Chromium and runs its play function.
       - name: Run story tests
         if: ${{ !cancelled() }}
         working-directory: frontend/app

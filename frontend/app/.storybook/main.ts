@@ -6,11 +6,8 @@ const isExcluded = (name: string) =>
   excludedPlugins.some((prefix) => name.startsWith(prefix));
 
 const config: StorybookConfig = {
-  // MDX only from docs/: the app has its own MDX files that aren't Storybook
-  // docs.
+  // The app has its own MDX files that aren't Storybook docs.
   stories: ['./docs/*.mdx', '../src/**/*.stories.@(ts|tsx)'],
-  // Test-only stories still run in `pnpm test:stories`; the sidebar's tag
-  // filter shows them when debugging.
   tags: { 'test-only': { defaultFilterSelection: 'exclude' } },
   addons: [
     '@storybook/addon-docs',

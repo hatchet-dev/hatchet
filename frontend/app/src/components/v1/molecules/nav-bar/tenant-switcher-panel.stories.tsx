@@ -233,8 +233,7 @@ export const FlatList: Story = {
 
 const isMac = detectPlatform() === 'mac';
 
-// Behaviour checks rather than states to browse: hidden from the sidebar by
-// default (see .storybook/main.ts) but still run by `pnpm test:stories`.
+// Hidden from the sidebar by default, but still run by `pnpm test:stories`.
 const TEST_ONLY = ['test-only'];
 
 export const Keyboard: Story = {
@@ -329,7 +328,6 @@ export const RowMenu: Story = {
         expect.objectContaining({ slug: 'development' }),
       );
       await expect(args.onSelectTenant).not.toHaveBeenCalled();
-      // Focus goes back to the search so keyboard navigation can continue.
       await waitFor(() =>
         expect(within(canvasElement).getByRole('combobox')).toHaveFocus(),
       );

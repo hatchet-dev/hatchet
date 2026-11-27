@@ -7,8 +7,7 @@ import { defineConfig } from 'vitest/config';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Runs every story as a test in Chromium: it must render, and its play
-// function, if any, must pass. Unit tests stay on `node --test`.
+// Stories only: unit tests stay on `node --test`.
 export default defineConfig({
   // Only the import aliases: the app's plugins and dev proxy don't apply here.
   resolve: { alias: viteConfig.resolve?.alias },

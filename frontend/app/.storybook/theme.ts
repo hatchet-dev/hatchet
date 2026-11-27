@@ -11,7 +11,6 @@ import { create } from 'storybook/theming';
 // main.ts and passing the values through `env`.
 const shared = {
   brandTitle: 'Hatchet',
-  // Back to the Introduction page in the same tab.
   brandUrl: './',
   brandTarget: '_self',
   fontBase:
