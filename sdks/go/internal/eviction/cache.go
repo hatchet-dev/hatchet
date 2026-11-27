@@ -61,6 +61,38 @@ func (r *DurableRunRecord) GetWaitingSince() *time.Time {
 	return &t
 }
 
+// snapshot returns a detached copy of the record. The copy does not share the
+// mutex, WaitingSince, or EvictionPolicy with the live record, so callers can
+// log and invoke callbacks without holding r.mu.
+func (r *DurableRunRecord) snapshot() *DurableRunRecord {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.snapshotLocked()
+}
+
+// snapshotLocked copies the record. The caller must hold r.mu.
+func (r *DurableRunRecord) snapshotLocked() *DurableRunRecord {
+	cp := &DurableRunRecord{
+		RegisteredAt:    r.RegisteredAt,
+		Key:             r.Key,
+		StepRunID:       r.StepRunID,
+		WaitKind:        r.WaitKind,
+		WaitResourceID:  r.WaitResourceID,
+		EvictionReason:  r.EvictionReason,
+		InvocationCount: r.InvocationCount,
+		waitCount:       r.waitCount,
+	}
+	if r.EvictionPolicy != nil {
+		policy := *r.EvictionPolicy
+		cp.EvictionPolicy = &policy
+	}
+	if r.WaitingSince != nil {
+		waitingSince := *r.WaitingSince
+		cp.WaitingSince = &waitingSince
+	}
+	return cp
+}
+
 // DurableEvictionCache manages durable run state for eviction decisions.
 // Thread-safe via internal mutex.
 type DurableEvictionCache struct {
