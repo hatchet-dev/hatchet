@@ -612,11 +612,22 @@ func newTestEnv(t *testing.T) *testEnv {
 }
 
 // addEndpoint stores the row and installs a healthcheck handler that advertises the row's
-// registered actions, so the first poll changes nothing.
+// registered actions and durable support, so the first poll changes nothing. Leaving durable
+// out would make that poll clear durable_supported in the cache, racing any durable delivery
+// the test makes before it lands.
 func (e *testEnv) addEndpoint(row *sqlcv1.V1ServerlessEndpoint) {
 	e.repo.AddEndpoint(row)
 
-	e.sender.respond(row.HealthcheckUrl, http.StatusOK, healthcheckBody(row.RegisteredActions...))
+	b, err := contract.Marshal(&v1.ServerlessHealthcheckResponse{
+		Actions: row.RegisteredActions,
+		Durable: &v1.ServerlessDurableSupport{Supported: row.DurableSupported},
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	e.sender.respond(row.HealthcheckUrl, http.StatusOK, string(b))
 }
 
 func (e *testEnv) unit(row *sqlcv1.V1ServerlessEndpoint) memrepo.Unit {

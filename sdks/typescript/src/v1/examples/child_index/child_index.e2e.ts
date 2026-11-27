@@ -1,5 +1,5 @@
 import { makeE2EClient } from '../__e2e__/harness';
-import { childIndexParent, orchestratorTask } from './workflow';
+import { childIndexBulkParent, childIndexParent, orchestratorTask } from './workflow';
 
 describe('child-index-e2e', () => {
   const hatchet = makeE2EClient();
@@ -46,5 +46,17 @@ describe('child-index-e2e', () => {
     expect(result.total).toBe(result.expected);
     expect(result.hasDuplicates).toBe(false);
     expect(result.uniqueRunIds).toBe(result.total);
+  }, 120_000);
+
+  it('produces unique children across consecutive runManyNoWait calls', async () => {
+    const sizes = [10, 3];
+    const result = await childIndexBulkParent.run({ sizes });
+
+    const expectedTags = sizes.flatMap((size, call) =>
+      Array.from({ length: size }, (_, i) => `bulk-${call}-${i}`)
+    );
+
+    expect(new Set(result.runIds).size).toBe(expectedTags.length);
+    expect(result.tags).toEqual(expectedTags);
   }, 120_000);
 });

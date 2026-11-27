@@ -21,11 +21,11 @@ jobs:
         run: python3 generate.py
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24
       - name: Setup pnpm
         uses: pnpm/action-setup@d15e628ca66d93ee5f352c71671a7bc6a97af5c9 # v6.0.8
         with:
-          version: 10.16.1
+          version: 10.34.9
           run_install: false
       - name: Install frontend dependencies
         working-directory: frontend/app

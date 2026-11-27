@@ -140,7 +140,7 @@ On first use the SDK turns on the Hatchet OpenTelemetry instrumentor. If you hav
 ## What you need
 
 - A Hatchet Cloud tenant with sandboxes enabled.
-- At least one sandbox provider connected to that tenant, configured under Sandboxes in the dashboard with your Daytona, E2B, Archil, or Freestyle API key.
+- At least one sandbox provider connected to that tenant, configured under Sandboxes in the dashboard with your Daytona, E2B, Archil, Freestyle, Modal, or Vercel API key.
 
 ## Changelog
 

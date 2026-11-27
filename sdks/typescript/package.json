@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.49.0",
+  "version": "1.49.1",
   "engines": {
     "node": ">=22"
   },
@@ -258,7 +258,7 @@
       "optional": true
     }
   },
-  "packageManager": "pnpm@10.16.1",
+  "packageManager": "pnpm@10.34.9",
   "pnpm": {
     "overrides": {
       "diff": "8.0.3",

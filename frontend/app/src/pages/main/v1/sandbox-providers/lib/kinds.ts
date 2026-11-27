@@ -4,6 +4,7 @@ export type ConfigField = {
   key: string;
   label: string;
   help: string;
+  required?: boolean;
 } & (
   | { type: 'text'; placeholder?: string; mono?: boolean }
   | { type: 'number'; placeholder?: string }
@@ -39,6 +40,8 @@ export const KIND_ORDER: SandboxProviderKind[] = [
   SandboxProviderKind.E2B,
   SandboxProviderKind.ARCHIL,
   SandboxProviderKind.FREESTYLE,
+  SandboxProviderKind.MODAL,
+  SandboxProviderKind.VERCEL,
 ];
 
 export const KINDS: Record<
@@ -46,6 +49,8 @@ export const KINDS: Record<
   {
     label: string;
     description: string;
+    keyLabel?: string;
+    keyPlaceholder?: string;
     keyHint: string;
     templatePlaceholder: string;
     fields: ConfigField[];
@@ -100,6 +105,70 @@ export const KINDS: Record<
     keyHint: 'From admin.freestyle.sh.',
     templatePlaceholder: 'sh-… or a snapshot slug',
     fields: [workdir, snapshotEveryTurn],
+  },
+  [SandboxProviderKind.MODAL]: {
+    label: 'Modal',
+    description: 'Sandboxes with filesystem snapshots.',
+    keyLabel: 'Token secret',
+    keyPlaceholder: 'as-…',
+    keyHint: 'The secret half of a Modal API token.',
+    templatePlaceholder: 'debian:bookworm-slim',
+    fields: [
+      {
+        key: 'tokenId',
+        label: 'Token ID',
+        help: 'The ID half of the same Modal API token.',
+        required: true,
+        type: 'text',
+        placeholder: 'ak-…',
+        mono: true,
+      },
+      {
+        key: 'app',
+        label: 'App',
+        help: 'Modal app the sandboxes run under. Created if missing.',
+        type: 'text',
+        placeholder: 'hatchet-sandboxes',
+        mono: true,
+      },
+      {
+        key: 'environment',
+        label: 'Environment',
+        help: "Modal environment. Leave empty for the token's default.",
+        type: 'text',
+        mono: true,
+      },
+      { ...workdir, placeholder: '/workspace' },
+      snapshotEveryTurn,
+    ],
+  },
+  [SandboxProviderKind.VERCEL]: {
+    label: 'Vercel',
+    description: 'MicroVMs with persistent snapshots.',
+    keyPlaceholder: 'vcp_…',
+    keyHint: 'A Vercel access token.',
+    templatePlaceholder: 'vercel/sandbox/universal',
+    fields: [
+      {
+        key: 'teamId',
+        label: 'Team ID',
+        help: 'The team the access token belongs to.',
+        required: true,
+        type: 'text',
+        placeholder: 'team_…',
+        mono: true,
+      },
+      {
+        key: 'projectId',
+        label: 'Project',
+        help: 'ID or name of the project sandboxes are created in.',
+        required: true,
+        type: 'text',
+        mono: true,
+      },
+      { ...workdir, placeholder: '/vercel/sandbox' },
+      snapshotEveryTurn,
+    ],
   },
 };
 

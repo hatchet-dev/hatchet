@@ -5,7 +5,8 @@ import {
 import { Tenant, TenantVersion } from '@/lib/api';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent, within } from 'storybook/test';
+import { detectPlatform } from '@tanstack/react-hotkeys';
+import { expect, fn, spyOn, userEvent, waitFor, within } from 'storybook/test';
 
 const tenant = (slug: string, region: string, name = slug): Tenant => ({
   metadata: {
@@ -227,5 +228,135 @@ export const FlatList: Story = {
         onSelect: fn(),
       },
     ],
+  },
+};
+
+const isMac = detectPlatform() === 'mac';
+
+// Hidden from the sidebar by default, but still run by `pnpm test:stories`.
+const TEST_ONLY = ['test-only'];
+
+export const Keyboard: Story = {
+  tags: TEST_ONLY,
+  beforeEach: () => {
+    const open = spyOn(window, 'open').mockReturnValue(null);
+    return () => open.mockRestore();
+  },
+  play: async ({ args, canvasElement, step }) => {
+    const canvas = within(canvasElement);
+    const combobox = canvas.getByRole('combobox');
+    const currentOrg = canvas.getByRole('option', { name: /^Current org/ });
+
+    await step('Enter goes back to the most recent tenant', async () => {
+      await expect(combobox).toHaveFocus();
+      await userEvent.keyboard('{Enter}');
+      await expect(args.onSelectTenant).toHaveBeenCalledTimes(1);
+      await expect(args.onSelectTenant).toHaveBeenLastCalledWith(
+        expect.objectContaining({ slug: 'production' }),
+      );
+    });
+
+    await step('Cmd/Ctrl+Enter opens it in a new tab instead', async () => {
+      const modifier = isMac ? 'Meta' : 'Control';
+      await userEvent.keyboard(`{${modifier}>}{Enter}{/${modifier}}`);
+      await expect(window.open).toHaveBeenCalledWith(
+        '/tenants/tenant-production/runs',
+        '_blank',
+        'noopener',
+      );
+      await expect(args.onSelectTenant).toHaveBeenCalledTimes(1);
+    });
+
+    await step('← and → collapse and expand an organization', async () => {
+      // Past the three recent tenants.
+      await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
+      await expect(currentOrg).toHaveAttribute('aria-selected', 'true');
+      await userEvent.keyboard('{ArrowLeft}');
+      await expect(currentOrg).toHaveAttribute('aria-expanded', 'false');
+      await userEvent.keyboard('{ArrowRight}');
+      await expect(currentOrg).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    await step('← on a tenant goes back to its organization', async () => {
+      await userEvent.keyboard('{ArrowDown}');
+      await expect(
+        canvas.getByTestId('tenant-switcher-item-control-plane'),
+      ).toHaveAttribute('aria-selected', 'true');
+      await userEvent.keyboard('{ArrowLeft}');
+      await expect(currentOrg).toHaveAttribute('aria-selected', 'true');
+    });
+
+    await step('Enter while searching picks the first match', async () => {
+      await userEvent.type(combobox, 'prod eu');
+      await expect(canvas.getByText('2 matches')).toBeInTheDocument();
+      await userEvent.keyboard('{Enter}');
+      await expect(args.onSelectTenant).toHaveBeenCalledTimes(2);
+      await expect(args.onSelectTenant).toHaveBeenLastCalledWith(
+        expect.objectContaining({ slug: 'prod-eu' }),
+      );
+    });
+  },
+};
+
+// The menu is portalled out of the panel, so it's queried from the document.
+async function openRowMenu(canvasElement: HTMLElement, tenantName: string) {
+  await userEvent.click(
+    within(canvasElement).getByRole('button', {
+      name: `More actions for ${tenantName}`,
+    }),
+  );
+  return within(canvasElement.ownerDocument.body);
+}
+
+export const RowMenu: Story = {
+  tags: TEST_ONLY,
+  beforeEach: () => {
+    const writeText = spyOn(
+      navigator.clipboard,
+      'writeText',
+    ).mockResolvedValue();
+    return () => writeText.mockRestore();
+  },
+  play: async ({ args, canvasElement, step }) => {
+    await step('Tenant settings, without selecting the tenant', async () => {
+      const menu = await openRowMenu(canvasElement, 'development');
+      await userEvent.click(
+        await menu.findByRole('menuitem', { name: 'Tenant settings' }),
+      );
+      await expect(args.onTenantSettings).toHaveBeenCalledTimes(1);
+      await expect(args.onTenantSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ slug: 'development' }),
+      );
+      await expect(args.onSelectTenant).not.toHaveBeenCalled();
+      await waitFor(() =>
+        expect(within(canvasElement).getByRole('combobox')).toHaveFocus(),
+      );
+    });
+
+    await step('Copy tenant ID', async () => {
+      const menu = await openRowMenu(canvasElement, 'development');
+      await userEvent.click(
+        await menu.findByRole('menuitem', { name: 'Copy tenant ID' }),
+      );
+      await expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        'tenant-development',
+      );
+    });
+  },
+};
+
+export const ShowMore: Story = {
+  tags: TEST_ONLY,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const rows = () => canvas.queryAllByTestId(/^tenant-switcher-item-/);
+    const visibleBefore = rows().length;
+
+    // Current org has 11 tenants and starts with 6 of them.
+    await userEvent.click(canvas.getByRole('option', { name: 'Show 5 more' }));
+    await expect(rows()).toHaveLength(visibleBefore + 5);
+    await expect(
+      canvas.getByTestId('tenant-switcher-item-sdk-ci-ts'),
+    ).toBeInTheDocument();
   },
 };
