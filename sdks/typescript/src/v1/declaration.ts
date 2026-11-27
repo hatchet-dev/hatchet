@@ -526,13 +526,13 @@ export class BaseWorkflowDeclaration<
       warn: (message) => this.client!.admin.logger.warn(message),
     });
 
-    parentRunContextManager.incrementChildIndex(runs.length);
-
     const baseOpts = {
       parentId: parentRunContext?.parentId,
       parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
       childIndex: parentRunContext?.childIndex,
     };
+
+    parentRunContextManager.incrementChildIndex(runs.length);
 
     let resp: WorkflowRunRef<O>[] = [];
     for (let i = 0; i < runs.length; i += 500) {
