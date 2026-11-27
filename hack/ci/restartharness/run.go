@@ -440,7 +440,7 @@ func samplePeakConns(ctx context.Context, serverURL, db string) int {
 	defer tick.Stop()
 	for {
 		var n int
-		err := conn.QueryRow(ctx, "SELECT count(*) FROM pg_stat_activity WHERE datname = $1 AND application_name <> $2", db, ddlAppName).Scan(&n)
+		err := conn.QueryRow(ctx, "SELECT count(*) FROM pg_stat_activity WHERE datname = $1 AND backend_type = 'client backend' AND application_name <> $2", db, ddlAppName).Scan(&n)
 		if ctx.Err() != nil {
 			return peak
 		}
