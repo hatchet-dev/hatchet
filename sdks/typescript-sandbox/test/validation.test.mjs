@@ -20,6 +20,13 @@ test('sandbox options are validated before any network call', async () => {
   await rejectsZod(Sandbox.create(offline, { resources: { memory: '1073741824' } }), /512Mi/);
   await rejectsZod(Sandbox.create(offline, { resources: {} }), /at least one/);
   await rejectsZod(Sandbox.create(offline, { resources: { vcpu: 1.5 } }), /vcpu/);
+  await rejectsZod(Sandbox.create(offline, { egress: { allow: [] } }), /allow-all/);
+  await rejectsZod(Sandbox.create(offline, { egress: { allow: ['https://x.com'] } }), /domain/);
+  await rejectsZod(
+    Sandbox.create(offline, { egress: { allow: ['a.com'], deny: ['b.com'] } }),
+    /expected/
+  );
+  await rejectsZod(Sandbox.create(offline, { egress: 'open' }), /expected/);
   await rejectsZod(Sandbox.create(offline, { id: 'Bad_ID' }), /lowercase/);
   await rejectsZod(Sandbox.create(offline, { idleTimeout: 5 }), /Unrecognized key/);
   await rejectsZod(Sandbox.create(offline, { inheritParentMetadata: true }), /needs from/);

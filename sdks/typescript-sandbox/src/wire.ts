@@ -12,6 +12,12 @@ export const resources = z.strictObject({
   diskMib: positiveInt.optional(),
 });
 
+/** Outbound network policy as the provider receives it. Exactly one list is present. `allow` denies everything else, so an empty `allow` is deny-all. `deny` allows everything else, so an empty `deny` is allow-all. */
+export const egress = z.strictObject({
+  allow: z.array(z.string()).optional(),
+  deny: z.array(z.string()).optional(),
+});
+
 /** Input of one sandbox task run. `fn` names the operation, such as `$create`, `$command` or `$fs.read`. */
 export const turnInput = z.strictObject({
   fn: z.string().min(1),
@@ -23,6 +29,7 @@ export const turnInput = z.strictObject({
   idleTtlMs: positiveInt.optional(),
   inheritMetadata: z.boolean().optional(),
   resources: resources.optional(),
+  egress: egress.optional(),
 });
 export type TurnInput = z.input<typeof turnInput>;
 

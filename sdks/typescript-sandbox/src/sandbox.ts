@@ -87,9 +87,35 @@ export interface SandboxOpts {
   inheritParentMetadata?: boolean;
   /** Name of the sandbox provider to create on. Required when the tenant has more than one; with `from`, it must be the provider that holds the snapshot. */
   provider?: string;
-  /** Machine size. Providers that cannot honour a field fail the create with their own message. Providers that do not know the option ignore it. */
+  /** Machine size. Providers that cannot honour a field fail the create with their own message. A self-hosted Brickie cluster ignores it, since its machine sizes come from the cluster's Helm values. */
   resources?: Resources;
+  /** Outbound network policy. Omitted keeps the provider's default. The policy replaces that default rather than adding to it, and is applied again whenever the sandbox is restored. Providers that cannot express a policy fail the create with their own message. A self-hosted Brickie cluster ignores it, since its network policies come from the cluster's Helm values. */
+  egress?: Egress;
 }
+
+/**
+ * `'allow-all'` and `'deny-all'` set the whole policy. `{ allow }` denies everything but its entries, `{ deny }` allows everything but its entries.
+ * An entry is a domain such as `'example.com'` or `'*.example.com'`, an IP address, or a CIDR. Daytona, Modal and Freestyle only take allow lists, Freestyle only takes IPs and CIDRs, and deny lists take IPs and CIDRs everywhere.
+ */
+export type Egress = 'allow-all' | 'deny-all' | { allow: string[] } | { deny: string[] };
+
+const ENTRY = /^(\*\.)?([a-z0-9-]+\.)+[a-z0-9-]+$|^[0-9a-f.:]+(\/\d{1,3})?$/i;
+const entries = z
+  .array(
+    z
+      .string()
+      .regex(ENTRY, 'expected a domain like example.com or *.example.com, an IP address, or a CIDR')
+  )
+  .min(1, "use 'allow-all' or 'deny-all' instead of an empty list");
+const egress = z.union(
+  [
+    z.literal('allow-all').transform(() => ({ deny: [] as string[] })),
+    z.literal('deny-all').transform(() => ({ allow: [] as string[] })),
+    z.strictObject({ allow: entries }),
+    z.strictObject({ deny: entries }),
+  ],
+  { error: "expected 'allow-all', 'deny-all', { allow: [...] } or { deny: [...] }" }
+);
 
 export interface Resources {
   /** Whole cores. */
@@ -156,6 +182,7 @@ const sandboxOpts = z
     inheritParentMetadata: z.boolean().optional(),
     provider: nonEmpty.optional(),
     resources: resources.optional(),
+    egress: egress.optional(),
   })
   .refine((o) => !o.inheritParentMetadata || o.from !== undefined, {
     error: 'inheritParentMetadata needs from',
@@ -275,6 +302,7 @@ export class Sandbox {
       idleTtlMs: o.idleTimeoutMs,
       inheritMetadata: o.inheritParentMetadata,
       resources: o.resources,
+      egress: o.egress,
     });
     return new Sandbox(run, created.sandboxId, o.template, metadataOf(created.output));
   }

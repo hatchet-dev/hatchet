@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-26
+
+### Added
+
+- `egress` on `create` sets the sandbox's outbound network policy. `'allow-all'` and `'deny-all'` set the whole policy, `{ allow: [...] }` denies everything but its entries and `{ deny: [...] }` allows everything but its entries. An entry is a domain such as `'example.com'` or `'*.example.com'`, an IP address, or a CIDR. The policy replaces the provider's default and is applied again whenever the sandbox is restored from a snapshot. Daytona, Modal and Freestyle only take allow lists, Freestyle only takes IPs and CIDRs, and deny lists take IPs and CIDRs on every provider. A provider that cannot express the policy fails the create with its own message. A self-hosted Brickie cluster ignores `egress` and `resources`, since its network policies and machine sizes come from the cluster's Helm values. `@hatchet-dev/sandbox/wire` exports the `egress` schema.
+
 ## [0.1.6] - 2026-11-16
 
 ### Added

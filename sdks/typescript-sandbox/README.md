@@ -86,16 +86,19 @@ const sandbox = await hatchet.sandbox.create({ provider: 'e2b' });
 
 Options for `create`:
 
-| Option                  | What it does                                                                                                                                                                                            |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `provider`              | Which sandbox provider to create on, by its name. Needed when the tenant has several; a fork always uses its snapshot's.                                                                                |
-| `id`                    | Pick your own sandbox ID. Lowercase letters, digits, and hyphens. It must not exist yet.                                                                                                                |
-| `template`              | The image or template, in the provider's own terms. Defaults to the provider's default.                                                                                                                 |
-| `from`                  | Start from this snapshot. Create two sandboxes from the same snapshot and you have a fork.                                                                                                              |
-| `metadata`              | Key-value pairs on the sandbox, on top of the provider's default metadata. Searchable with `list` and attached to every task run of the sandbox as run metadata.                                        |
-| `inheritParentMetadata` | With `from`, copy the metadata of the sandbox that made the snapshot onto the new one. Pairs given in `metadata` take precedence.                                                                       |
-| `idleTimeoutMs`         | Stop the sandbox after this long with no calls. The provider sets the maximum.                                                                                                                          |
-| `resources`             | Machine size as `{ vcpu, memory, disk }`. `memory` and `disk` take a number of MiB or a quantity with a unit like `'4Gi'`. Providers that cannot honour a field fail the create with their own message. |
+| Option                  | What it does                                                                                                                                                                                                |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider`              | Which sandbox provider to create on, by its name. Needed when the tenant has several; a fork always uses its snapshot's.                                                                                    |
+| `id`                    | Pick your own sandbox ID. Lowercase letters, digits, and hyphens. It must not exist yet.                                                                                                                    |
+| `template`              | The image or template, in the provider's own terms. Defaults to the provider's default.                                                                                                                     |
+| `from`                  | Start from this snapshot. Create two sandboxes from the same snapshot and you have a fork.                                                                                                                  |
+| `metadata`              | Key-value pairs on the sandbox, on top of the provider's default metadata. Searchable with `list` and attached to every task run of the sandbox as run metadata.                                            |
+| `inheritParentMetadata` | With `from`, copy the metadata of the sandbox that made the snapshot onto the new one. Pairs given in `metadata` take precedence.                                                                           |
+| `idleTimeoutMs`         | Stop the sandbox after this long with no calls. The provider sets the maximum.                                                                                                                              |
+| `resources`             | Machine size as `{ vcpu, memory, disk }`. `memory` and `disk` take a number of MiB or a quantity with a unit like `'4Gi'`. Providers that cannot honour a field fail the create with their own message.     |
+| `egress`                | Outbound network policy, `'allow-all'`, `'deny-all'`, `{ allow: [...] }` or `{ deny: [...] }` of domains, IPs and CIDRs. Replaces the provider's default. Providers that cannot express it fail the create. |
+
+A self-hosted Brickie cluster ignores `resources` and `egress`. Its machine sizes and network policies are set in the cluster's Helm values, not per sandbox.
 
 ### `Sandbox`
 

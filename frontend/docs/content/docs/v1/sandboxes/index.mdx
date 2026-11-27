@@ -11,7 +11,13 @@ import { Sandboxes } from "@/components/flow-animations/Sandboxes";
 
 # Sandboxes
 
-<Callout type="info">Sandboxes are available on Hatchet Cloud only.</Callout>
+<Callout type="info">
+  Connecting a hosted sandbox provider is a Hatchet Cloud feature. To run
+  sandboxes in your own Kubernetes cluster, on Hatchet Cloud or on a self-hosted
+  Hatchet v0.110.0 or newer, use{" "}
+  <a href="https://github.com/hatchet-dev/brickie">Brickie</a>. The same{" "}
+  <code>@hatchet-dev/sandbox</code> SDK drives both. Brickie is in beta.
+</Callout>
 
 <Callout type="warning">
   Sandboxes are a Labs feature and may change in future releases. In the
@@ -21,7 +27,7 @@ import { Sandboxes } from "@/components/flow-animations/Sandboxes";
 
 A sandbox is a workspace with shell access to a remote machine. You may run commands in it as well as carry out filesystem operations such as reading and writing files. Agents that write and run code, untrusted plugins, and jobs that need an isolated environment perfectly fit in this use case.
 
-Hatchet does not run sandboxes. You connect a sandbox vendor to your tenant with your own account. Hatchet drives it and keeps the snapshot lineage in the form of Hatchet tasks and additional metadata.
+Hatchet does not run sandboxes. You connect a sandbox provider to your tenant with your own account. Hatchet drives it and keeps the snapshot lineage in the form of Hatchet tasks and additional metadata.
 
 <Sandboxes />
 
@@ -40,8 +46,8 @@ The workspace can also be saved and copied, which makes a sandbox a cheap way to
 
 ## Terminology
 
-- A **[provider](/v1/sandboxes/providers)** is a vendor account connected to your tenant. You add it once in the dashboard with the vendor's API key and optional configuration values, as described in [Setup](/v1/sandboxes/setup).
-- A **sandbox operator** runs inside Hatchet Cloud. For each tenant with sandboxes turned on it registers a `hatchet-sandbox` task and serves every call by talking to the upstream vendor.
+- A **[provider](/v1/sandboxes/providers)** is a sandbox provider account connected to your tenant. You add it once in the dashboard with the provider's API key and optional configuration values, as described in [Setup](/v1/sandboxes/setup).
+- A **sandbox operator** runs inside Hatchet Cloud. For each tenant with sandboxes turned on it registers a `hatchet-sandbox` task and serves every call by talking to the upstream provider.
 - A **[snapshot](/v1/sandboxes/setup#snapshots)** is the saved state of a sandbox's workspace. A sandbox can be [started again](/v1/sandboxes/using-sandboxes#resuming-a-paused-sandbox) from its latest snapshot. You may also [fork](/v1/sandboxes/using-sandboxes#forks) an existing snapshot for a newly created one.
 
 ## How it looks
@@ -63,5 +69,5 @@ The task below clones a repository into a sandbox and runs its tests, then forks
 ## Next steps
 
 - [Setup](/v1/sandboxes/setup) turns sandboxes on and connects a provider.
-- [Providers](/v1/sandboxes/providers) lists what each vendor accepts.
+- [Providers](/v1/sandboxes/providers) lists what each provider accepts.
 - [Using sandboxes](/v1/sandboxes/using-sandboxes) covers commands, files, resuming, forks and cleanup.
