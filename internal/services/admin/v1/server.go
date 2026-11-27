@@ -712,6 +712,16 @@ func (a *AdminServiceImpl) newTriggerOpt(
 		t.Priority = req.Priority
 	}
 
+	if len(req.DynamicDagNodes) > 0 {
+		workflowVersionId, err := a.repo.Workflows().PutDynamicDagWorkflowVersion(ctx, tenantId, req.WorkflowName, req.DynamicDagNodes)
+
+		if err != nil {
+			return nil, err
+		}
+
+		t.WorkflowVersionId = &workflowVersionId
+	}
+
 	return &v1.WorkflowNameTriggerOpts{
 		TriggerTaskData: t,
 	}, nil

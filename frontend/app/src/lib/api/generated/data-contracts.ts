@@ -728,6 +728,13 @@ export interface V1WorkflowRunDisplayNameList {
 /** The list of external IDs */
 export type V1WorkflowRunExternalIdList = string[];
 
+export interface V1DynamicDagNode {
+  /** The name of a registered standalone task. */
+  taskName: string;
+  /** The task names of the nodes this node depends on. */
+  parentTaskNames?: string[];
+}
+
 export interface V1TriggerWorkflowRunRequest {
   /** The name of the workflow. */
   workflowName: string;
@@ -737,6 +744,8 @@ export interface V1TriggerWorkflowRunRequest {
   priority?: number;
   /** A boolean flag indicating whether to only return the id of the created run. */
   return_only_id?: boolean;
+  /** When set, runs workflowName as a dynamic DAG of these nodes instead of a registered workflow. Each node names a registered standalone task. */
+  dynamicDagNodes?: V1DynamicDagNode[];
 }
 
 export interface V1WorkflowRun {

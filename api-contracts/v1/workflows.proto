@@ -50,6 +50,14 @@ message TriggerWorkflowRunRequest {
     bytes additional_metadata = 3;
     optional int32 priority = 4;
     map<string, DesiredWorkerLabels> desired_worker_labels = 5;
+    // (optional) when set, runs workflow_name as a dynamic dag of these nodes instead of a
+    // registered workflow. Each node names a registered standalone task.
+    repeated DynamicDagNode dynamic_dag_nodes = 6;
+}
+
+message DynamicDagNode {
+    string task_name = 1;
+    repeated string parent_task_names = 2;
 }
 
 message TriggerWorkflowRunResponse {

@@ -1,8 +1,14 @@
+import { DynamicDag } from '../../workflows/$workflow/components/trigger-dynamic-dag-form';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { useToast } from '@/components/v1/hooks/use-toast';
 import useCanViewPayloads from '@/hooks/use-can-view-payloads';
 import useCanWrite from '@/hooks/use-can-write';
-import { queries, V1TaskSummary, V1WorkflowType } from '@/lib/api';
+import {
+  queries,
+  V1TaskSummary,
+  V1WorkflowRunDetails,
+  V1WorkflowType,
+} from '@/lib/api';
 import { isStandaloneRun } from '@/lib/task-runs';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
@@ -20,28 +26,53 @@ export function replayAsNewDisabledReason(
     : 'Only top-level runs can be replayed as new. Use the parent run instead.';
 }
 
+function dynamicDagFromRunDetails(
+  details: V1WorkflowRunDetails,
+): DynamicDag | undefined {
+  const config = details.workflowConfig as
+    { Name?: string; isDynamicDag?: boolean } | undefined;
+
+  if (!config?.isDynamicDag || !config.Name) {
+    return undefined;
+  }
+
+  return {
+    name: config.Name,
+    nodes: details.shape.map((node) => ({
+      taskName: node.taskName,
+      parentTaskNames: details.shape
+        .filter((parent) => parent.childrenStepIds.includes(node.stepId))
+        .map((parent) => parent.taskName),
+    })),
+  };
+}
+
 export function useReplayAsNew() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const canViewPayloads = useCanViewPayloads();
   const canWrite = useCanWrite();
   const [run, setRun] = useState<
-    (ReplayAsNewRun & Pick<V1TaskSummary, 'input'>) | null
+    | (ReplayAsNewRun &
+        Pick<V1TaskSummary, 'input'> & { dynamicDag?: DynamicDag })
+    | null
   >(null);
 
   const replayAsNew = useCallback(
     async (target: ReplayAsNewRun) => {
       try {
-        const { input, payloadsRestricted } =
+        const details =
           target.type === V1WorkflowType.DAG
-            ? (
-                await queryClient.fetchQuery(
-                  queries.v1WorkflowRuns.details(target.metadata.id),
-                )
-              ).run
-            : await queryClient.fetchQuery(
-                queries.v1Tasks.get(target.metadata.id),
-              );
+            ? await queryClient.fetchQuery(
+                queries.v1WorkflowRuns.details(target.metadata.id),
+              )
+            : undefined;
+
+        const { input, payloadsRestricted } = details
+          ? details.run
+          : await queryClient.fetchQuery(
+              queries.v1Tasks.get(target.metadata.id),
+            );
 
         if (payloadsRestricted) {
           toast({
@@ -51,7 +82,11 @@ export function useReplayAsNew() {
           return;
         }
 
-        setRun({ ...target, input });
+        setRun({
+          ...target,
+          input,
+          dynamicDag: details && dynamicDagFromRunDetails(details),
+        });
       } catch {
         toast({
           title: 'Failed to load run input',
@@ -68,6 +103,7 @@ export function useReplayAsNew() {
       defaultWorkflowId={run.workflowId}
       defaultInput={JSON.stringify(run.input ?? {}, null, 2)}
       defaultAddlMeta={JSON.stringify(run.additionalMetadata ?? {}, null, 2)}
+      defaultDynamicDag={run.dynamicDag}
       show
       onClose={() => setRun(null)}
     />

@@ -149,9 +149,27 @@ V1TriggerWorkflowRunRequest:
     return_only_id:
       type: boolean
       description: A boolean flag indicating whether to only return the id of the created run.
+    dynamicDagNodes:
+      type: array
+      description: When set, runs workflowName as a dynamic DAG of these nodes instead of a registered workflow. Each node names a registered standalone task.
+      items:
+        $ref: "#/V1DynamicDagNode"
   required:
     - workflowName
     - input
+
+V1DynamicDagNode:
+  properties:
+    taskName:
+      type: string
+      description: The name of a registered standalone task.
+    parentTaskNames:
+      type: array
+      description: The task names of the nodes this node depends on.
+      items:
+        type: string
+  required:
+    - taskName
 
 V1DurableEventLogKind:
   type: string

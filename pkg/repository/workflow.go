@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -54,6 +55,10 @@ type CreateWorkflowVersionOpts struct {
 
 	// (required) the tasks in the workflow
 	Tasks []CreateStepOpts `validate:"required,min=1,dive"`
+
+	// (optional) set on workflows registered from a trigger's nodes instead of by a worker
+	// (see PutDynamicDagWorkflowVersion)
+	IsDynamicDag bool `json:"isDynamicDag,omitempty"`
 
 	OnFailure *CreateStepOpts `json:"onFailureJob,omitempty" validate:"omitempty"`
 
@@ -260,6 +265,7 @@ type WorkflowMetrics struct {
 type WorkflowRepository interface {
 	ListWorkflowNamesByIds(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (map[uuid.UUID]string, error)
 	PutWorkflowVersion(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+	PutDynamicDagWorkflowVersion(ctx context.Context, tenantId uuid.UUID, dagName string, nodes []*v1contracts.DynamicDagNode) (uuid.UUID, error)
 	GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error)
 	ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error)
 	ListStepMatchConditions(ctx context.Context, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error)

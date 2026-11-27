@@ -67,6 +67,21 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		Priority:           priority,
 	}
 
+	if request.Body.DynamicDagNodes != nil {
+		for _, node := range *request.Body.DynamicDagNodes {
+			var parentTaskNames []string
+
+			if node.ParentTaskNames != nil {
+				parentTaskNames = *node.ParentTaskNames
+			}
+
+			grpcReq.DynamicDagNodes = append(grpcReq.DynamicDagNodes, &contracts.DynamicDagNode{
+				TaskName:        node.TaskName,
+				ParentTaskNames: parentTaskNames,
+			})
+		}
+	}
+
 	resp, err := t.proxyTrigger.Do(
 		ctx.Request().Context(),
 		tenant,

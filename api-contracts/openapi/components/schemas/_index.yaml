@@ -430,6 +430,8 @@ V1TaskRunStatus:
   $ref: "./workflow_run.yaml#/V1TaskRunStatus"
 V1TriggerWorkflowRunRequest:
   $ref: "./v1/workflow_run.yaml#/V1TriggerWorkflowRunRequest"
+V1DynamicDagNode:
+  $ref: "./v1/workflow_run.yaml#/V1DynamicDagNode"
 V1BranchDurableTaskRequest:
   $ref: "./v1/workflow_run.yaml#/V1BranchDurableTaskRequest"
 V1BranchDurableTaskResponse:
