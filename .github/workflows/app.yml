@@ -257,18 +257,25 @@ jobs:
         working-directory: frontend/app
         run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
 
-      - name: Start frontend
+      - name: Build Storybook
+        working-directory: frontend/app
+        run: pnpm run storybook:build --quiet
+
+      - name: Start frontend and Storybook
         working-directory: frontend/app
         run: |
           set -euo pipefail
           pnpm run dev -- --host localhost --port 5173 > vite.log 2>&1 &
+          pnpm run storybook:serve > storybook.log 2>&1 &
           bash ../../hack/ci/wait-for-http.sh http://localhost:5173 120
+          bash ../../hack/ci/wait-for-http.sh http://localhost:6006/index.json 60
 
       - name: Run Playwright
         working-directory: frontend/app
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:5173
-        run: pnpm run e2e:isolated
+          STORYBOOK_URL: http://localhost:6006
+        run: pnpm exec playwright test --project=isolated --project=storybook
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
@@ -285,4 +292,6 @@ jobs:
         with:
           name: e2e-isolated-logs
           if-no-files-found: ignore
-          path: frontend/app/vite.log
+          path: |
+            frontend/app/vite.log
+            frontend/app/storybook.log

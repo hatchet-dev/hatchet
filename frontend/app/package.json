@@ -19,6 +19,7 @@
     "e2e:run": "playwright test",
     "e2e:seeded": "playwright test --project=seeded",
     "e2e:isolated": "playwright test --project=isolated",
+    "e2e:storybook": "playwright test --project=storybook",
     "e2e:report": "playwright show-report",
     "typecheck": "tsc -p tsconfig.json",
     "typecheck:build": "tsc -p tsconfig.build.json",
@@ -26,7 +27,8 @@
     "docs:gen": "cd ../snippets && python3 -X utf8 generate.py",
     "knip": "knip --no-config-hints",
     "storybook": "storybook dev -p 6006",
-    "storybook:build": "storybook build"
+    "storybook:build": "storybook build",
+    "storybook:serve": "vite preview --outDir storybook-static --port 6006 --strictPort"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
