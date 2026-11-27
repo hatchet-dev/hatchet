@@ -101,7 +101,7 @@
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/dagre": "^0.7.54",
     "@types/jsdom": "^28.0.3",
-    "@types/node": "^20.19.43",
+    "@types/node": "^24.19.4",
     "@types/qs": "^6.15.1",
     "@types/react": "^18.3.20",
     "@types/react-dom": "^18.3.5",
