@@ -37,6 +37,7 @@ const (
 	PayloadKindSignalCompletedMatchData
 	PayloadKindDurableEventLogEntryData
 	PayloadKindDurableEventLogEntryResultData
+	PayloadKindTaskAdditionalMetadata
 )
 
 func (k PayloadKind) V1PayloadType() sqlcv1.V1PayloadType {
@@ -55,6 +56,8 @@ func (k PayloadKind) V1PayloadType() sqlcv1.V1PayloadType {
 		return sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA
 	case PayloadKindDurableEventLogEntryResultData:
 		return sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA
+	case PayloadKindTaskAdditionalMetadata:
+		return sqlcv1.V1PayloadTypeTASKADDITIONALMETADATA
 	}
 
 	panic(fmt.Sprintf("unknown payload kind %d", k))
@@ -73,6 +76,7 @@ type ChildWorkflowSignalCreatedShape struct{}
 type SignalCompletedMatchDataShape struct{}
 type DurableEventLogEntryDataShape struct{}
 type DurableEventLogEntryResultDataShape struct{}
+type TaskAdditionalMetadataShape struct{}
 
 func (TaskInputShape) kind() PayloadKind           { return PayloadKindTaskInput }
 func (DAGInputShape) kind() PayloadKind            { return PayloadKindDAGInput }
@@ -87,6 +91,7 @@ func (DurableEventLogEntryDataShape) kind() PayloadKind { return PayloadKindDura
 func (DurableEventLogEntryResultDataShape) kind() PayloadKind {
 	return PayloadKindDurableEventLogEntryResultData
 }
+func (TaskAdditionalMetadataShape) kind() PayloadKind { return PayloadKindTaskAdditionalMetadata }
 
 type Payload[S PayloadShape] struct {
 	raw []byte
@@ -150,6 +155,37 @@ func (r PayloadRef[S]) retrieveOpts() RetrievePayloadOpts {
 
 func (r PayloadRef[S]) StoreOpts(payload Payload[S]) StorePayloadOpts {
 	return StorePayloadOpts{key: r.retrieveOpts(), payload: payload}
+}
+
+// TaskAdditionalMetadataPayloadRef addresses the row by the reference id alone, because the task's external id
+// already identifies its TASK_INPUT row and a partition holds one row per external id.
+func TaskAdditionalMetadataPayloadRef(tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, additionalMetadataPayloadReferenceId *uuid.UUID) PayloadRef[TaskAdditionalMetadataShape] {
+	return PayloadRef[TaskAdditionalMetadataShape]{
+		TenantId:           tenantId,
+		Id:                 taskId,
+		InsertedAt:         taskInsertedAt,
+		PayloadReferenceId: additionalMetadataPayloadReferenceId,
+	}
+}
+
+// TaskAdditionalMetadataPayloadRefs leaves out tasks without a payload row, whose v1_task column holds all of
+// their additional metadata. The children in one request usually share a parent, so repeated tasks yield one ref.
+func TaskAdditionalMetadataPayloadRefs(tenantId uuid.UUID, tasks []*sqlcv1.FlattenExternalIdsRow) []PayloadRef[TaskAdditionalMetadataShape] {
+	refs := make([]PayloadRef[TaskAdditionalMetadataShape], 0, len(tasks))
+
+	for _, task := range tasks {
+		if task != nil && task.AdditionalMetadataPayloadReferenceID != nil {
+			refs = append(refs, TaskAdditionalMetadataPayloadRef(tenantId, task.ID, task.InsertedAt, task.AdditionalMetadataPayloadReferenceID))
+		}
+	}
+
+	return enumerables.Uniq(refs)
+}
+
+func TaskAdditionalMetadataFromPayloadOrColumn(additionalMetadataPayloads map[PayloadRef[TaskAdditionalMetadataShape]]Payload[TaskAdditionalMetadataShape], tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow) []byte {
+	ref := TaskAdditionalMetadataPayloadRef(tenantId, task.ID, task.InsertedAt, task.AdditionalMetadataPayloadReferenceID)
+
+	return RetrievePayloadOrFallback(additionalMetadataPayloads, ref, task.AdditionalMetadata).Bytes()
 }
 
 type TypedPayloadStore[S PayloadShape] struct {
@@ -295,6 +331,7 @@ type PayloadStoreRepository interface {
 	SignalCompletedMatchData() TypedPayloadStore[SignalCompletedMatchDataShape]
 	DurableEventLogEntryData() TypedPayloadStore[DurableEventLogEntryDataShape]
 	DurableEventLogEntryResultData() TypedPayloadStore[DurableEventLogEntryResultDataShape]
+	TaskAdditionalMetadata() TypedPayloadStore[TaskAdditionalMetadataShape]
 	PayloadConsolidationEnabled() bool
 	RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
 	OverwriteExternalStore(store ExternalStore)
@@ -539,6 +576,10 @@ func (p *payloadStoreRepositoryImpl) DurableEventLogEntryData() TypedPayloadStor
 
 func (p *payloadStoreRepositoryImpl) DurableEventLogEntryResultData() TypedPayloadStore[DurableEventLogEntryResultDataShape] {
 	return TypedPayloadStore[DurableEventLogEntryResultDataShape]{store: p}
+}
+
+func (p *payloadStoreRepositoryImpl) TaskAdditionalMetadata() TypedPayloadStore[TaskAdditionalMetadataShape] {
+	return TypedPayloadStore[TaskAdditionalMetadataShape]{store: p}
 }
 
 func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error) {

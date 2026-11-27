@@ -298,11 +298,17 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 	return nil
 }
 
-// ownedTaskInputStoreOpts skips tasks that read their input from their run's payload row.
-func ownedTaskInputStoreOpts(tasks []*V1TaskWithPayload) []StorePayloadOpts {
+// createdTaskStorePayloadOpts skips the input of tasks that read it from their run's payload row.
+func createdTaskStorePayloadOpts(tasks []*V1TaskWithPayload) []StorePayloadOpts {
 	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks))
 
 	for _, task := range tasks {
+		if task.AdditionalMetadataPayloadReferenceID != nil {
+			storePayloadOpts = append(storePayloadOpts, TaskAdditionalMetadataPayloadRef(
+				task.TenantID, task.ID, task.InsertedAt, task.AdditionalMetadataPayloadReferenceID,
+			).StoreOpts(NewPayload[TaskAdditionalMetadataShape](task.AdditionalMetadata)))
+		}
+
 		if task.PayloadReferenceID != nil {
 			continue
 		}
@@ -336,7 +342,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		return nil, err
 	}
 
-	storePayloadOpts := ownedTaskInputStoreOpts(res.CreatedTasks)
+	storePayloadOpts := createdTaskStorePayloadOpts(res.CreatedTasks)
 
 	if len(storePayloadOpts) > 0 {
 		err = m.payloadStore.Store(ctx, tx, storePayloadOpts...)
@@ -371,7 +377,7 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 		return nil, err
 	}
 
-	storePayloadOpts := ownedTaskInputStoreOpts(res.CreatedTasks)
+	storePayloadOpts := createdTaskStorePayloadOpts(res.CreatedTasks)
 
 	if len(storePayloadOpts) > 0 {
 		err = m.payloadStore.Store(ctx, tx, storePayloadOpts...)

@@ -730,36 +730,52 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 		return nil, err
 	}
 
+	additionalMetadata := res.AdditionalMetadata
+
+	if res.AdditionalMetadataPayload != nil {
+		additionalMetadata = res.AdditionalMetadataPayload
+	} else if res.AdditionalMetadataPayloadReferenceID != nil {
+		ref := TaskAdditionalMetadataPayloadRef(tenantId, res.ID, res.InsertedAt, res.AdditionalMetadataPayloadReferenceID)
+		offloadedPayloads, err := r.payloadStore.TaskAdditionalMetadata().Retrieve(ctx, db, ref)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve offloaded task additional metadata: %w", err)
+		}
+
+		additionalMetadata = RetrievePayloadOrFallback(offloadedPayloads, ref, res.AdditionalMetadata).Bytes()
+	}
+
 	key := taskExternalIdTenantIdTuple{
 		externalId: taskExternalId,
 		tenantId:   tenantId,
 	}
 
 	row := sqlcv1.FlattenExternalIdsRow{
-		ID:                        res.ID,
-		InsertedAt:                res.InsertedAt,
-		RetryCount:                res.RetryCount,
-		ExternalID:                res.ExternalID,
-		WorkflowRunID:             res.WorkflowRunID,
-		AdditionalMetadata:        res.AdditionalMetadata,
-		DagID:                     res.DagID,
-		DagInsertedAt:             res.DagInsertedAt,
-		ParentTaskID:              res.ParentTaskID,
-		ChildIndex:                res.ChildIndex,
-		ChildKey:                  res.ChildKey,
-		StepReadableID:            res.StepReadableID,
-		WorkflowRunExternalID:     res.WorkflowRunID,
-		WorkflowID:                res.WorkflowID,
-		StepID:                    res.StepID,
-		IsDurable:                 res.IsDurable,
-		IsDagOrchestrator:         res.IsDagOrchestrator,
-		ParentTaskExternalID:      res.ParentTaskExternalID,
-		WorkflowVersionID:         res.WorkflowVersionID,
-		PayloadReferenceID:        res.PayloadReferenceID,
-		Priority:                  res.Priority,
-		DesiredWorkerID:           res.DesiredWorkerID,
-		TriggeringEventExternalID: res.TriggeringEventExternalID,
-		TriggeringEventKey:        res.TriggeringEventKey,
+		ID:                                   res.ID,
+		InsertedAt:                           res.InsertedAt,
+		RetryCount:                           res.RetryCount,
+		ExternalID:                           res.ExternalID,
+		WorkflowRunID:                        res.WorkflowRunID,
+		AdditionalMetadata:                   additionalMetadata,
+		AdditionalMetadataPayloadReferenceID: res.AdditionalMetadataPayloadReferenceID,
+		DagID:                                res.DagID,
+		DagInsertedAt:                        res.DagInsertedAt,
+		ParentTaskID:                         res.ParentTaskID,
+		ChildIndex:                           res.ChildIndex,
+		ChildKey:                             res.ChildKey,
+		StepReadableID:                       res.StepReadableID,
+		WorkflowRunExternalID:                res.WorkflowRunID,
+		WorkflowID:                           res.WorkflowID,
+		StepID:                               res.StepID,
+		IsDurable:                            res.IsDurable,
+		IsDagOrchestrator:                    res.IsDagOrchestrator,
+		ParentTaskExternalID:                 res.ParentTaskExternalID,
+		WorkflowVersionID:                    res.WorkflowVersionID,
+		PayloadReferenceID:                   res.PayloadReferenceID,
+		Priority:                             res.Priority,
+		DesiredWorkerID:                      res.DesiredWorkerID,
+		TriggeringEventExternalID:            res.TriggeringEventExternalID,
+		TriggeringEventKey:                   res.TriggeringEventKey,
 	}
 
 	r.taskLookupCache.Add(key, &row)
@@ -1771,10 +1787,35 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.ListTaskMetasRow, error) {
 	db := r.pool.ForTenant(tenantId)
 
-	return r.queries.ListTaskMetas(ctx, db, sqlcv1.ListTaskMetasParams{
+	metas, err := r.queries.ListTaskMetas(ctx, db, sqlcv1.ListTaskMetasParams{
 		TenantID: tenantId,
 		Ids:      tasks,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	additionalMetadataRefs := make([]PayloadRef[TaskAdditionalMetadataShape], 0, len(metas))
+
+	for _, meta := range metas {
+		if meta.AdditionalMetadataPayloadReferenceID != nil {
+			additionalMetadataRefs = append(additionalMetadataRefs, TaskAdditionalMetadataPayloadRef(tenantId, meta.ID, meta.InsertedAt, meta.AdditionalMetadataPayloadReferenceID))
+		}
+	}
+
+	additionalMetadataPayloads, err := r.payloadStore.TaskAdditionalMetadata().Retrieve(ctx, db, additionalMetadataRefs...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve task additional metadata: %w", err)
+	}
+
+	for _, meta := range metas {
+		ref := TaskAdditionalMetadataPayloadRef(tenantId, meta.ID, meta.InsertedAt, meta.AdditionalMetadataPayloadReferenceID)
+		meta.AdditionalMetadata = RetrievePayloadOrFallback(additionalMetadataPayloads, ref, meta.AdditionalMetadata).Bytes()
+	}
+
+	return metas, nil
 }
 
 // DefaultTaskActivityGauge returns 1 if any of the tenant's queues has been active within the task retention
@@ -2192,7 +2233,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 		return nil, false, err
 	}
 
-	storePayloadOpts := ownedTaskInputStoreOpts(results.CreatedTasks)
+	storePayloadOpts := createdTaskStorePayloadOpts(results.CreatedTasks)
 
 	if len(storePayloadOpts) > 0 {
 		err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
@@ -2246,6 +2287,29 @@ func (r *TaskRepositoryImpl) GetQueueSizes(ctx context.Context, tenantId uuid.UU
 // and the like) and blow up series cardinality, so only explicitly prefixed keys are
 // exported.
 const PrometheusMetadataKeyPrefix = "prom_"
+
+// additionalMetadataHasKeysNotReadFromTaskColumn decides whether a task gets a payload row for its additional
+// metadata. Only the prom_ keys are read straight from v1_task.additional_metadata, by GetQueueSizesByMetadata,
+// which aggregates them in SQL. Every triggered task carries a traceparent, so nearly every task gets a row.
+func additionalMetadataHasKeysNotReadFromTaskColumn(additionalMetadata []byte) bool {
+	if len(additionalMetadata) == 0 {
+		return false
+	}
+
+	keys := make(map[string]json.RawMessage)
+
+	if err := json.Unmarshal(additionalMetadata, &keys); err != nil {
+		return true
+	}
+
+	for key := range keys {
+		if !strings.HasPrefix(key, PrometheusMetadataKeyPrefix) {
+			return true
+		}
+	}
+
+	return false
+}
 
 func (r *TaskRepositoryImpl) GetQueueSizesByMetadata(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.GetQueueSizesByMetadataRow, error) {
 	db := r.pool.ForTenant(tenantId)
@@ -2795,6 +2859,7 @@ func (r *sharedRepository) insertTasks(
 	displayNames := make([]string, len(tasks))
 	retryCounts := make([]int32, len(tasks))
 	additionalMetadatas := make([][]byte, len(tasks))
+	additionalMetadataPayloadReferenceIds := make([]*uuid.UUID, len(tasks))
 	initialStates := make([]string, len(tasks))
 	initialStateReasons := make([]pgtype.Text, len(tasks))
 	dagIds := make([]pgtype.Int8, len(tasks))
@@ -2887,6 +2952,11 @@ func (r *sharedRepository) insertTasks(
 
 		if len(task.AdditionalMetadata) > 0 {
 			additionalMetadatas[i] = task.AdditionalMetadata
+		}
+
+		if additionalMetadataHasKeysNotReadFromTaskColumn(task.AdditionalMetadata) {
+			additionalMetadataPayloadReferenceId := NewPayloadReferenceId()
+			additionalMetadataPayloadReferenceIds[i] = &additionalMetadataPayloadReferenceId
 		}
 
 		if task.InitialState == sqlcv1.V1TaskInitialStateQUEUED && stepConfig.BatchGroupKey.Valid && stepConfig.BatchGroupKey.String != "" {
@@ -3161,52 +3231,53 @@ func (r *sharedRepository) insertTasks(
 
 		if !ok {
 			params = sqlcv1.CreateTasksParams{
-				Tenantids:                    make([]uuid.UUID, 0),
-				Queues:                       make([]string, 0),
-				Actionids:                    make([]string, 0),
-				Stepids:                      make([]uuid.UUID, 0),
-				Stepreadableids:              make([]string, 0),
-				Workflowids:                  make([]uuid.UUID, 0),
-				Scheduletimeouts:             make([]string, 0),
-				Steptimeouts:                 make([]string, 0),
-				Priorities:                   make([]int32, 0),
-				Stickies:                     make([]string, 0),
-				Desiredworkerids:             make([]*uuid.UUID, 0),
-				Externalids:                  make([]uuid.UUID, 0),
-				Displaynames:                 make([]string, 0),
-				Retrycounts:                  make([]int32, 0),
-				Additionalmetadatas:          make([][]byte, 0),
-				InitialStates:                make([]string, 0),
-				InitialStateReasons:          make([]pgtype.Text, 0),
-				Dagids:                       make([]pgtype.Int8, 0),
-				Daginsertedats:               make([]pgtype.Timestamptz, 0),
-				Concurrencyparentstrategyids: make([][]pgtype.Int8, 0),
-				ConcurrencyStrategyIds:       make([][]int64, 0),
-				ConcurrencyKeys:              make([][]string, 0),
-				ConcurrencyMaxRuns:           make([][]pgtype.Int4, 0),
-				ParentTaskExternalIds:        make([]*uuid.UUID, 0),
-				ParentTaskIds:                make([]pgtype.Int8, 0),
-				ParentTaskInsertedAts:        make([]pgtype.Timestamptz, 0),
-				ChildIndex:                   make([]pgtype.Int8, 0),
-				ChildKey:                     make([]pgtype.Text, 0),
-				StepIndex:                    make([]int64, 0),
-				RetryBackoffFactor:           make([]pgtype.Float8, 0),
-				RetryMaxBackoff:              make([]pgtype.Int4, 0),
-				WorkflowVersionIds:           make([]uuid.UUID, 0),
-				WorkflowRunIds:               make([]uuid.UUID, 0),
-				BatchKeys:                    make([]string, 0),
-				IsDurables:                   make([]bool, 0),
-				DesiredWorkerLabels:          make([][]byte, 0),
-				TriggeringEventExternalIds:   make([]*uuid.UUID, 0),
-				TriggeringEventKeys:          make([]pgtype.Text, 0),
-				IsDagOrchestrators:           make([]bool, 0),
-				IdempotencyKeys:              make([]pgtype.Text, 0),
-				PayloadReferenceIds:          make([]*uuid.UUID, 0),
-				Triggers:                     make([][]byte, 0),
-				DagParentTaskRunIds:          make([][]byte, 0),
-				ChildTaskDesiredWorkerLabels: make([][]byte, 0),
-				TaskInputPayloadVersions:     make([]int16, 0),
-				MaxReassignmentsAlloweds:     make([]pgtype.Int4, 0),
+				Tenantids:                             make([]uuid.UUID, 0),
+				Queues:                                make([]string, 0),
+				Actionids:                             make([]string, 0),
+				Stepids:                               make([]uuid.UUID, 0),
+				Stepreadableids:                       make([]string, 0),
+				Workflowids:                           make([]uuid.UUID, 0),
+				Scheduletimeouts:                      make([]string, 0),
+				Steptimeouts:                          make([]string, 0),
+				Priorities:                            make([]int32, 0),
+				Stickies:                              make([]string, 0),
+				Desiredworkerids:                      make([]*uuid.UUID, 0),
+				Externalids:                           make([]uuid.UUID, 0),
+				Displaynames:                          make([]string, 0),
+				Retrycounts:                           make([]int32, 0),
+				Additionalmetadatas:                   make([][]byte, 0),
+				InitialStates:                         make([]string, 0),
+				InitialStateReasons:                   make([]pgtype.Text, 0),
+				Dagids:                                make([]pgtype.Int8, 0),
+				Daginsertedats:                        make([]pgtype.Timestamptz, 0),
+				Concurrencyparentstrategyids:          make([][]pgtype.Int8, 0),
+				ConcurrencyStrategyIds:                make([][]int64, 0),
+				ConcurrencyKeys:                       make([][]string, 0),
+				ConcurrencyMaxRuns:                    make([][]pgtype.Int4, 0),
+				ParentTaskExternalIds:                 make([]*uuid.UUID, 0),
+				ParentTaskIds:                         make([]pgtype.Int8, 0),
+				ParentTaskInsertedAts:                 make([]pgtype.Timestamptz, 0),
+				ChildIndex:                            make([]pgtype.Int8, 0),
+				ChildKey:                              make([]pgtype.Text, 0),
+				StepIndex:                             make([]int64, 0),
+				RetryBackoffFactor:                    make([]pgtype.Float8, 0),
+				RetryMaxBackoff:                       make([]pgtype.Int4, 0),
+				WorkflowVersionIds:                    make([]uuid.UUID, 0),
+				WorkflowRunIds:                        make([]uuid.UUID, 0),
+				BatchKeys:                             make([]string, 0),
+				IsDurables:                            make([]bool, 0),
+				DesiredWorkerLabels:                   make([][]byte, 0),
+				TriggeringEventExternalIds:            make([]*uuid.UUID, 0),
+				TriggeringEventKeys:                   make([]pgtype.Text, 0),
+				IsDagOrchestrators:                    make([]bool, 0),
+				IdempotencyKeys:                       make([]pgtype.Text, 0),
+				PayloadReferenceIds:                   make([]*uuid.UUID, 0),
+				Triggers:                              make([][]byte, 0),
+				DagParentTaskRunIds:                   make([][]byte, 0),
+				ChildTaskDesiredWorkerLabels:          make([][]byte, 0),
+				TaskInputPayloadVersions:              make([]int16, 0),
+				MaxReassignmentsAlloweds:              make([]pgtype.Int4, 0),
+				AdditionalMetadataPayloadReferenceIds: make([]*uuid.UUID, 0),
 			}
 		}
 
@@ -3237,6 +3308,7 @@ func (r *sharedRepository) insertTasks(
 		params.Displaynames = append(params.Displaynames, displayNames[i])
 		params.Retrycounts = append(params.Retrycounts, retryCounts[i])
 		params.Additionalmetadatas = append(params.Additionalmetadatas, additionalMetadatas[i])
+		params.AdditionalMetadataPayloadReferenceIds = append(params.AdditionalMetadataPayloadReferenceIds, additionalMetadataPayloadReferenceIds[i])
 		params.InitialStates = append(params.InitialStates, initialStates[i])
 		params.InitialStateReasons = append(params.InitialStateReasons, initialStateReasons[i])
 		params.Dagids = append(params.Dagids, dagIds[i])
@@ -4390,6 +4462,20 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		return nil, fmt.Errorf("failed to bulk retrieve task inputs: %w", err)
 	}
 
+	additionalMetadataRefs := make([]PayloadRef[TaskAdditionalMetadataShape], 0, len(lockedTasks))
+
+	for _, task := range lockedTasks {
+		if task.AdditionalMetadataPayloadReferenceID != nil {
+			additionalMetadataRefs = append(additionalMetadataRefs, TaskAdditionalMetadataPayloadRef(tenantId, task.ID, task.InsertedAt, task.AdditionalMetadataPayloadReferenceID))
+		}
+	}
+
+	additionalMetadatas, err := r.payloadStore.TaskAdditionalMetadata().Retrieve(ctx, tx, additionalMetadataRefs...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to bulk retrieve task additional metadata: %w", err)
+	}
+
 	for _, task := range lockedTasks {
 		// check whether to discard the task
 		if task.DagID.Valid && !successfullyLockedDAGsMap[task.DagID.Int64] {
@@ -4477,12 +4563,16 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		}
 
 		replayOpts = append(replayOpts, ReplayTaskOpts{
-			TaskId:                    task.ID,
-			InsertedAt:                task.InsertedAt,
-			StepId:                    task.StepID,
-			ExternalId:                task.ExternalID,
-			InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
-			AdditionalMetadata:        task.AdditionalMetadata,
+			TaskId:       task.ID,
+			InsertedAt:   task.InsertedAt,
+			StepId:       task.StepID,
+			ExternalId:   task.ExternalID,
+			InitialState: sqlcv1.V1TaskInitialStateQUEUED,
+			AdditionalMetadata: RetrievePayloadOrFallback(
+				additionalMetadatas,
+				TaskAdditionalMetadataPayloadRef(tenantId, task.ID, task.InsertedAt, task.AdditionalMetadataPayloadReferenceID),
+				task.AdditionalMetadata,
+			).Bytes(),
 			DesiredWorkerLabel:        task.DesiredWorkerLabel,
 			TriggeringEventExternalId: task.TriggeringEventExternalID,
 			TriggeringEventKey:        triggeringEventKey,
@@ -4758,6 +4848,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to process internal event matches: %w", err)
+	}
+
+	if err := r.payloadStore.Store(ctx, tx, createdTaskStorePayloadOpts(internalMatchResults.CreatedTasks)...); err != nil {
+		return nil, fmt.Errorf("failed to store payloads for tasks created by internal event matches: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
@@ -5720,42 +5814,46 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 
 	firstTask := flat[0]
 	isDag := firstTask.DagID.Valid
-	additionalMeta := firstTask.AdditionalMetadata
+	additionalMetadataRefs := TaskAdditionalMetadataPayloadRefs(tenantId, []*sqlcv1.FlattenExternalIdsRow{firstTask})
 
-	var input []byte
+	dagInputRef := PayloadRef[DAGInputShape]{
+		Id:                 firstTask.DagID.Int64,
+		InsertedAt:         firstTask.DagInsertedAt,
+		TenantId:           tenantId,
+		ExternalId:         firstTask.WorkflowRunExternalID,
+		PayloadReferenceId: firstTask.DagPayloadReferenceID,
+	}
+
+	taskInputRef := PayloadRef[TaskInputShape]{
+		Id:                 firstTask.ID,
+		InsertedAt:         firstTask.InsertedAt,
+		TenantId:           tenantId,
+		ExternalId:         firstTask.ExternalID,
+		PayloadReferenceId: firstTask.PayloadReferenceID,
+	}
+
+	inputRetrieveOpts := taskInputRef.retrieveOpts()
 
 	if isDag {
-		dagInputRef := PayloadRef[DAGInputShape]{
-			Id:                 firstTask.DagID.Int64,
-			InsertedAt:         firstTask.DagInsertedAt,
-			TenantId:           tenantId,
-			ExternalId:         firstTask.WorkflowRunExternalID,
-			PayloadReferenceId: firstTask.DagPayloadReferenceID,
-		}
+		inputRetrieveOpts = dagInputRef.retrieveOpts()
+	}
 
-		dagInput, err := r.payloadStore.DAGInputs().RetrieveOne(ctx, db, dagInputRef)
+	retrieveOpts := append(
+		enumerables.Map(additionalMetadataRefs, func(ref PayloadRef[TaskAdditionalMetadataShape]) RetrievePayloadOpts { return ref.retrieveOpts() }),
+		inputRetrieveOpts,
+	)
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve payloads: %w", err)
-		}
+	payloads, err := r.payloadStore.Retrieve(ctx, db, retrieveOpts...)
 
-		input = dagInput.Bytes()
-	} else {
-		taskInputRef := PayloadRef[TaskInputShape]{
-			Id:                 firstTask.ID,
-			InsertedAt:         firstTask.InsertedAt,
-			TenantId:           tenantId,
-			ExternalId:         firstTask.ExternalID,
-			PayloadReferenceId: firstTask.PayloadReferenceID,
-		}
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads: %w", err)
+	}
 
-		taskInput, err := r.payloadStore.TaskInputs().RetrieveOne(ctx, db, taskInputRef)
+	additionalMeta := TaskAdditionalMetadataFromPayloadOrColumn(typedPayloadsFromBytes(additionalMetadataRefs, payloads), tenantId, firstTask)
+	input := payloads[inputRetrieveOpts]
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve payloads: %w", err)
-		}
-
-		input, err = userInputFromTaskInputPayload(taskInputPayloadVersion(firstTask.TaskInputPayloadVersion), taskInput.Bytes())
+	if !isDag {
+		input, err = userInputFromTaskInputPayload(taskInputPayloadVersion(firstTask.TaskInputPayloadVersion), input)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to read task input: %w", err)

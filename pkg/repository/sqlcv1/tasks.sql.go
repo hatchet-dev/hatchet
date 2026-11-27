@@ -1037,7 +1037,7 @@ func (q *Queries) FindOldestRunningTask(ctx context.Context, db DBTX) (*FindOlde
 }
 
 const findOldestTask = `-- name: FindOldestTask :one
-SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version, max_reassignments_allowed
+SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version, max_reassignments_allowed, additional_metadata_payload_reference_id
 FROM v1_task
 ORDER BY id, inserted_at
 LIMIT 1
@@ -1098,12 +1098,26 @@ func (q *Queries) FindOldestTask(ctx context.Context, db DBTX) (*V1Task, error) 
 		&i.ChildTaskDesiredWorkerLabels,
 		&i.TaskInputPayloadVersion,
 		&i.MaxReassignmentsAllowed,
+		&i.AdditionalMetadataPayloadReferenceID,
 	)
 	return &i, err
 }
 
 const getTaskByExternalId = `-- name: GetTaskByExternalId :one
-SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.batch_key, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key, t.is_dag_orchestrator, t.concurrency_max_runs, t.payload_reference_id, t.triggers, t.dag_parent_task_run_ids, t.child_task_desired_worker_labels, t.task_input_payload_version, t.max_reassignments_allowed
+SELECT
+    t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.batch_key, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key, t.is_dag_orchestrator, t.concurrency_max_runs, t.payload_reference_id, t.triggers, t.dag_parent_task_run_ids, t.child_task_desired_worker_labels, t.task_input_payload_version, t.max_reassignments_allowed, t.additional_metadata_payload_reference_id,
+    CASE
+        WHEN t.additional_metadata_payload_reference_id IS NOT NULL THEN (
+            SELECT p.inline_content
+            FROM read_payloads(
+                ARRAY[t.tenant_id],
+                ARRAY[t.id],
+                ARRAY[t.inserted_at],
+                ARRAY['TASK_ADDITIONAL_METADATA'::v1_payload_type],
+                ARRAY[t.additional_metadata_payload_reference_id]
+            ) p
+        )
+    END::JSONB AS additional_metadata_payload
 FROM v1_task t
 WHERE (t.id, t.inserted_at) = (
     SELECT l.task_id, l.inserted_at
@@ -1119,11 +1133,69 @@ type GetTaskByExternalIdParams struct {
 	Tenantid   uuid.UUID `json:"tenantid"`
 }
 
+type GetTaskByExternalIdRow struct {
+	ID                                   int64              `json:"id"`
+	InsertedAt                           pgtype.Timestamptz `json:"inserted_at"`
+	TenantID                             uuid.UUID          `json:"tenant_id"`
+	Queue                                string             `json:"queue"`
+	ActionID                             string             `json:"action_id"`
+	StepID                               uuid.UUID          `json:"step_id"`
+	StepReadableID                       string             `json:"step_readable_id"`
+	WorkflowID                           uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID                    uuid.UUID          `json:"workflow_version_id"`
+	WorkflowRunID                        uuid.UUID          `json:"workflow_run_id"`
+	ScheduleTimeout                      string             `json:"schedule_timeout"`
+	StepTimeout                          pgtype.Text        `json:"step_timeout"`
+	Priority                             pgtype.Int4        `json:"priority"`
+	Sticky                               V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID                      *uuid.UUID         `json:"desired_worker_id"`
+	ExternalID                           uuid.UUID          `json:"external_id"`
+	DisplayName                          string             `json:"display_name"`
+	Input                                []byte             `json:"input"`
+	RetryCount                           int32              `json:"retry_count"`
+	InternalRetryCount                   int32              `json:"internal_retry_count"`
+	AppRetryCount                        int32              `json:"app_retry_count"`
+	StepIndex                            int64              `json:"step_index"`
+	AdditionalMetadata                   []byte             `json:"additional_metadata"`
+	DagID                                pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt                        pgtype.Timestamptz `json:"dag_inserted_at"`
+	ParentTaskExternalID                 *uuid.UUID         `json:"parent_task_external_id"`
+	ParentTaskID                         pgtype.Int8        `json:"parent_task_id"`
+	ParentTaskInsertedAt                 pgtype.Timestamptz `json:"parent_task_inserted_at"`
+	ChildIndex                           pgtype.Int8        `json:"child_index"`
+	ChildKey                             pgtype.Text        `json:"child_key"`
+	InitialState                         V1TaskInitialState `json:"initial_state"`
+	InitialStateReason                   pgtype.Text        `json:"initial_state_reason"`
+	ConcurrencyParentStrategyIds         []pgtype.Int8      `json:"concurrency_parent_strategy_ids"`
+	ConcurrencyStrategyIds               []int64            `json:"concurrency_strategy_ids"`
+	ConcurrencyKeys                      []string           `json:"concurrency_keys"`
+	BatchKey                             pgtype.Text        `json:"batch_key"`
+	RetryBackoffFactor                   pgtype.Float8      `json:"retry_backoff_factor"`
+	RetryMaxBackoff                      pgtype.Int4        `json:"retry_max_backoff"`
+	IsDurable                            pgtype.Bool        `json:"is_durable"`
+	DesiredWorkerLabel                   []byte             `json:"desired_worker_label"`
+	TriggeringEventExternalID            *uuid.UUID         `json:"triggering_event_external_id"`
+	TriggeringEventKey                   pgtype.Text        `json:"triggering_event_key"`
+	IdempotencyKey                       pgtype.Text        `json:"idempotency_key"`
+	IsDagOrchestrator                    bool               `json:"is_dag_orchestrator"`
+	ConcurrencyMaxRuns                   []pgtype.Int4      `json:"concurrency_max_runs"`
+	PayloadReferenceID                   *uuid.UUID         `json:"payload_reference_id"`
+	Triggers                             []byte             `json:"triggers"`
+	DagParentTaskRunIds                  []uuid.UUID        `json:"dag_parent_task_run_ids"`
+	ChildTaskDesiredWorkerLabels         []byte             `json:"child_task_desired_worker_labels"`
+	TaskInputPayloadVersion              int16              `json:"task_input_payload_version"`
+	MaxReassignmentsAllowed              pgtype.Int4        `json:"max_reassignments_allowed"`
+	AdditionalMetadataPayloadReferenceID *uuid.UUID         `json:"additional_metadata_payload_reference_id"`
+	AdditionalMetadataPayload            []byte             `json:"additional_metadata_payload"`
+}
+
 // Resolve the task key before reading v1_task. Joining the lookup row directly
 // is planned as a merge across every daily partition.
-func (q *Queries) GetTaskByExternalId(ctx context.Context, db DBTX, arg GetTaskByExternalIdParams) (*V1Task, error) {
+// additional_metadata_payload is NULL both for a task without a payload row and for one whose row has been
+// offloaded to the external store.
+func (q *Queries) GetTaskByExternalId(ctx context.Context, db DBTX, arg GetTaskByExternalIdParams) (*GetTaskByExternalIdRow, error) {
 	row := db.QueryRow(ctx, getTaskByExternalId, arg.Externalid, arg.Tenantid)
-	var i V1Task
+	var i GetTaskByExternalIdRow
 	err := row.Scan(
 		&i.ID,
 		&i.InsertedAt,
@@ -1176,6 +1248,8 @@ func (q *Queries) GetTaskByExternalId(ctx context.Context, db DBTX, arg GetTaskB
 		&i.ChildTaskDesiredWorkerLabels,
 		&i.TaskInputPayloadVersion,
 		&i.MaxReassignmentsAllowed,
+		&i.AdditionalMetadataPayloadReferenceID,
+		&i.AdditionalMetadataPayload,
 	)
 	return &i, err
 }
@@ -2164,6 +2238,7 @@ SELECT
     workflow_id,
     workflow_run_id,
     additional_metadata,
+    additional_metadata_payload_reference_id,
     step_readable_id,
     action_id,
     display_name,
@@ -2191,20 +2266,21 @@ type ListTaskMetasParams struct {
 }
 
 type ListTaskMetasRow struct {
-	ID                            int64              `json:"id"`
-	InsertedAt                    pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID                    uuid.UUID          `json:"external_id"`
-	RetryCount                    int32              `json:"retry_count"`
-	WorkflowID                    uuid.UUID          `json:"workflow_id"`
-	WorkflowRunID                 uuid.UUID          `json:"workflow_run_id"`
-	AdditionalMetadata            []byte             `json:"additional_metadata"`
-	StepReadableID                string             `json:"step_readable_id"`
-	ActionID                      string             `json:"action_id"`
-	DisplayName                   string             `json:"display_name"`
-	WorkflowVersionID             uuid.UUID          `json:"workflow_version_id"`
-	StepID                        uuid.UUID          `json:"step_id"`
-	IsDagOrchestrator             bool               `json:"is_dag_orchestrator"`
-	WasTriggeredByDagOrchestrator bool               `json:"was_triggered_by_dag_orchestrator"`
+	ID                                   int64              `json:"id"`
+	InsertedAt                           pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID                           uuid.UUID          `json:"external_id"`
+	RetryCount                           int32              `json:"retry_count"`
+	WorkflowID                           uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID                        uuid.UUID          `json:"workflow_run_id"`
+	AdditionalMetadata                   []byte             `json:"additional_metadata"`
+	AdditionalMetadataPayloadReferenceID *uuid.UUID         `json:"additional_metadata_payload_reference_id"`
+	StepReadableID                       string             `json:"step_readable_id"`
+	ActionID                             string             `json:"action_id"`
+	DisplayName                          string             `json:"display_name"`
+	WorkflowVersionID                    uuid.UUID          `json:"workflow_version_id"`
+	StepID                               uuid.UUID          `json:"step_id"`
+	IsDagOrchestrator                    bool               `json:"is_dag_orchestrator"`
+	WasTriggeredByDagOrchestrator        bool               `json:"was_triggered_by_dag_orchestrator"`
 }
 
 func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasParams) ([]*ListTaskMetasRow, error) {
@@ -2224,6 +2300,7 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 			&i.WorkflowID,
 			&i.WorkflowRunID,
 			&i.AdditionalMetadata,
+			&i.AdditionalMetadataPayloadReferenceID,
 			&i.StepReadableID,
 			&i.ActionID,
 			&i.DisplayName,
@@ -2504,7 +2581,7 @@ func (q *Queries) ListTaskRunningStatuses(ctx context.Context, db DBTX, arg List
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version, max_reassignments_allowed
+SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version, max_reassignments_allowed, additional_metadata_payload_reference_id
 FROM
     v1_task
 WHERE
@@ -2578,6 +2655,7 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.ChildTaskDesiredWorkerLabels,
 			&i.TaskInputPayloadVersion,
 			&i.MaxReassignmentsAllowed,
+			&i.AdditionalMetadataPayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -2669,7 +2747,8 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.triggering_event_external_id,
         t.triggering_event_key,
         t.payload_reference_id,
-        t.task_input_payload_version
+        t.task_input_payload_version,
+        t.additional_metadata_payload_reference_id
     FROM
         v1_task t
     WHERE
@@ -2722,6 +2801,7 @@ SELECT
     t.triggering_event_key,
     t.payload_reference_id,
     t.task_input_payload_version,
+    t.additional_metadata_payload_reference_id,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
@@ -2742,31 +2822,32 @@ type ListTasksForReplayParams struct {
 }
 
 type ListTasksForReplayRow struct {
-	ID                        int64              `json:"id"`
-	InsertedAt                pgtype.Timestamptz `json:"inserted_at"`
-	RetryCount                int32              `json:"retry_count"`
-	DagID                     pgtype.Int8        `json:"dag_id"`
-	DagInsertedAt             pgtype.Timestamptz `json:"dag_inserted_at"`
-	StepReadableID            string             `json:"step_readable_id"`
-	StepID                    uuid.UUID          `json:"step_id"`
-	WorkflowID                uuid.UUID          `json:"workflow_id"`
-	ExternalID                uuid.UUID          `json:"external_id"`
-	WorkflowRunID             uuid.UUID          `json:"workflow_run_id"`
-	Input                     []byte             `json:"input"`
-	AdditionalMetadata        []byte             `json:"additional_metadata"`
-	ParentTaskExternalID      *uuid.UUID         `json:"parent_task_external_id"`
-	ParentTaskID              pgtype.Int8        `json:"parent_task_id"`
-	ParentTaskInsertedAt      pgtype.Timestamptz `json:"parent_task_inserted_at"`
-	StepIndex                 int64              `json:"step_index"`
-	ChildIndex                pgtype.Int8        `json:"child_index"`
-	ChildKey                  pgtype.Text        `json:"child_key"`
-	DesiredWorkerLabel        []byte             `json:"desired_worker_label"`
-	TriggeringEventExternalID *uuid.UUID         `json:"triggering_event_external_id"`
-	TriggeringEventKey        pgtype.Text        `json:"triggering_event_key"`
-	PayloadReferenceID        *uuid.UUID         `json:"payload_reference_id"`
-	TaskInputPayloadVersion   int16              `json:"task_input_payload_version"`
-	JobKind                   JobKind            `json:"jobKind"`
-	Parents                   []uuid.UUID        `json:"parents"`
+	ID                                   int64              `json:"id"`
+	InsertedAt                           pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount                           int32              `json:"retry_count"`
+	DagID                                pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt                        pgtype.Timestamptz `json:"dag_inserted_at"`
+	StepReadableID                       string             `json:"step_readable_id"`
+	StepID                               uuid.UUID          `json:"step_id"`
+	WorkflowID                           uuid.UUID          `json:"workflow_id"`
+	ExternalID                           uuid.UUID          `json:"external_id"`
+	WorkflowRunID                        uuid.UUID          `json:"workflow_run_id"`
+	Input                                []byte             `json:"input"`
+	AdditionalMetadata                   []byte             `json:"additional_metadata"`
+	ParentTaskExternalID                 *uuid.UUID         `json:"parent_task_external_id"`
+	ParentTaskID                         pgtype.Int8        `json:"parent_task_id"`
+	ParentTaskInsertedAt                 pgtype.Timestamptz `json:"parent_task_inserted_at"`
+	StepIndex                            int64              `json:"step_index"`
+	ChildIndex                           pgtype.Int8        `json:"child_index"`
+	ChildKey                             pgtype.Text        `json:"child_key"`
+	DesiredWorkerLabel                   []byte             `json:"desired_worker_label"`
+	TriggeringEventExternalID            *uuid.UUID         `json:"triggering_event_external_id"`
+	TriggeringEventKey                   pgtype.Text        `json:"triggering_event_key"`
+	PayloadReferenceID                   *uuid.UUID         `json:"payload_reference_id"`
+	TaskInputPayloadVersion              int16              `json:"task_input_payload_version"`
+	AdditionalMetadataPayloadReferenceID *uuid.UUID         `json:"additional_metadata_payload_reference_id"`
+	JobKind                              JobKind            `json:"jobKind"`
+	Parents                              []uuid.UUID        `json:"parents"`
 }
 
 // Lists tasks for replay by recursively selecting all tasks that are children of the input tasks,
@@ -2809,6 +2890,7 @@ func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasks
 			&i.TriggeringEventKey,
 			&i.PayloadReferenceID,
 			&i.TaskInputPayloadVersion,
+			&i.AdditionalMetadataPayloadReferenceID,
 			&i.JobKind,
 			&i.Parents,
 		); err != nil {
@@ -3562,7 +3644,7 @@ WITH input AS (
         UNNEST($3::bigint[]) AS task_id,
         UNNEST($4::timestamptz[]) AS task_inserted_at
 ), relevant_tasks AS (
-    SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version, max_reassignments_allowed, task_id, task_inserted_at
+    SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version, max_reassignments_allowed, additional_metadata_payload_reference_id, task_id, task_inserted_at
     FROM
         v1_task t
     JOIN

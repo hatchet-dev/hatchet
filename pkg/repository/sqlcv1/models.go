@@ -1676,6 +1676,7 @@ const (
 	V1PayloadTypeUSEREVENTINPUT                 V1PayloadType = "USER_EVENT_INPUT"
 	V1PayloadTypeDURABLEEVENTLOGENTRYDATA       V1PayloadType = "DURABLE_EVENT_LOG_ENTRY_DATA"
 	V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA V1PayloadType = "DURABLE_EVENT_LOG_ENTRY_RESULT_DATA"
+	V1PayloadTypeTASKADDITIONALMETADATA         V1PayloadType = "TASK_ADDITIONAL_METADATA"
 )
 
 func (e *V1PayloadType) Scan(src interface{}) error {
@@ -1721,7 +1722,8 @@ func (e V1PayloadType) Valid() bool {
 		V1PayloadTypeTASKEVENTDATA,
 		V1PayloadTypeUSEREVENTINPUT,
 		V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
-		V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA:
+		V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+		V1PayloadTypeTASKADDITIONALMETADATA:
 		return true
 	}
 	return false
@@ -1736,6 +1738,7 @@ func AllV1PayloadTypeValues() []V1PayloadType {
 		V1PayloadTypeUSEREVENTINPUT,
 		V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
 		V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+		V1PayloadTypeTASKADDITIONALMETADATA,
 	}
 }
 
@@ -4081,57 +4084,58 @@ type V1StreamTopic struct {
 }
 
 type V1Task struct {
-	ID                           int64              `json:"id"`
-	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`
-	TenantID                     uuid.UUID          `json:"tenant_id"`
-	Queue                        string             `json:"queue"`
-	ActionID                     string             `json:"action_id"`
-	StepID                       uuid.UUID          `json:"step_id"`
-	StepReadableID               string             `json:"step_readable_id"`
-	WorkflowID                   uuid.UUID          `json:"workflow_id"`
-	WorkflowVersionID            uuid.UUID          `json:"workflow_version_id"`
-	WorkflowRunID                uuid.UUID          `json:"workflow_run_id"`
-	ScheduleTimeout              string             `json:"schedule_timeout"`
-	StepTimeout                  pgtype.Text        `json:"step_timeout"`
-	Priority                     pgtype.Int4        `json:"priority"`
-	Sticky                       V1StickyStrategy   `json:"sticky"`
-	DesiredWorkerID              *uuid.UUID         `json:"desired_worker_id"`
-	ExternalID                   uuid.UUID          `json:"external_id"`
-	DisplayName                  string             `json:"display_name"`
-	Input                        []byte             `json:"input"`
-	RetryCount                   int32              `json:"retry_count"`
-	InternalRetryCount           int32              `json:"internal_retry_count"`
-	AppRetryCount                int32              `json:"app_retry_count"`
-	StepIndex                    int64              `json:"step_index"`
-	AdditionalMetadata           []byte             `json:"additional_metadata"`
-	DagID                        pgtype.Int8        `json:"dag_id"`
-	DagInsertedAt                pgtype.Timestamptz `json:"dag_inserted_at"`
-	ParentTaskExternalID         *uuid.UUID         `json:"parent_task_external_id"`
-	ParentTaskID                 pgtype.Int8        `json:"parent_task_id"`
-	ParentTaskInsertedAt         pgtype.Timestamptz `json:"parent_task_inserted_at"`
-	ChildIndex                   pgtype.Int8        `json:"child_index"`
-	ChildKey                     pgtype.Text        `json:"child_key"`
-	InitialState                 V1TaskInitialState `json:"initial_state"`
-	InitialStateReason           pgtype.Text        `json:"initial_state_reason"`
-	ConcurrencyParentStrategyIds []pgtype.Int8      `json:"concurrency_parent_strategy_ids"`
-	ConcurrencyStrategyIds       []int64            `json:"concurrency_strategy_ids"`
-	ConcurrencyKeys              []string           `json:"concurrency_keys"`
-	BatchKey                     pgtype.Text        `json:"batch_key"`
-	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
-	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
-	IsDurable                    pgtype.Bool        `json:"is_durable"`
-	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
-	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
-	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
-	IdempotencyKey               pgtype.Text        `json:"idempotency_key"`
-	IsDagOrchestrator            bool               `json:"is_dag_orchestrator"`
-	ConcurrencyMaxRuns           []pgtype.Int4      `json:"concurrency_max_runs"`
-	PayloadReferenceID           *uuid.UUID         `json:"payload_reference_id"`
-	Triggers                     []byte             `json:"triggers"`
-	DagParentTaskRunIds          []uuid.UUID        `json:"dag_parent_task_run_ids"`
-	ChildTaskDesiredWorkerLabels []byte             `json:"child_task_desired_worker_labels"`
-	TaskInputPayloadVersion      int16              `json:"task_input_payload_version"`
-	MaxReassignmentsAllowed      pgtype.Int4        `json:"max_reassignments_allowed"`
+	ID                                   int64              `json:"id"`
+	InsertedAt                           pgtype.Timestamptz `json:"inserted_at"`
+	TenantID                             uuid.UUID          `json:"tenant_id"`
+	Queue                                string             `json:"queue"`
+	ActionID                             string             `json:"action_id"`
+	StepID                               uuid.UUID          `json:"step_id"`
+	StepReadableID                       string             `json:"step_readable_id"`
+	WorkflowID                           uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID                    uuid.UUID          `json:"workflow_version_id"`
+	WorkflowRunID                        uuid.UUID          `json:"workflow_run_id"`
+	ScheduleTimeout                      string             `json:"schedule_timeout"`
+	StepTimeout                          pgtype.Text        `json:"step_timeout"`
+	Priority                             pgtype.Int4        `json:"priority"`
+	Sticky                               V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID                      *uuid.UUID         `json:"desired_worker_id"`
+	ExternalID                           uuid.UUID          `json:"external_id"`
+	DisplayName                          string             `json:"display_name"`
+	Input                                []byte             `json:"input"`
+	RetryCount                           int32              `json:"retry_count"`
+	InternalRetryCount                   int32              `json:"internal_retry_count"`
+	AppRetryCount                        int32              `json:"app_retry_count"`
+	StepIndex                            int64              `json:"step_index"`
+	AdditionalMetadata                   []byte             `json:"additional_metadata"`
+	DagID                                pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt                        pgtype.Timestamptz `json:"dag_inserted_at"`
+	ParentTaskExternalID                 *uuid.UUID         `json:"parent_task_external_id"`
+	ParentTaskID                         pgtype.Int8        `json:"parent_task_id"`
+	ParentTaskInsertedAt                 pgtype.Timestamptz `json:"parent_task_inserted_at"`
+	ChildIndex                           pgtype.Int8        `json:"child_index"`
+	ChildKey                             pgtype.Text        `json:"child_key"`
+	InitialState                         V1TaskInitialState `json:"initial_state"`
+	InitialStateReason                   pgtype.Text        `json:"initial_state_reason"`
+	ConcurrencyParentStrategyIds         []pgtype.Int8      `json:"concurrency_parent_strategy_ids"`
+	ConcurrencyStrategyIds               []int64            `json:"concurrency_strategy_ids"`
+	ConcurrencyKeys                      []string           `json:"concurrency_keys"`
+	BatchKey                             pgtype.Text        `json:"batch_key"`
+	RetryBackoffFactor                   pgtype.Float8      `json:"retry_backoff_factor"`
+	RetryMaxBackoff                      pgtype.Int4        `json:"retry_max_backoff"`
+	IsDurable                            pgtype.Bool        `json:"is_durable"`
+	DesiredWorkerLabel                   []byte             `json:"desired_worker_label"`
+	TriggeringEventExternalID            *uuid.UUID         `json:"triggering_event_external_id"`
+	TriggeringEventKey                   pgtype.Text        `json:"triggering_event_key"`
+	IdempotencyKey                       pgtype.Text        `json:"idempotency_key"`
+	IsDagOrchestrator                    bool               `json:"is_dag_orchestrator"`
+	ConcurrencyMaxRuns                   []pgtype.Int4      `json:"concurrency_max_runs"`
+	PayloadReferenceID                   *uuid.UUID         `json:"payload_reference_id"`
+	Triggers                             []byte             `json:"triggers"`
+	DagParentTaskRunIds                  []uuid.UUID        `json:"dag_parent_task_run_ids"`
+	ChildTaskDesiredWorkerLabels         []byte             `json:"child_task_desired_worker_labels"`
+	TaskInputPayloadVersion              int16              `json:"task_input_payload_version"`
+	MaxReassignmentsAllowed              pgtype.Int4        `json:"max_reassignments_allowed"`
+	AdditionalMetadataPayloadReferenceID *uuid.UUID         `json:"additional_metadata_payload_reference_id"`
 }
 
 type V1TaskEvent struct {

@@ -206,7 +206,22 @@ WHERE
 -- name: GetTaskByExternalId :one
 -- Resolve the task key before reading v1_task. Joining the lookup row directly
 -- is planned as a merge across every daily partition.
-SELECT t.*
+-- additional_metadata_payload is NULL both for a task without a payload row and for one whose row has been
+-- offloaded to the external store.
+SELECT
+    t.*,
+    CASE
+        WHEN t.additional_metadata_payload_reference_id IS NOT NULL THEN (
+            SELECT p.inline_content
+            FROM read_payloads(
+                ARRAY[t.tenant_id],
+                ARRAY[t.id],
+                ARRAY[t.inserted_at],
+                ARRAY['TASK_ADDITIONAL_METADATA'::v1_payload_type],
+                ARRAY[t.additional_metadata_payload_reference_id]
+            ) p
+        )
+    END::JSONB AS additional_metadata_payload
 FROM v1_task t
 WHERE (t.id, t.inserted_at) = (
     SELECT l.task_id, l.inserted_at
@@ -292,6 +307,7 @@ SELECT
     workflow_id,
     workflow_run_id,
     additional_metadata,
+    additional_metadata_payload_reference_id,
     step_readable_id,
     action_id,
     display_name,
@@ -962,7 +978,8 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.triggering_event_external_id,
         t.triggering_event_key,
         t.payload_reference_id,
-        t.task_input_payload_version
+        t.task_input_payload_version,
+        t.additional_metadata_payload_reference_id
     FROM
         v1_task t
     WHERE
@@ -1015,6 +1032,7 @@ SELECT
     t.triggering_event_key,
     t.payload_reference_id,
     t.task_input_payload_version,
+    t.additional_metadata_payload_reference_id,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM

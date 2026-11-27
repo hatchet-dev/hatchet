@@ -1766,6 +1766,12 @@ func (r *sharedRepository) triggerWorkflowsWrite(
 	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks)+len(dags))
 
 	for _, task := range tasks {
+		if task.AdditionalMetadataPayloadReferenceID != nil {
+			storePayloadOpts = append(storePayloadOpts, TaskAdditionalMetadataPayloadRef(
+				tenantId, task.ID, task.InsertedAt, task.AdditionalMetadataPayloadReferenceID,
+			).StoreOpts(NewPayload[TaskAdditionalMetadataShape](task.AdditionalMetadata)))
+		}
+
 		if _, ownsInputPayload := runExternalIdsOwningInputPayload[task.ExternalID]; task.PayloadReferenceID != nil && !ownsInputPayload {
 			continue
 		}

@@ -4,12 +4,15 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 func TestTriggeredDagStoresItsOwnInputPayloadWithoutPayloadConsolidation(t *testing.T) {
@@ -283,4 +286,58 @@ func TestDuplicateCompletionReportsInOneBatchEachStoreTheirOutputUnderTheirOwnRe
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"result": 42}`, string(completionEvent.Output))
 	}
+}
+
+func TestTaskAdditionalMetadataIsReadFromItsPayloadRowAndNotFromTheTaskColumn(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	t.Cleanup(func() { cleanup() })
+
+	repo := newBatchTestRepository(pool)
+	shared := repo.sharedRepository
+	ctx := context.Background()
+
+	workflowOpts := minimalWorkflowOpts("additional-metadata-payload", "v1", nil)
+	_, err := (&workflowRepository{sharedRepository: shared}).PutWorkflowVersion(ctx, internalTenantId, workflowOpts)
+	require.NoError(t, err)
+
+	tasks, _, _, _, err := newTriggerRepository(shared).TriggerFromWorkflowNames(ctx, internalTenantId, []*WorkflowNameTriggerOpts{
+		{
+			TriggerTaskData: &TriggerTaskData{
+				WorkflowName:       workflowOpts.Name,
+				Data:               []byte(`{"order_id": 1}`),
+				AdditionalMetadata: []byte(`{"customer": "acme"}`),
+			},
+			ExternalId: uuid.New(),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+
+	parent := tasks[0]
+	require.NotNil(t, parent.AdditionalMetadataPayloadReferenceID)
+
+	// the column and the payload row hold the same value until the column is reduced to the prom_ keys, so
+	// the row is overwritten here to tell the two sources apart
+	payloadOnlyMetadata := []byte(`{"customer": "acme", "only_in_payload": true}`)
+	parentRef := TaskAdditionalMetadataPayloadRef(internalTenantId, parent.ID, parent.InsertedAt, parent.AdditionalMetadataPayloadReferenceID)
+	require.NoError(t, shared.payloadStore.OverwriteExisting(ctx, pool, parentRef.StoreOpts(NewPayload[TaskAdditionalMetadataShape](payloadOnlyMetadata))))
+
+	details, err := repo.GetWorkflowRunResultDetails(ctx, internalTenantId, parent.ExternalID)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(payloadOnlyMetadata), string(details.AdditionalMetadata))
+
+	parentRow, err := shared.GetTaskByExternalId(ctx, internalTenantId, parent.ExternalID, true)
+	require.NoError(t, err)
+
+	parentExternalId := parent.ExternalID.String()
+	child, err := shared.NewTriggerTaskData(ctx, internalTenantId, &v1contracts.TriggerWorkflowRequest{
+		Name:                    workflowOpts.Name,
+		Input:                   `{}`,
+		ParentTaskRunExternalId: &parentExternalId,
+	}, parentRow)
+	require.NoError(t, err)
+
+	childMetadata := make(map[string]interface{})
+	require.NoError(t, json.Unmarshal(child.AdditionalMetadata, &childMetadata))
+	assert.Equal(t, true, childMetadata["only_in_payload"])
 }

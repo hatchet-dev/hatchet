@@ -781,6 +781,34 @@ func (d *DispatcherImpl) populateTaskData(
 		return nil, err
 	}
 
+	additionalMetadataRefs := make([]v1.PayloadRef[v1.TaskAdditionalMetadataShape], 0, len(bulkDatas))
+
+	for _, task := range bulkDatas {
+		if task.AdditionalMetadataPayloadReferenceID != nil {
+			additionalMetadataRefs = append(additionalMetadataRefs, v1.TaskAdditionalMetadataPayloadRef(task.TenantID, task.ID, task.InsertedAt, task.AdditionalMetadataPayloadReferenceID))
+		}
+	}
+
+	additionalMetadatas, err := d.repov1.Payloads().TaskAdditionalMetadata().Resolve(ctx, nil, dispatchData.PayloadRows, additionalMetadataRefs...)
+
+	if err != nil {
+		for _, task := range bulkDatas {
+			requeue(task)
+		}
+
+		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk retrieve additional metadata for %d tasks", len(additionalMetadataRefs))
+		return nil, err
+	}
+
+	for _, task := range bulkDatas {
+		if task.AdditionalMetadataPayloadReferenceID == nil {
+			continue
+		}
+
+		ref := v1.TaskAdditionalMetadataPayloadRef(task.TenantID, task.ID, task.InsertedAt, task.AdditionalMetadataPayloadReferenceID)
+		task.AdditionalMetadata = v1.RetrievePayloadOrFallback(additionalMetadatas, ref, task.AdditionalMetadata).Bytes()
+	}
+
 	taskIdToStepRunData := make(map[int64]*v1.V1StepRunData, len(bulkDatas))
 
 	// dagChildStepRunData holds the tasks whose parents need to be resolved via GetDagParentOutputs
