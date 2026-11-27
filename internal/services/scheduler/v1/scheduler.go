@@ -290,49 +290,43 @@ func (s *Scheduler) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
 	}
 
-	queueResults := s.pool.GetResultsCh()
+	// The pool sends queue and concurrency results only after committing them to the database:
+	// an assignment whose message to its dispatcher is dropped is never sent to the worker. These
+	// results are therefore handled with a context that shutdown does not cancel, and cleanup
+	// drains them and waits for their handlers before it returns.
+	resultsCtx := context.WithoutCancel(ctx)
+	resultConsumers := sync.WaitGroup{}
+	resultHandlers := sync.WaitGroup{}
 
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
+	resultConsumers.Go(func() {
+		consumeUntilDrained(ctx, s.pool.GetResultsCh(), func(res *v1.QueueResults) {
+			s.l.Debug().Ctx(ctx).Msgf("partition: received queue results")
+
+			if res == nil {
 				return
-			case res := <-queueResults:
-				s.l.Debug().Ctx(ctx).Msgf("partition: received queue results")
-
-				if res == nil {
-					continue
-				}
-
-				go func(results *v1.QueueResults) {
-					err := s.scheduleStepRuns(ctx, results.TenantId, results)
-
-					if err != nil {
-						s.l.Error().Ctx(ctx).Err(err).Msg("could not schedule step runs")
-					}
-				}(res)
 			}
-		}
-	}()
 
-	concurrencyResults := s.pool.GetConcurrencyResultsCh()
+			resultHandlers.Go(func() {
+				if err := s.scheduleStepRuns(resultsCtx, res.TenantId, res); err != nil {
+					s.l.Error().Ctx(resultsCtx).Err(err).Msg("could not schedule step runs")
+				}
+			})
+		})
+	})
 
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
+	resultConsumers.Go(func() {
+		consumeUntilDrained(ctx, s.pool.GetConcurrencyResultsCh(), func(res *v1.ConcurrencyResults) {
+			s.l.Debug().Ctx(ctx).Msgf("partition: received concurrency results")
+
+			if res == nil {
 				return
-			case res := <-concurrencyResults:
-				s.l.Debug().Ctx(ctx).Msgf("partition: received concurrency results")
-
-				if res == nil {
-					continue
-				}
-
-				go s.notifyAfterConcurrency(ctx, res.TenantId, res)
 			}
-		}
-	}()
+
+			resultHandlers.Go(func() {
+				s.notifyAfterConcurrency(resultsCtx, res.TenantId, res)
+			})
+		})
+	})
 
 	rateLimitPausesEnded := s.pool.GetRateLimitPausesEndedCh()
 
@@ -348,7 +342,7 @@ func (s *Scheduler) Start() (func() error, error) {
 	}()
 
 	cleanup := func() error {
-		cancel()
+		defer cancel()
 
 		if err := cleanupQueue(); err != nil {
 			return fmt.Errorf("could not cleanup job processing queue: %w", err)
@@ -362,6 +356,16 @@ func (s *Scheduler) Start() (func() error, error) {
 			return fmt.Errorf("could not shutdown scheduler: %w", err)
 		}
 
+		// Stop assigning before draining the results: the pool itself is torn down with the
+		// server config, after the services that deliver assignments to workers, and anything it
+		// committed after the drain would never be published. The tenant reconciliation that
+		// would add tenants back has stopped above.
+		s.pool.SetTenants(nil)
+
+		cancel()
+		resultConsumers.Wait()
+		resultHandlers.Wait()
+
 		wg.Wait()
 
 		s.pubBuffer.Stop()
@@ -370,6 +374,26 @@ func (s *Scheduler) Start() (func() error, error) {
 	}
 
 	return cleanup, nil
+}
+
+// consumeUntilDrained calls handle for every value received from ch until ctx is done, then for
+// the values already buffered in ch, and returns.
+func consumeUntilDrained[T any](ctx context.Context, ch <-chan T, handle func(T)) {
+	for {
+		select {
+		case v := <-ch:
+			handle(v)
+		case <-ctx.Done():
+			for {
+				select {
+				case v := <-ch:
+					handle(v)
+				default:
+					return
+				}
+			}
+		}
+	}
 }
 
 func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err error) {
