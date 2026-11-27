@@ -102,6 +102,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::CELApi* | [**v1_cel_debug**](docs/CELApi.md#v1_cel_debug) | **POST** /api/v1/stable/tenants/{tenant}/cel/debug | Debug a CEL expression
 *HatchetSdkRest::ConcurrencyApi* | [**v1_concurrency_key_list**](docs/ConcurrencyApi.md#v1_concurrency_key_list) | **GET** /api/v1/stable/tenants/{tenant}/concurrency/strategies/{scope}/{strategy}/keys | List concurrency keys
 *HatchetSdkRest::ConcurrencyApi* | [**v1_concurrency_strategy_list**](docs/ConcurrencyApi.md#v1_concurrency_strategy_list) | **GET** /api/v1/stable/tenants/{tenant}/concurrency/strategies | List concurrency strategies
+*HatchetSdkRest::ConcurrencyApi* | [**v1_concurrency_totals_get**](docs/ConcurrencyApi.md#v1_concurrency_totals_get) | **GET** /api/v1/stable/tenants/{tenant}/concurrency/totals | Get concurrency totals
 *HatchetSdkRest::DefaultApi* | [**info_get_version**](docs/DefaultApi.md#info_get_version) | **GET** /api/v1/version | We return the version for the currently running server
 *HatchetSdkRest::DefaultApi* | [**monitoring_post_run_probe**](docs/DefaultApi.md#monitoring_post_run_probe) | **POST** /api/v1/monitoring/{tenant}/probe | Detailed Health Probe For the Instance
 *HatchetSdkRest::DefaultApi* | [**tenant_invite_delete**](docs/DefaultApi.md#tenant_invite_delete) | **DELETE** /api/v1/tenants/{tenant}/invites/{tenant-invite} | Delete invite
@@ -409,6 +410,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1ConcurrencyStrategy](docs/V1ConcurrencyStrategy.md)
  - [HatchetSdkRest::V1ConcurrencyStrategyList](docs/V1ConcurrencyStrategyList.md)
  - [HatchetSdkRest::V1ConcurrencyStrategyUsage](docs/V1ConcurrencyStrategyUsage.md)
+ - [HatchetSdkRest::V1ConcurrencyTotals](docs/V1ConcurrencyTotals.md)
  - [HatchetSdkRest::V1CreateFilterRequest](docs/V1CreateFilterRequest.md)
  - [HatchetSdkRest::V1CreateServerlessEndpointRequest](docs/V1CreateServerlessEndpointRequest.md)
  - [HatchetSdkRest::V1CreateWebhookRequest](docs/V1CreateWebhookRequest.md)

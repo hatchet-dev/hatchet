@@ -33,7 +33,10 @@ class V1ConcurrencyKey(BaseModel):
         description="The effective max runs for this key. With a max runs expression, this is the value evaluated for the key's most recent run.",
         alias="maxRuns",
     )
-    running_count: StrictInt = Field(alias="runningCount")
+    running_count: StrictInt = Field(
+        description="Slots in use on this key, including runs waiting at a later strategy of their chain.",
+        alias="runningCount",
+    )
     queued_count: StrictInt = Field(alias="queuedCount")
     oldest_queued_at: Optional[datetime] = Field(
         default=None,

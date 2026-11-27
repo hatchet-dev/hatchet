@@ -73,6 +73,16 @@ func ToV1ConcurrencyStrategyList(strategies []*repository.ConcurrencyStrategySum
 	}
 }
 
+// ToV1ConcurrencyTotals converts the tenant-wide concurrency totals to the API response.
+func ToV1ConcurrencyTotals(t *repository.ConcurrencyTotals) gen.V1ConcurrencyTotals {
+	return gen.V1ConcurrencyTotals{
+		KeyCount:       t.KeyCount,
+		QueuedKeyCount: t.QueuedKeyCount,
+		RunningCount:   t.RunningCount,
+		QueuedCount:    t.QueuedCount,
+	}
+}
+
 // ToV1ConcurrencyKeyList converts a page of keys to the API list response, with offset
 // pagination computed from the total number of matching keys.
 func ToV1ConcurrencyKeyList(keys []*repository.ConcurrencyKey, total, limit, offset int64) gen.V1ConcurrencyKeyList {

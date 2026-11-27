@@ -15,6 +15,15 @@ export function useConcurrencyStrategies(tenantId: string) {
   });
 }
 
+export function useConcurrencyTotals(tenantId: string) {
+  const { refetchInterval } = useRefetchInterval();
+
+  return useQuery({
+    ...withPolling(queries.v1Concurrency.totals(tenantId), refetchInterval),
+    placeholderData: (prev) => prev,
+  });
+}
+
 export function useConcurrencyKeys({
   tenantId,
   strategy,

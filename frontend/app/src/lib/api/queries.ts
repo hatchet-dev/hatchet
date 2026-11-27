@@ -505,6 +505,11 @@ export const queries = createQueryKeyStore({
       queryFn: async ({ signal }) =>
         (await api.v1ConcurrencyStrategyList(tenant, { signal })).data,
     }),
+    totals: (tenant: string) => ({
+      queryKey: ['v1:concurrency:totals', tenant],
+      queryFn: async ({ signal }) =>
+        (await api.v1ConcurrencyTotalsGet(tenant, { signal })).data,
+    }),
     keys: (
       tenant: string,
       scope: V1ConcurrencyScope,

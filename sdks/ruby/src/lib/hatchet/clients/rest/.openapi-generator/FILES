@@ -191,6 +191,7 @@ lib/hatchet-sdk-rest/models/v1_concurrency_scope.rb
 lib/hatchet-sdk-rest/models/v1_concurrency_strategy.rb
 lib/hatchet-sdk-rest/models/v1_concurrency_strategy_list.rb
 lib/hatchet-sdk-rest/models/v1_concurrency_strategy_usage.rb
+lib/hatchet-sdk-rest/models/v1_concurrency_totals.rb
 lib/hatchet-sdk-rest/models/v1_create_filter_request.rb
 lib/hatchet-sdk-rest/models/v1_create_serverless_endpoint_request.rb
 lib/hatchet-sdk-rest/models/v1_create_webhook_request.rb

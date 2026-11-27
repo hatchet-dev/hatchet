@@ -316,6 +316,9 @@ if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.models.v1_concurrency_strategy_usage import (
         V1ConcurrencyStrategyUsage,
     )
+    from hatchet_sdk.clients.rest.models.v1_concurrency_totals import (
+        V1ConcurrencyTotals,
+    )
     from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
         V1CreateFilterRequest,
     )
@@ -703,6 +706,7 @@ _LAZY_IMPORTS: dict[str, str] = {
     "V1ConcurrencyStrategy": "hatchet_sdk.clients.rest.models.v1_concurrency_strategy",
     "V1ConcurrencyStrategyList": "hatchet_sdk.clients.rest.models.v1_concurrency_strategy_list",
     "V1ConcurrencyStrategyUsage": "hatchet_sdk.clients.rest.models.v1_concurrency_strategy_usage",
+    "V1ConcurrencyTotals": "hatchet_sdk.clients.rest.models.v1_concurrency_totals",
     "V1CreateFilterRequest": "hatchet_sdk.clients.rest.models.v1_create_filter_request",
     "V1CreateServerlessEndpointRequest": "hatchet_sdk.clients.rest.models.v1_create_serverless_endpoint_request",
     "V1CreateWebhookRequest": "hatchet_sdk.clients.rest.models.v1_create_webhook_request",

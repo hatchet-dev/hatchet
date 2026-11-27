@@ -1726,32 +1726,43 @@ ORDER BY
     sc.tenant_strategy_id, w."name", step_readable_id;
 
 -- name: ListConcurrencySlotStatsForTenant :many
--- Per-strategy slot counts for task-scoped and tenant strategies.
+-- Per-strategy slot counts for task-scoped and tenant strategies. A filled slot stays filled
+-- until its task finishes, including while the task waits at a later strategy of its chain, so
+-- running_count is the strategy's capacity in use rather than its running tasks.
+--
+-- last_gate_running_count only counts filled slots on the last strategy of a chain. Such a task
+-- has passed every strategy, and it has exactly one such slot, so summing this across
+-- strategies counts each running task once. Workflow strategies are part of the same chain as
+-- child slots, so those are included and flagged with is_top_level = FALSE: they count towards
+-- the total but have no row of their own.
 WITH per_key AS (
     SELECT
         strategy_id,
         key,
+        BOOL_AND(parent_strategy_id IS NULL) AS is_top_level,
         (ARRAY_AGG(workflow_id))[1] AS workflow_id,
         (ARRAY_AGG(workflow_version_id))[1] AS workflow_version_id,
         COUNT(*) FILTER (WHERE is_filled) AS running_count,
         COUNT(*) FILTER (WHERE NOT is_filled) AS queued_count,
+        COUNT(*) FILTER (WHERE is_filled AND COALESCE(cardinality(next_strategy_ids), 0) = 0) AS last_gate_running_count,
         MIN(task_inserted_at) FILTER (WHERE NOT is_filled) AS oldest_queued_at
     FROM
         v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid
-        AND parent_strategy_id IS NULL
     GROUP BY
         strategy_id, key
 )
 SELECT
     strategy_id,
+    BOOL_AND(is_top_level)::BOOLEAN AS is_top_level,
     (ARRAY_AGG(workflow_id))[1]::UUID AS workflow_id,
     (ARRAY_AGG(workflow_version_id))[1]::UUID AS workflow_version_id,
     COUNT(*)::BIGINT AS key_count,
     (COUNT(*) FILTER (WHERE queued_count > 0))::BIGINT AS queued_key_count,
     SUM(running_count)::BIGINT AS running_count,
     SUM(queued_count)::BIGINT AS queued_count,
+    SUM(last_gate_running_count)::BIGINT AS last_gate_running_count,
     MIN(oldest_queued_at)::TIMESTAMPTZ AS oldest_queued_at,
     COALESCE((ARRAY_AGG(key ORDER BY oldest_queued_at, key) FILTER (WHERE queued_count > 0))[1], '')::TEXT AS oldest_queued_key
 FROM

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -71,12 +72,31 @@ type ConcurrencyStrategySummary struct {
 	MaxRuns           int32
 	MaxRunsExpression *string
 
-	KeyCount        int64
-	QueuedKeyCount  int64
+	KeyCount       int64
+	QueuedKeyCount int64
+	// Slots in use, which includes tasks this strategy admitted that wait at a later strategy
+	// of their chain: they keep their slot here until they finish.
 	RunningCount    int64
 	QueuedCount     int64
 	OldestQueuedAt  *time.Time
 	OldestQueuedKey string
+}
+
+// ConcurrencyTotals are the tenant-wide counts across all strategies. A run in a chain of
+// strategies holds a slot in each of them, so these are not the sums of the per-strategy
+// counts.
+type ConcurrencyTotals struct {
+	KeyCount       int64
+	QueuedKeyCount int64
+	RunningCount   int64
+	QueuedCount    int64
+}
+
+// The strategies and totals are cached together so both endpoints read the same snapshot and
+// the slots are scanned once per cache period.
+type concurrencyOverview struct {
+	strategies []*ConcurrencyStrategySummary
+	totals     ConcurrencyTotals
 }
 
 // ListConcurrencyKeysOpts filters and pages the keys returned by ListKeys.
@@ -103,6 +123,9 @@ type ConcurrencyOverviewRepository interface {
 	// with live slot counts, most queued first.
 	ListStrategySummaries(ctx context.Context, tenantId uuid.UUID) ([]*ConcurrencyStrategySummary, error)
 
+	// GetTotals returns the tenant-wide counts across all strategies.
+	GetTotals(ctx context.Context, tenantId uuid.UUID) (*ConcurrencyTotals, error)
+
 	// ListKeys returns a page of a strategy's keys and the total number of matching keys.
 	// Returns ErrConcurrencyStrategyNotFound if the strategy does not exist in the given scope.
 	ListKeys(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, opts ListConcurrencyKeysOpts) ([]*ConcurrencyKey, int64, error)
@@ -113,6 +136,10 @@ type concurrencyOverviewRepository struct {
 
 	summaryCache *cache.Cache
 	keysCache    *cache.Cache
+
+	// The page requests the strategies and the totals together, so on a cache miss both
+	// would scan the tenant's slots; concurrent loads for a tenant share one scan instead.
+	summaryLoads singleflight.Group
 }
 
 func newConcurrencyOverviewRepository(shared *sharedRepository) (ConcurrencyOverviewRepository, func()) {
@@ -148,23 +175,43 @@ func (s slotStats) apply(sum *ConcurrencyStrategySummary) {
 }
 
 func (r *concurrencyOverviewRepository) ListStrategySummaries(ctx context.Context, tenantId uuid.UUID) ([]*ConcurrencyStrategySummary, error) {
-	res, err := cache.MakeCacheable(r.summaryCache, tenantId.String(), func() (*[]*ConcurrencyStrategySummary, error) {
-		summaries, err := r.listStrategySummaries(ctx, tenantId)
-		if err != nil {
-			return nil, err
-		}
+	overview, err := r.getOverview(ctx, tenantId)
+	if err != nil {
+		return nil, err
+	}
 
-		return &summaries, nil
+	return overview.strategies, nil
+}
+
+func (r *concurrencyOverviewRepository) GetTotals(ctx context.Context, tenantId uuid.UUID) (*ConcurrencyTotals, error) {
+	overview, err := r.getOverview(ctx, tenantId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &overview.totals, nil
+}
+
+func (r *concurrencyOverviewRepository) getOverview(ctx context.Context, tenantId uuid.UUID) (*concurrencyOverview, error) {
+	id := tenantId.String()
+
+	// the load is shared, so one caller going away must not cancel it for the others
+	loadCtx := context.WithoutCancel(ctx)
+
+	v, err, _ := r.summaryLoads.Do(id, func() (any, error) {
+		return cache.MakeCacheable(r.summaryCache, id, func() (*concurrencyOverview, error) {
+			return r.listStrategySummaries(loadCtx, tenantId)
+		})
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	return *res, nil
+	return v.(*concurrencyOverview), nil
 }
 
-func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Context, tenantId uuid.UUID) ([]*ConcurrencyStrategySummary, error) {
+func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Context, tenantId uuid.UUID) (*concurrencyOverview, error) {
 	taskStrategies, err := r.queries.ListTaskConcurrencyStrategiesForTenant(ctx, r.pool.ForTenant(tenantId), tenantId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list task concurrency strategies: %w", err)
@@ -193,7 +240,18 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 	// task and shared strategy ids share a sequence; workflow strategy ids have their own
 	stats := make(map[int64]slotStats, len(slotStatRows))
 
+	// A running task holds a filled slot on every strategy of its chain but only one on its
+	// last, so summing last-gate counts counts each task once. Child slots of workflow
+	// strategies are in the chain too, so they are summed here even though they have no row.
+	var runningCount int64
+
 	for _, row := range slotStatRows {
+		runningCount += row.LastGateRunningCount
+
+		if !row.IsTopLevel {
+			continue
+		}
+
 		stats[row.StrategyID] = slotStats{row.WorkflowID, row.WorkflowVersionID, row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.OldestQueuedAt, row.OldestQueuedKey}
 	}
 
@@ -341,6 +399,16 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 		res = append(res, sum)
 	}
 
+	// Queued slots add up: a task has at most one unfilled slot, and a run queued on a workflow
+	// strategy waits on a child slot, which has no row here. Keys are per strategy.
+	totals := ConcurrencyTotals{RunningCount: runningCount}
+
+	for _, sum := range res {
+		totals.KeyCount += sum.KeyCount
+		totals.QueuedKeyCount += sum.QueuedKeyCount
+		totals.QueuedCount += sum.QueuedCount
+	}
+
 	sort.SliceStable(res, func(i, j int) bool {
 		a, b := res[i], res[j]
 
@@ -359,7 +427,7 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 		return a.Name < b.Name
 	})
 
-	return res, nil
+	return &concurrencyOverview{strategies: res, totals: totals}, nil
 }
 
 type concurrencyKeysPage struct {

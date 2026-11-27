@@ -4,6 +4,7 @@ import { TotalsStrip } from './components/totals-strip';
 import {
   STRATEGIES_PAGE_SIZE,
   useConcurrencyStrategies,
+  useConcurrencyTotals,
 } from './hooks/use-concurrency';
 import { ConcurrencySearch, normalizeConcurrencySearch } from './search';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
@@ -45,8 +46,11 @@ function Concurrency({ tenantId }: ConcurrencyProps) {
   const { data, isLoading, isRefetching, error, refetch } =
     useConcurrencyStrategies(tenantId);
 
+  const totals = useConcurrencyTotals(tenantId);
+
   const refresh = () => {
     void refetch();
+    void totals.refetch();
     void queryClient.invalidateQueries({
       queryKey: [
         ...queries.v1Concurrency.keys._def,
@@ -155,6 +159,9 @@ function Concurrency({ tenantId }: ConcurrencyProps) {
         <>
           <TotalsStrip
             strategies={all}
+            totals={totals.data}
+            totalsLoading={totals.isLoading}
+            totalsError={totals.isError}
             loading={isLoading}
             now={now}
             onOpenKey={openKey}

@@ -715,27 +715,30 @@ WITH per_key AS (
     SELECT
         strategy_id,
         key,
+        BOOL_AND(parent_strategy_id IS NULL) AS is_top_level,
         (ARRAY_AGG(workflow_id))[1] AS workflow_id,
         (ARRAY_AGG(workflow_version_id))[1] AS workflow_version_id,
         COUNT(*) FILTER (WHERE is_filled) AS running_count,
         COUNT(*) FILTER (WHERE NOT is_filled) AS queued_count,
+        COUNT(*) FILTER (WHERE is_filled AND COALESCE(cardinality(next_strategy_ids), 0) = 0) AS last_gate_running_count,
         MIN(task_inserted_at) FILTER (WHERE NOT is_filled) AS oldest_queued_at
     FROM
         v1_concurrency_slot
     WHERE
         tenant_id = $1::uuid
-        AND parent_strategy_id IS NULL
     GROUP BY
         strategy_id, key
 )
 SELECT
     strategy_id,
+    BOOL_AND(is_top_level)::BOOLEAN AS is_top_level,
     (ARRAY_AGG(workflow_id))[1]::UUID AS workflow_id,
     (ARRAY_AGG(workflow_version_id))[1]::UUID AS workflow_version_id,
     COUNT(*)::BIGINT AS key_count,
     (COUNT(*) FILTER (WHERE queued_count > 0))::BIGINT AS queued_key_count,
     SUM(running_count)::BIGINT AS running_count,
     SUM(queued_count)::BIGINT AS queued_count,
+    SUM(last_gate_running_count)::BIGINT AS last_gate_running_count,
     MIN(oldest_queued_at)::TIMESTAMPTZ AS oldest_queued_at,
     COALESCE((ARRAY_AGG(key ORDER BY oldest_queued_at, key) FILTER (WHERE queued_count > 0))[1], '')::TEXT AS oldest_queued_key
 FROM
@@ -745,18 +748,28 @@ GROUP BY
 `
 
 type ListConcurrencySlotStatsForTenantRow struct {
-	StrategyID        int64              `json:"strategy_id"`
-	WorkflowID        uuid.UUID          `json:"workflow_id"`
-	WorkflowVersionID uuid.UUID          `json:"workflow_version_id"`
-	KeyCount          int64              `json:"key_count"`
-	QueuedKeyCount    int64              `json:"queued_key_count"`
-	RunningCount      int64              `json:"running_count"`
-	QueuedCount       int64              `json:"queued_count"`
-	OldestQueuedAt    pgtype.Timestamptz `json:"oldest_queued_at"`
-	OldestQueuedKey   string             `json:"oldest_queued_key"`
+	StrategyID           int64              `json:"strategy_id"`
+	IsTopLevel           bool               `json:"is_top_level"`
+	WorkflowID           uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID    uuid.UUID          `json:"workflow_version_id"`
+	KeyCount             int64              `json:"key_count"`
+	QueuedKeyCount       int64              `json:"queued_key_count"`
+	RunningCount         int64              `json:"running_count"`
+	QueuedCount          int64              `json:"queued_count"`
+	LastGateRunningCount int64              `json:"last_gate_running_count"`
+	OldestQueuedAt       pgtype.Timestamptz `json:"oldest_queued_at"`
+	OldestQueuedKey      string             `json:"oldest_queued_key"`
 }
 
-// Per-strategy slot counts for task-scoped and tenant strategies.
+// Per-strategy slot counts for task-scoped and tenant strategies. A filled slot stays filled
+// until its task finishes, including while the task waits at a later strategy of its chain, so
+// running_count is the strategy's capacity in use rather than its running tasks.
+//
+// last_gate_running_count only counts filled slots on the last strategy of a chain. Such a task
+// has passed every strategy, and it has exactly one such slot, so summing this across
+// strategies counts each running task once. Workflow strategies are part of the same chain as
+// child slots, so those are included and flagged with is_top_level = FALSE: they count towards
+// the total but have no row of their own.
 func (q *Queries) ListConcurrencySlotStatsForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListConcurrencySlotStatsForTenantRow, error) {
 	rows, err := db.Query(ctx, listConcurrencySlotStatsForTenant, tenantid)
 	if err != nil {
@@ -768,12 +781,14 @@ func (q *Queries) ListConcurrencySlotStatsForTenant(ctx context.Context, db DBTX
 		var i ListConcurrencySlotStatsForTenantRow
 		if err := rows.Scan(
 			&i.StrategyID,
+			&i.IsTopLevel,
 			&i.WorkflowID,
 			&i.WorkflowVersionID,
 			&i.KeyCount,
 			&i.QueuedKeyCount,
 			&i.RunningCount,
 			&i.QueuedCount,
+			&i.LastGateRunningCount,
 			&i.OldestQueuedAt,
 			&i.OldestQueuedKey,
 		); err != nil {

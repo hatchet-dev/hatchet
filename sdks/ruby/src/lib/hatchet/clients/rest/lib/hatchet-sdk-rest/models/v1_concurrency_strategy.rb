@@ -40,7 +40,7 @@ module HatchetSdkRest
     # Keys with at least one queued run.
     attr_accessor :queued_key_count
 
-    # Running runs, each holding a slot.
+    # Slots in use. A run keeps its slot until it finishes, so this includes runs waiting at a later strategy of their chain.
     attr_accessor :running_count
 
     # Queued runs.

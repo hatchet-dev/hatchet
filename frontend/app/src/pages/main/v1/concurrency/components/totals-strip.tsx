@@ -1,9 +1,18 @@
 import { formatElapsed } from './concurrency-format';
 import { StatCell } from '@/components/v1/molecules/stat-cell';
-import { V1ConcurrencyScope, V1ConcurrencyStrategy } from '@/lib/api';
+import {
+  V1ConcurrencyScope,
+  V1ConcurrencyStrategy,
+  V1ConcurrencyTotals,
+} from '@/lib/api';
 
 export type TotalsStripProps = {
   strategies: V1ConcurrencyStrategy[];
+  // fetched separately: a run in a chain of strategies holds a slot in each of them, so summing
+  // the rows would count it once per strategy
+  totals: V1ConcurrencyTotals | undefined;
+  totalsLoading: boolean;
+  totalsError: boolean;
   loading: boolean;
   now: number;
   onOpenKey: (strategy: V1ConcurrencyStrategy, key: string) => void;
@@ -11,6 +20,9 @@ export type TotalsStripProps = {
 
 export function TotalsStrip({
   strategies,
+  totals,
+  totalsLoading,
+  totalsError,
   loading,
   now,
   onOpenKey,
@@ -18,10 +30,10 @@ export function TotalsStrip({
   const countScope = (scope: V1ConcurrencyScope) =>
     strategies.filter((s) => s.scope === scope).length;
 
-  const keys = sum(strategies, (s) => s.keyCount);
-  const running = sum(strategies, (s) => s.runningCount);
-  const queued = sum(strategies, (s) => s.queuedCount);
-  const queuedKeys = sum(strategies, (s) => s.queuedKeyCount);
+  const keys = totals?.keyCount ?? 0;
+  const running = totals?.runningCount ?? 0;
+  const queued = totals?.queuedCount ?? 0;
+  const queuedKeys = totals?.queuedKeyCount ?? 0;
 
   const longest = strategies
     .filter((s) => s.oldestQueuedAt)
@@ -45,25 +57,32 @@ export function TotalsStrip({
       </StatCell>
       <StatCell
         label="Keys in use"
-        loading={loading}
-        hint="with running or queued runs"
+        loading={totalsLoading}
+        error={totalsError}
+        hint="with a slot in use or a queued run"
       >
         {keys}
       </StatCell>
       <StatCell
-        label="Runs holding a slot"
-        loading={loading}
-        hint="across all keys"
+        label="Running runs"
+        loading={totalsLoading}
+        error={totalsError}
+        hint="past every strategy of their chain"
       >
         {running}
       </StatCell>
       <StatCell
         label="Queued runs"
-        loading={loading}
+        loading={totalsLoading}
+        error={totalsError}
         valueClassName={
           queued > 0 ? 'text-amber-700 dark:text-amber-400' : undefined
         }
-        hint={`across ${queuedKeys} ${queuedKeys === 1 ? 'key' : 'keys'}`}
+        hint={
+          totalsError
+            ? undefined
+            : `across ${queuedKeys} ${queuedKeys === 1 ? 'key' : 'keys'}`
+        }
       >
         {queued}
       </StatCell>
@@ -88,8 +107,4 @@ export function TotalsStrip({
       </StatCell>
     </section>
   );
-}
-
-function sum<T>(rows: T[], f: (row: T) => number) {
-  return rows.reduce((acc, row) => acc + f(row), 0);
 }
